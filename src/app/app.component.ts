@@ -23,8 +23,7 @@ export class AppComponent implements OnInit {
         { path: '/ultimo-minuto', label: 'Último Minuto', icon: 'flash_on' },
         { path: '/timeline-noticiario', label: 'Timeline Noticiario', icon: 'timeline' },
         { path: '/mis-noticieros', label: 'Mis Noticieros', icon: 'folder_special' },
-        { path: '/radios', label: 'Radios', icon: 'radio' },
-        { path: '/automatizacion-activos', label: 'Automatización Activos', icon: 'settings_suggest' }
+        { path: '/radios', label: 'Radios', icon: 'radio' }
     ];
 
     constructor(
