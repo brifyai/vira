@@ -925,9 +925,14 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-const PORT = 8888;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/api/health`);
-    console.log(`Scrape endpoint: http://localhost:${PORT}/api/scrape`);
-});
+const PORT = process.env.PORT || 8888;
+
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log(`Health check: http://localhost:${PORT}/api/health`);
+        console.log(`Scrape endpoint: http://localhost:${PORT}/api/scrape`);
+    });
+}
+
+module.exports = app;
