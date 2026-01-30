@@ -117,8 +117,12 @@
                         </span>
                     </div>
                     <button class="play-btn" (click)="playBroadcast(broadcast); $event.stopPropagation()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg *ngIf="playingBroadcastId !== broadcast.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <svg *ngIf="playingBroadcastId === broadcast.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="6" y="4" width="4" height="16"></rect>
+                            <rect x="14" y="4" width="4" height="16"></rect>
                         </svg>
                     </button>
                 </div>
@@ -143,8 +147,12 @@
                         {{ getStatusText(broadcast.status) }}
                     </div>
                     <button class="play-btn-small" (click)="playBroadcast(broadcast); $event.stopPropagation()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg *ngIf="playingBroadcastId !== broadcast.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <svg *ngIf="playingBroadcastId === broadcast.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="6" y="4" width="4" height="16"></rect>
+                            <rect x="14" y="4" width="4" height="16"></rect>
                         </svg>
                     </button>
                 </div>

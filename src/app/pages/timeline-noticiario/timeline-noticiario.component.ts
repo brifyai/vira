@@ -69,6 +69,10 @@ export class TimelineNoticiarioComponent implements OnInit {
     // Voice options
     availableVoices: any[] = [];
 
+    // Audio playback
+    currentAudio: HTMLAudioElement | null = null;
+    playingBroadcastId: string | null = null;
+
     constructor(
         private supabaseService: SupabaseService,
         private azureTtsService: AzureTtsService,
@@ -77,6 +81,51 @@ export class TimelineNoticiarioComponent implements OnInit {
         private route: ActivatedRoute
     ) { 
         this.availableVoices = this.azureTtsService.getVoices();
+    }
+
+    async playBroadcast(broadcast: any) {
+        if (this.playingBroadcastId === broadcast.id) {
+            this.stopAudio();
+            return;
+        }
+
+        this.stopAudio();
+        
+        // If we don't have the audio URL yet, fetch it
+        if (!broadcast.audioUrl) {
+            try {
+                const generated = await this.supabaseService.getGeneratedBroadcasts({ broadcastId: broadcast.id, limit: 1 });
+                if (generated && generated.length > 0 && generated[0].audio_url) {
+                    broadcast.audioUrl = generated[0].audio_url;
+                } else {
+                    this.snackBar.open('No hay audio generado para este noticiero', 'Cerrar', { duration: 3000 });
+                    return;
+                }
+            } catch (error) {
+                console.error('Error fetching audio:', error);
+                this.snackBar.open('Error al obtener el audio', 'Cerrar', { duration: 3000 });
+                return;
+            }
+        }
+
+        if (broadcast.audioUrl) {
+            this.currentAudio = new Audio(broadcast.audioUrl);
+            this.currentAudio.onended = () => {
+                this.playingBroadcastId = null;
+                this.cdr.detectChanges();
+            };
+            this.currentAudio.play();
+            this.playingBroadcastId = broadcast.id;
+        }
+    }
+
+    stopAudio() {
+        if (this.currentAudio) {
+            this.currentAudio.pause();
+            this.currentAudio.currentTime = 0;
+            this.currentAudio = null;
+        }
+        this.playingBroadcastId = null;
     }
 
     async ngOnInit(): Promise<void> {
