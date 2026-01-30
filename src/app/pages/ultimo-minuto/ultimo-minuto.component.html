@@ -51,19 +51,16 @@
 
     <!-- News Grid -->
     <div class="news-grid" *ngIf="!loading">
-        <div class="news-card" *ngFor="let news of paginatedNews">
-            <div class="news-image">
-                <ng-container *ngIf="news.imageUrl && !news.imageError; else noImage">
-                    <img [src]="news.imageUrl" [alt]="news.title" (error)="news.imageError = true">
-                </ng-container>
-                <ng-template #noImage>
-                    <div class="vira-logo-placeholder">
-                        <div class="logo-text">VIRA</div>
-                    </div>
-                </ng-template>
-                <div class="news-badge" [class]="getPriorityClass(news.priority)">
-                    {{ getPriorityText(news.priority) }}
+        <div class="news-card" *ngFor="let news of paginatedNews" [class.selected]="isNewsSelected(news.id)">
+            <div class="selection-checkbox" (click)="toggleNewsSelection(news, $event)">
+                <div class="checkbox-box" [class.checked]="isNewsSelected(news.id)">
+                    <svg *ngIf="isNewsSelected(news.id)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
                 </div>
+            </div>
+            <div class="news-badge" [class]="getPriorityClass(news.priority)">
+                {{ getPriorityText(news.priority) }}
             </div>
             <div class="news-content">
                 <div class="news-header">
@@ -118,25 +115,48 @@
         </div>
     </div>
 
-    <!-- Express News Panel -->
-    <div id="express-news-panel" class="express-panel" *ngIf="showExpressPanel && selectedNews">
+    <!-- Floating Action Button for Batch Processing -->
+    <div class="broadcast-fab" *ngIf="selectedNewsCount > 0" (click)="openExpressPanel()">
+        <div class="fab-content">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            <span>Configurar Noticias ({{ selectedNewsCount }})</span>
+        </div>
+    </div>
+
+    <!-- Express News Panel (Unified) -->
+    <div id="express-news-panel" class="express-panel" *ngIf="showExpressPanel && activeItem">
         <div class="panel-header">
             <h3>Configuración Noticia Express</h3>
             <button class="close-btn" (click)="closeExpressPanel()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
         </div>
+
+        <!-- Tabs for multiple items -->
+        <div class="express-tabs" *ngIf="expressItemsList.length > 1">
+            <div class="tab-item" 
+                 *ngFor="let item of expressItemsList" 
+                 [class.active]="item.id === activeExpressItemId"
+                 [class.saved]="item.status === 'saved'"
+                 (click)="selectTab(item.id)">
+                 <span class="tab-status-dot" [class.ready]="item.status === 'saved'"></span>
+                 <span class="tab-title">{{ item.originalNews.title }}</span>
+            </div>
+        </div>
         
         <div class="panel-content">
             <div class="original-content">
                 <label>Noticia Original:</label>
-                <div class="text-preview">{{ selectedNews.content }}</div>
+                <div class="text-preview">{{ activeItem.originalNews.content }}</div>
             </div>
 
             <div class="actions-row">
-                <button class="action-btn humanize-btn" (click)="humanizeNews()" [disabled]="isHumanizing">
-                    <svg *ngIf="!isHumanizing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12L2.1 12a10.1 10.1 0 0 0 1.5 4"></path><path d="M12 12l8.5 6"></path></svg>
-                    <span *ngIf="isHumanizing" class="spinner-small"></span>
+                <button class="action-btn humanize-btn" (click)="humanizeNews()" [disabled]="activeItem.isHumanizing">
+                    <svg *ngIf="!activeItem.isHumanizing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12L2.1 12a10.1 10.1 0 0 0 1.5 4"></path><path d="M12 12l8.5 6"></path></svg>
+                    <span *ngIf="activeItem.isHumanizing" class="spinner-small"></span>
                     Humanizar Noticia
                 </button>
             </div>
@@ -146,44 +166,51 @@
                 
                 <!-- Voice Configuration Controls -->
                 <div class="voice-controls-panel">
-                    <!-- Only Azure Controls -->
                     <div class="azure-controls" style="margin-bottom: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
                         <div class="control-row" style="display: flex; gap: 20px; flex-wrap: wrap;">
                             <div class="control-group" style="flex: 1; min-width: 200px;">
                                 <label style="display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9em;">Voz (Azure Neural):</label>
-                                <select [(ngModel)]="azureVoice" style="width: 100%; padding: 8px; background: #333; border: 1px solid #444; color: white; border-radius: 4px;">
+                                <select [(ngModel)]="activeItem.voiceSettings.voice" style="width: 100%; padding: 8px; background: #333; border: 1px solid #444; color: white; border-radius: 4px;">
                                     <option *ngFor="let voice of azureVoices" [value]="voice.name">
                                         {{ voice.label }}
                                     </option>
                                 </select>
                             </div>
                             <div class="control-group" style="flex: 1; min-width: 200px;">
-                                <label style="display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9em;">Velocidad: {{ azureSpeed }}x</label>
-                                <input type="range" [(ngModel)]="azureSpeed" min="0.5" max="1.5" step="0.1" class="speed-slider" style="width: 100%;">
+                                <label style="display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9em;">Velocidad: {{ activeItem.voiceSettings.speed }}x</label>
+                                <input type="range" [(ngModel)]="activeItem.voiceSettings.speed" min="0.5" max="1.5" step="0.1" class="speed-slider" style="width: 100%;">
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <textarea id="humanizedTextarea" [(ngModel)]="humanizedText" rows="6" placeholder="El texto humanizado aparecerá aquí..."></textarea>
+                <textarea id="humanizedTextarea" [(ngModel)]="activeItem.humanizedText" rows="6" placeholder="El texto humanizado aparecerá aquí..."></textarea>
             </div>
 
-            <div class="audio-section" *ngIf="humanizedText">
-                <button class="action-btn audio-btn" (click)="generateAudio()" [disabled]="isGeneratingAudio">
-                    <svg *ngIf="!isGeneratingAudio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-                    <span *ngIf="isGeneratingAudio" class="spinner-small"></span>
+            <div class="audio-section" *ngIf="activeItem.humanizedText">
+                <button class="action-btn audio-btn" (click)="generateAudio()" [disabled]="activeItem.isGeneratingAudio">
+                    <svg *ngIf="!activeItem.isGeneratingAudio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    <span *ngIf="activeItem.isGeneratingAudio" class="spinner-small"></span>
                     Generar Audio
                 </button>
 
-                <div class="audio-player" *ngIf="generatedAudioUrl">
-                    <audio controls [src]="generatedAudioUrl"></audio>
+                <div class="audio-player" *ngIf="activeItem.generatedAudioUrl">
+                    <audio controls [src]="activeItem.generatedAudioUrl"></audio>
                 </div>
             </div>
 
             <div class="panel-footer">
-                <button class="save-btn" (click)="saveExpressNews()" [disabled]="!humanizedText || isSavingExpress">
+                <button class="save-btn" (click)="saveExpressNews()" [disabled]="!activeItem.humanizedText || isSavingExpress || activeItem.status === 'saved'">
                     <span *ngIf="isSavingExpress" class="spinner-small"></span>
-                    Guardar y Exportar
+                    {{ activeItem.status === 'saved' ? 'Guardado ✓' : 'Guardar Noticia' }}
+                </button>
+
+                <button class="save-btn broadcast-btn" 
+                        *ngIf="expressItemsList.length > 0"
+                        (click)="createExpressBroadcast()" 
+                        [disabled]="isSavingExpress || !hasSavedItems">
+                    <span *ngIf="isSavingExpress" class="spinner-small"></span>
+                    Crear Noticiero Express ({{ savedItemsCount }}/{{ expressItemsList.length }})
                 </button>
             </div>
         </div>

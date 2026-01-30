@@ -22,11 +22,10 @@ export class AppComponent implements OnInit {
         { path: '/crear-noticiario', label: 'Crear Noticiario', icon: 'add_circle' },
         { path: '/ultimo-minuto', label: 'Último Minuto', icon: 'flash_on' },
         { path: '/timeline-noticiario', label: 'Timeline Noticiario', icon: 'timeline' },
+        { path: '/mis-noticieros', label: 'Mis Noticieros', icon: 'folder_special' },
+        { path: '/radios', label: 'Radios', icon: 'radio' },
         { path: '/automatizacion-activos', label: 'Automatización Activos', icon: 'settings_suggest' }
     ];
-
-    // Admin-only menu item
-    adminMenuItem = { path: '/fuentes', label: 'Fuentes', icon: 'source' };
 
     constructor(
         private router: Router,
@@ -58,9 +57,22 @@ export class AppComponent implements OnInit {
 
     get visibleMenuItems() {
         const items = [...this.menuItems];
-        if (this.isAdmin) {
-            items.push(this.adminMenuItem);
+        
+        // Fuentes: Only Super Admin
+        if (this.authService.isSuperAdmin()) {
+            items.push({ path: '/fuentes', label: 'Fuentes', icon: 'source' });
         }
+
+        // Usuarios: Admin and Super Admin
+        if (this.authService.isAdmin()) {
+             // Assuming 'users' icon is not in the template yet, I'll use 'dashboard' or need to add SVG for it.
+             // I'll add a generic 'users' label and handle the icon in template or reuse one.
+             // For now, I'll reuse 'settings_suggest' logic or just add it.
+             // Wait, the template loops through items and checks `item.icon`.
+             // I need to add 'people' or 'group' icon support in template.
+             items.push({ path: '/usuarios', label: 'Usuarios', icon: 'people' });
+        }
+
         return items;
     }
 

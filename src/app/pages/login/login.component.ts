@@ -25,17 +25,26 @@ export class LoginComponent {
     onSubmit(): void {
         this.loading = true;
         this.errorMessage = '';
+        console.log('LoginComponent: Submitting login form...');
 
         this.authService.login(this.email, this.password).subscribe({
             next: (user: User) => {
-                console.log('Login successful:', user);
-                this.router.navigate(['/dashboard']);
+                console.log('LoginComponent: Login successful, navigating to dashboard...', user);
+                this.router.navigate(['/dashboard']).then(success => {
+                    console.log('LoginComponent: Navigation result:', success);
+                    if (!success) {
+                        console.error('LoginComponent: Navigation failed!');
+                        this.errorMessage = 'Error al navegar al dashboard';
+                    }
+                });
             },
             error: (error) => {
+                console.error('LoginComponent: Login error:', error);
                 this.errorMessage = error.message || 'Error al iniciar sesión';
                 this.loading = false;
             },
             complete: () => {
+                console.log('LoginComponent: Login observable completed');
                 this.loading = false;
             }
         });

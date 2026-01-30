@@ -8,8 +8,8 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize Supabase client
-const supabaseUrl = 'https://xetifamvebflkytbwmir.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhldGlmYW12ZWJmbGt5dGJ3bWlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNjU5MTgsImV4cCI6MjA4Mjk0MTkxOH0.4NWmJsj3bsgDKqQevZ1a76DF14miRCtUoKLrWRcaVcc';
+const supabaseUrl = 'https://themdawboacvgyyaftus.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZW1kYXdib2Fjdmd5eWFmdHVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODE3NTAsImV4cCI6MjA4NTM1Nzc1MH0.w1pw0S7fxz3qIBbB-VoZ5x6tf4AKWgc5p3ffgP2zYCc';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const scrapingBeeApiKey = '0PP8W5U3GBAJ5LCIOHHZ2MDDVYAG4EQK599KIO00EWIVER2I0NN5MKV37TTRM51FWUJCZC56G2ZK0XK3';
@@ -45,20 +45,20 @@ app.post('/api/scrape', async (req, res) => {
     console.log('Scrape request received:', req.body);
     const startTime = Date.now();
 
-    // Set headers for streaming response
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
+    // Send standard JSON response (no streaming)
+    // res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    // res.setHeader('Transfer-Encoding', 'chunked');
 
     const sendUpdate = (data) => {
-        res.write(JSON.stringify(data) + '\n');
+        // Log updates to console instead of streaming to client
+        console.log('[UPDATE]', JSON.stringify(data));
     };
 
     try {
         const { sources } = req.body;
 
         if (!sources || !Array.isArray(sources) || sources.length === 0) {
-            sendUpdate({ type: 'error', error: 'No sources provided' });
-            return res.end();
+            return res.status(400).json({ error: 'No sources provided' });
         }
 
         // Get active sources from Supabase
@@ -70,13 +70,11 @@ app.post('/api/scrape', async (req, res) => {
 
         if (sourcesError) {
             console.error('Error fetching sources:', sourcesError);
-            sendUpdate({ type: 'error', error: sourcesError.message });
-            return res.end();
+            return res.status(500).json({ error: sourcesError.message });
         }
 
         if (!sourcesData || sourcesData.length === 0) {
-            sendUpdate({ type: 'error', error: 'No active sources found' });
-            return res.end();
+            return res.status(404).json({ error: 'No active sources found' });
         }
 
         console.log(`Processing ${sourcesData.length} sources`);
@@ -485,18 +483,18 @@ app.post('/api/scrape', async (req, res) => {
         }
 
         const duration = (Date.now() - startTime) / 1000;
-        sendUpdate({
-            type: 'complete',
+        console.log(`[COMPLETE] Scraped ${scrapedNews.length} news in ${duration}s`);
+        
+        res.json({
             success: true,
             count: scrapedNews.length,
-            message: `Actualización completada: ${scrapedNews.length} noticias nuevas en ${duration}s`
+            message: `Actualización completada: ${scrapedNews.length} noticias nuevas en ${duration}s`,
+            data: scrapedNews
         });
-        res.end();
 
     } catch (error) {
         console.error('Error in scrape endpoint:', error);
-        sendUpdate({ type: 'error', error: error instanceof Error ? error.message : 'Unknown error occurred' });
-        res.end();
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error occurred' });
     }
 });
 

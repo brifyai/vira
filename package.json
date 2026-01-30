@@ -39,7 +39,9 @@
     "@supabase/supabase-js": "^2.89.0",
     "cors": "^2.8.5",
     "express": "^4.22.1",
+    "lamejs": "^1.2.1",
     "rxjs": "~7.8.0",
+    "sweetalert2": "^11.26.17",
     "tslib": "^2.3.0"
   },
   "devDependencies": {

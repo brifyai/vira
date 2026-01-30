@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
+import { roleGuard } from './guards/role.guard';
 
 export const routes: Routes = [
     {
@@ -33,6 +34,16 @@ export const routes: Routes = [
         canActivate: [authGuard]
     },
     {
+        path: 'timeline-noticiario/:id',
+        loadComponent: () => import('./pages/timeline-noticiario/timeline-noticiario.component').then(m => m.TimelineNoticiarioComponent),
+        canActivate: [authGuard]
+    },
+    {
+        path: 'mis-noticieros',
+        loadComponent: () => import('./pages/mis-noticieros/mis-noticieros.component').then(m => m.MisNoticierosComponent),
+        canActivate: [authGuard]
+    },
+    {
         path: 'automatizacion-activos',
         loadComponent: () => import('./pages/automatizacion-activos/automatizacion-activos.component').then(m => m.AutomatizacionActivosComponent),
         canActivate: [authGuard]
@@ -40,6 +51,23 @@ export const routes: Routes = [
     {
         path: 'fuentes',
         loadComponent: () => import('./pages/fuentes/fuentes.component').then(m => m.FuentesComponent),
-        canActivate: [authGuard, adminGuard]
+        canActivate: [authGuard, roleGuard],
+        data: { roles: ['super_admin'] }
+    },
+    {
+        path: 'radios',
+        loadComponent: () => import('./pages/radios/radios.component').then(m => m.RadiosComponent),
+        canActivate: [authGuard]
+    },
+    {
+        path: 'radios/:id',
+        loadComponent: () => import('./pages/radios/radio-details/radio-details.component').then(m => m.RadioDetailsComponent),
+        canActivate: [authGuard]
+    },
+    {
+        path: 'usuarios',
+        loadComponent: () => import('./pages/users/users.component').then(m => m.UsersComponent),
+        canActivate: [authGuard, roleGuard],
+        data: { roles: ['admin', 'super_admin'] }
     }
 ];

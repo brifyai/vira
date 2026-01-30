@@ -1,0 +1,126 @@
+<div class="radios-container">
+    <div class="header">
+        <div class="title-section">
+            <h1>Gestión de Radios</h1>
+            <p>Administra las radios y sus configuraciones</p>
+        </div>
+        <button class="create-btn" (click)="openCreateModal()" *ngIf="canManageRadios">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Nueva Radio
+        </button>
+    </div>
+
+    <div class="radios-grid" *ngIf="!loading">
+        <div class="radio-card" *ngFor="let radio of radios" (click)="navigateToDetails(radio)">
+            <div class="card-header">
+                <div class="radio-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="2"></circle>
+                        <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"></path>
+                    </svg>
+                </div>
+                <div class="actions" *ngIf="canManageRadios">
+                    <button class="action-btn edit" (click)="openEditModal(radio, $event)" title="Editar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="action-btn delete" (click)="deleteRadio(radio, $event)" title="Eliminar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card-content">
+                <h3>{{ radio.name }}</h3>
+                <div class="info-row">
+                    <span class="label">Región:</span>
+                    <span class="value">{{ radio.region }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Comuna:</span>
+                    <span class="value">{{ radio.comuna }}</span>
+                </div>
+                <div class="info-row" *ngIf="radio.frequency">
+                    <span class="label">Frecuencia:</span>
+                    <span class="value">{{ radio.frequency }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" *ngIf="radios.length === 0">
+            <div class="empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <h3>{{ canManageRadios ? 'No hay radios configuradas' : 'No tienes radios asignadas' }}</h3>
+            <p>{{ canManageRadios ? 'Crea tu primera radio para comenzar a gestionar noticieros.' : 'Contacta al administrador para que te asigne una radio.' }}</p>
+            <button class="create-btn" (click)="openCreateModal()" *ngIf="canManageRadios">
+                Crear Radio
+            </button>
+        </div>
+    </div>
+
+    <div class="loading-state" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Cargando radios...</p>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" *ngIf="showCreateModal || showEditModal" (click)="closeModals()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+            <h2>{{ showEditModal ? 'Editar Radio' : 'Nueva Radio' }}</h2>
+            <button class="close-btn" (click)="closeModals()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Nombre de la Radio</label>
+                <input type="text" [(ngModel)]="formData.name" placeholder="Ej: Radio Activa">
+            </div>
+
+            <div class="form-group">
+                <label>Región</label>
+                <select [(ngModel)]="formData.region">
+                    <option value="" disabled selected>Selecciona una región</option>
+                    <option *ngFor="let region of regions" [value]="region">{{ region }}</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Comuna</label>
+                <input type="text" [(ngModel)]="formData.comuna" placeholder="Ej: Santiago">
+            </div>
+
+            <div class="form-group">
+                <label>Frecuencia (Opcional)</label>
+                <input type="text" [(ngModel)]="formData.frequency" placeholder="Ej: 92.5 FM">
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="cancel-btn" (click)="closeModals()">Cancelar</button>
+            <button class="save-btn" (click)="showEditModal ? updateRadio() : createRadio()">
+                {{ showEditModal ? 'Guardar Cambios' : 'Crear Radio' }}
+            </button>
+        </div>
+    </div>
+</div>

@@ -33,16 +33,97 @@ export class SupabaseService {
         return user;
     }
 
-    // async getUserProfile(userId: string) {
-    //     const { data, error } = await this.supabase
-    //         .from('users')
-    //         .select('*')
-    //         .eq('id', userId)
-    //         .single();
+    async getCurrentSession() {
+        const { data: { session } } = await this.supabase.auth.getSession();
+        return session;
+    }
 
-    //     if (error) throw error;
-    //     return data;
-    // }
+    async getUserProfile(userId: string) {
+        const { data, error } = await this.supabase
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        if (error) {
+             // If profile doesn't exist (e.g. old user), return basic info or null
+             // Or better: try to create it?
+             console.warn('Error fetching user profile:', error);
+             return null;
+        }
+        return data;
+    }
+
+    async getUsers() {
+        const { data, error } = await this.supabase
+            .from('users')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data;
+    }
+
+    async updateUserRole(userId: string, role: string) {
+        const { data, error } = await this.supabase
+            .from('users')
+            .update({ role })
+            .eq('id', userId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async createUser(user: { email: string; password: string; role: string; fullName?: string }) {
+        const { data, error } = await this.supabase.rpc('create_user_rpc', {
+            email: user.email,
+            password: user.password,
+            role_name: user.role,
+            full_name: user.fullName || ''
+        });
+
+        if (error) throw error;
+        return data;
+    }
+
+    // User Radios Assignment
+    async getUserRadios(userId: string) {
+        const { data, error } = await this.supabase
+            .from('user_radios')
+            .select('*, radio:radios(*)')
+            .eq('user_id', userId);
+
+        if (error) throw error;
+        return data;
+    }
+
+    async assignRadioToUser(userId: string, radioId: string) {
+        const user = await this.getCurrentUser();
+        const { data, error } = await this.supabase
+            .from('user_radios')
+            .insert({ 
+                user_id: userId, 
+                radio_id: radioId,
+                assigned_by: user?.id 
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async removeRadioFromUser(userId: string, radioId: string) {
+        const { error } = await this.supabase
+            .from('user_radios')
+            .delete()
+            .eq('user_id', userId)
+            .eq('radio_id', radioId);
+
+        if (error) throw error;
+    }
 
     // async updateUserProfile(userId: string, updates: any) {
     //     const { data, error } = await this.supabase
@@ -55,6 +136,88 @@ export class SupabaseService {
     //     if (error) throw error;
     //     return data;
     // }
+
+    // ============================================
+    // RADIOS METHODS
+    // ============================================
+
+    async getRadios(options?: { limit?: number; offset?: number }) {
+        let query = this.supabase
+            .from('radios')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (options?.limit) {
+            query = query.limit(options.limit);
+        }
+
+        if (options?.offset) {
+            query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        return data;
+    }
+
+    async getRadioById(id: string) {
+        const { data, error } = await this.supabase
+            .from('radios')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async createRadio(radio: any) {
+        let user = await this.getCurrentUser();
+        
+        // Double check session if user is null
+        if (!user) {
+            const { data: { session } } = await this.supabase.auth.getSession();
+            user = session?.user || null;
+        }
+
+        if (!user) {
+            console.error('CreateRadio: User not authenticated', {
+                session: await this.supabase.auth.getSession()
+            });
+            throw new Error('User not authenticated - Please log in again');
+        }
+
+        const { data, error } = await this.supabase
+            .from('radios')
+            .insert({ ...radio, created_by: user.id })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async updateRadio(id: string, updates: any) {
+        const { data, error } = await this.supabase
+            .from('radios')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async deleteRadio(id: string) {
+        const { error } = await this.supabase
+            .from('radios')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
 
     // ============================================
     // NEWS SOURCES METHODS
@@ -184,6 +347,46 @@ export class SupabaseService {
         if (error) throw error;
     }
 
+    async getGeneratedBroadcasts(options?: { limit?: number; offset?: number }) {
+        let query = this.supabase
+            .from('generated_broadcasts')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (options?.limit) {
+            query = query.limit(options.limit);
+        }
+
+        if (options?.offset) {
+            query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        return data;
+    }
+
+    async createGeneratedBroadcast(broadcast: any) {
+        const { data, error } = await this.supabase
+            .from('generated_broadcasts')
+            .insert(broadcast)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async deleteGeneratedBroadcast(id: string) {
+        const { error } = await this.supabase
+            .from('generated_broadcasts')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
+
     // ============================================
     // HUMANIZED NEWS METHODS
     // ============================================
@@ -246,7 +449,7 @@ export class SupabaseService {
     // NEWS BROADCASTS METHODS
     // ============================================
 
-    async getNewsBroadcasts(options?: { limit?: number; offset?: number; status?: string }) {
+    async getNewsBroadcasts(options?: { limit?: number; offset?: number; status?: string; radioId?: string }) {
         let query = this.supabase
             .from('news_broadcasts')
             .select('*')
@@ -262,6 +465,10 @@ export class SupabaseService {
 
         if (options?.status) {
             query = query.eq('status', options.status);
+        }
+
+        if (options?.radioId) {
+            query = query.eq('radio_id', options.radioId);
         }
 
         const { data, error } = await query;
@@ -320,7 +527,7 @@ export class SupabaseService {
     async getBroadcastNewsItems(broadcastId: string) {
         const { data, error } = await this.supabase
             .from('broadcast_news_items')
-            .select('*')
+            .select('*, humanized_news(*)')
             .eq('broadcast_id', broadcastId)
             .order('order_index', { ascending: true });
 
@@ -339,6 +546,18 @@ export class SupabaseService {
         return data;
     }
 
+    async updateBroadcastNewsItem(id: string, updates: any) {
+        const { data, error } = await this.supabase
+            .from('broadcast_news_items')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
     async deleteBroadcastNewsItem(id: string) {
         const { error } = await this.supabase
             .from('broadcast_news_items')
@@ -346,6 +565,28 @@ export class SupabaseService {
             .eq('id', id);
 
         if (error) throw error;
+    }
+
+    // ============================================
+    // STORAGE METHODS
+    // ============================================
+
+    async uploadAudioFile(file: File, path: string) {
+        const { data, error } = await this.supabase.storage
+            .from('noticias') // Changed from 'audio-files' to 'noticias'
+            .upload(path, file, {
+                cacheControl: '3600',
+                upsert: true
+            });
+
+        if (error) throw error;
+
+        // Get public URL
+        const { data: publicUrlData } = this.supabase.storage
+            .from('noticias')
+            .getPublicUrl(path);
+            
+        return publicUrlData.publicUrl;
     }
 
     // ============================================
@@ -630,5 +871,26 @@ export class SupabaseService {
     // Unsubscribe from channel
     unsubscribe(channel: any) {
         this.supabase.removeChannel(channel);
+    }
+
+    // ============================================
+    // STORAGE METHODS
+    // ============================================
+
+    async uploadAudio(blob: Blob, fileName: string): Promise<string> {
+        const { data, error } = await this.supabase.storage
+            .from('noticias')
+            .upload(fileName, blob, {
+                cacheControl: '3600',
+                upsert: true
+            });
+
+        if (error) throw error;
+
+        const { data: { publicUrl } } = this.supabase.storage
+            .from('noticias')
+            .getPublicUrl(fileName);
+
+        return publicUrl;
     }
 }

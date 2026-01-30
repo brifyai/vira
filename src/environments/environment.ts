@@ -7,8 +7,8 @@ export const environment = {
     appUrl: 'http://localhost:4200',
 
     // Supabase Configuration
-    supabaseUrl: 'https://xetifamvebflkytbwmir.supabase.co',
-    supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhldGlmYW12ZWJmbGt5dGJ3bWlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNjU5MTgsImV4cCI6MjA4Mjk0MTkxOH0.4NWmJsj3bsgDKqQevZ1a76DF14miRCtUoKLrWRcaVcc',
+    supabaseUrl: 'https://themdawboacvgyyaftus.supabase.co',
+    supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZW1kYXdib2Fjdmd5eWFmdHVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODE3NTAsImV4cCI6MjA4NTM1Nzc1MH0.w1pw0S7fxz3qIBbB-VoZ5x6tf4AKWgc5p3ffgP2zYCc',
 
     // ScrapingBee
     scrapingBeeApiKey: '0PP8W5U3GBAJ5LCIOHHZ2MDDVYAG4EQK599KIO00EWIVER2I0NN5MKV37TTRM51FWUJCZC56G2ZK0XK3',
@@ -22,7 +22,7 @@ export const environment = {
     googleRedirectUri: 'http://localhost:8888/api/auth/google/callback',
 
     // Gemini AI
-    geminiApiKey: 'AIzaSyCvgEjsSLxBC-UCUGiWg7CsbPe8IXx8EPc',
+    geminiApiKey: 'AIzaSyB0iuhljTWgLoeiMrAug0vhhzwpfLEUKGc',
 
     // Google Cloud TTS
     googleCloudTtsApiKey: 'AIzaSyCvgEjsSLxBC-UCUGiWg7CsbPe8IXx8EPc',

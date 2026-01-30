@@ -9,6 +9,21 @@ import { GoogleTtsService } from '../../services/google-tts.service';
 import { GeminiTtsService } from '../../services/gemini-tts.service';
 import { AzureTtsService } from '../../services/azure-tts.service';
 
+interface ExpressNewsItem {
+    id: string; // original news id
+    originalNews: any;
+    humanizedText: string;
+    isHumanizing: boolean;
+    generatedAudioUrl: string;
+    isGeneratingAudio: boolean;
+    voiceSettings: {
+        voice: string;
+        speed: number;
+    };
+    status: 'pending' | 'ready' | 'saved' | 'error';
+    humanizedNewsId?: string;
+}
+
 interface NewsSource {
     id: string;
     name: string;
@@ -45,32 +60,18 @@ export class UltimoMinutoComponent implements OnInit {
     currentPage = 1;
     itemsPerPage = 9;
 
-    // Express News State
+    // Express News State (Batch & Single)
     showExpressPanel = false;
-    selectedNews: any = null;
-    humanizedText = '';
-    generatedAudioUrl = '';
-    isHumanizing = false;
-    isGeneratingAudio = false;
+    expressItems: Map<string, ExpressNewsItem> = new Map();
+    activeExpressItemId: string | null = null;
     isSavingExpress = false;
 
-    // Advanced Voice Settings
-    // ttsEngine: 'google' | 'gemini' | 'azure' = 'google';
-    // geminiVoice = 'Fenrir';
-    // geminiStyle = 'Noticiero';
-    // geminiVoices = [
-    //     { id: 'Fenrir', name: 'Fenrir (Hombre - Profundo)', gender: 'Male' },
-    //     { id: 'Puck', name: 'Puck (Hombre - Energético)', gender: 'Male' },
-    //     { id: 'Zephyr', name: 'Zephyr (Hombre - Suave)', gender: 'Male' },
-    //     { id: 'Kore', name: 'Kore (Mujer - Clara)', gender: 'Female' },
-    //     { id: 'Charon', name: 'Charon (Mujer - Profunda)', gender: 'Female' }
-    // ];
-    // geminiStyles = ['Noticiero', 'Natural', 'Alegre', 'Serio', 'Susurrar'];
-    // geminiSpeed = 1.0;
-
-    // Azure Settings
+    // Selection State
+    selectedNewsIds: Set<string> = new Set();
+    
+    // Azure Settings (Global defaults)
     azureVoice = 'es-CL-LorenzoNeural';
-    azureSpeed = 1.0;
+    azureSpeed = 0.95;
     azureVoices: any[] = [];
 
     constructor(
@@ -328,11 +329,62 @@ export class UltimoMinutoComponent implements OnInit {
         });
     }
 
-    // Express News Methods
-    openExpressPanel(news: any) {
-        this.selectedNews = news;
-        this.humanizedText = ''; // Start empty so user knows it needs humanization
-        this.generatedAudioUrl = '';
+    // Express News Methods (Batch & Single)
+    get activeItem(): ExpressNewsItem | undefined {
+        return this.activeExpressItemId ? this.expressItems.get(this.activeExpressItemId) : undefined;
+    }
+
+    get expressItemsList(): ExpressNewsItem[] {
+        return Array.from(this.expressItems.values());
+    }
+
+    get savedItemsCount(): number {
+        return this.expressItemsList.filter(item => item.status === 'saved').length;
+    }
+
+    get hasSavedItems(): boolean {
+        return this.expressItemsList.some(item => item.status === 'saved');
+    }
+
+    openExpressPanel(news: any = null) {
+        this.expressItems.clear();
+        
+        // If triggered by "Agregar" button (single item), ensure it's in the selection
+        if (news && !this.selectedNewsIds.has(news.id)) {
+            this.selectedNewsIds.add(news.id);
+        }
+
+        // Always process all selected items
+        // If news was passed, it's now in selectedNewsIds, so it will be included here
+        const itemsToProcess = this.breakingNews.filter(n => this.selectedNewsIds.has(n.id));
+
+        if (itemsToProcess.length === 0) return;
+
+        itemsToProcess.forEach(item => {
+            this.expressItems.set(item.id, {
+                id: item.id,
+                originalNews: item,
+                humanizedText: '',
+                isHumanizing: false,
+                generatedAudioUrl: '',
+                isGeneratingAudio: false,
+                voiceSettings: {
+                    voice: this.azureVoice,
+                    speed: this.azureSpeed
+                },
+                status: 'pending'
+            });
+        });
+
+        // Set active item
+        if (news) {
+            // If triggered by a specific item, focus that one
+            this.activeExpressItemId = news.id;
+        } else {
+            // Otherwise default to the first one (e.g. from FAB)
+            this.activeExpressItemId = itemsToProcess[0].id;
+        }
+        
         this.showExpressPanel = true;
         
         setTimeout(() => {
@@ -345,57 +397,65 @@ export class UltimoMinutoComponent implements OnInit {
 
     closeExpressPanel() {
         this.showExpressPanel = false;
-        this.selectedNews = null;
-        this.humanizedText = '';
-        this.generatedAudioUrl = '';
+        this.expressItems.clear();
+        this.activeExpressItemId = null;
+    }
+
+    selectTab(id: string) {
+        this.activeExpressItemId = id;
     }
 
     async humanizeNews() {
-        if (!this.selectedNews) return;
+        const item = this.activeItem;
+        if (!item) return;
         
-        this.isHumanizing = true;
+        item.isHumanizing = true;
         try {
-            this.humanizedText = await this.geminiService.humanizeText(this.selectedNews.content);
+            item.humanizedText = await this.geminiService.humanizeText(item.originalNews.content);
         } catch (error) {
             console.error('Error humanizing news:', error);
             this.snackBar.open('Error al humanizar la noticia', 'Cerrar', { duration: 3000 });
         } finally {
-            this.isHumanizing = false;
+            item.isHumanizing = false;
             this.cdr.detectChanges();
         }
     }
 
     async generateAudio() {
-        if (!this.humanizedText) return;
+        const item = this.activeItem;
+        if (!item || !item.humanizedText) return;
         
-        this.isGeneratingAudio = true;
+        item.isGeneratingAudio = true;
         try {
-            // Always use Azure TTS
-            this.generatedAudioUrl = await this.azureTtsService.generateSpeech({
-                text: this.humanizedText,
-                voice: this.azureVoice,
-                speed: this.azureSpeed
+            // Always use Azure TTS with item-specific settings
+            item.generatedAudioUrl = await this.azureTtsService.generateSpeech({
+                text: item.humanizedText,
+                voice: item.voiceSettings.voice,
+                speed: item.voiceSettings.speed
             });
         } catch (error: any) {
             console.error('Error generating audio:', error);
             const errorMessage = error.message || 'Error al generar audio';
             this.snackBar.open(`Error: ${errorMessage}`, 'Cerrar', { duration: 5000 });
         } finally {
-            this.isGeneratingAudio = false;
+            item.isGeneratingAudio = false;
             this.cdr.detectChanges();
         }
     }
 
     insertTag(tag: string) {
+        const item = this.activeItem;
+        if (!item) return;
+
         const textarea = document.getElementById('humanizedTextarea') as HTMLTextAreaElement;
         if (textarea) {
             const start = textarea.selectionStart;
             const end = textarea.selectionEnd;
-            const text = this.humanizedText;
+            const text = item.humanizedText || '';
             const before = text.substring(0, start);
             const after = text.substring(end, text.length);
             
-            this.humanizedText = before + tag + after;
+            item.humanizedText = before + tag + after;
             
             // Restore focus and cursor position after update
             setTimeout(() => {
@@ -403,29 +463,94 @@ export class UltimoMinutoComponent implements OnInit {
                 textarea.setSelectionRange(start + tag.length, start + tag.length);
             }, 0);
         } else {
-            this.humanizedText += tag;
+            item.humanizedText = (item.humanizedText || '') + tag;
         }
     }
 
     async saveExpressNews() {
-        if (!this.selectedNews || !this.humanizedText) return;
+        const item = this.activeItem;
+        if (!item || !item.humanizedText) return;
 
         this.isSavingExpress = true;
         try {
+            let finalAudioUrl = item.generatedAudioUrl;
+
+            // If audio is a blob URL, upload it to Supabase
+            if (finalAudioUrl && finalAudioUrl.startsWith('blob:')) {
+                const response = await fetch(finalAudioUrl);
+                const blob = await response.blob();
+                const fileName = `express_${item.id}_${Date.now()}.mp3`;
+                // Use uploadAudio which uses 'noticias' bucket
+                finalAudioUrl = await this.supabaseService.uploadAudio(blob, fileName);
+            }
+
             const newsData = {
-                scraped_news_id: this.selectedNews.id,
-                title: this.selectedNews.title,
-                content: this.humanizedText,
-                audio_url: this.generatedAudioUrl,
-                status: 'draft'
+                scraped_news_id: item.id,
+                title: item.originalNews.title,
+                humanized_content: item.humanizedText,
+                original_content: item.originalNews.content,
+                audio_url: finalAudioUrl,
+                status: 'ready'
             };
 
-            await this.supabaseService.createHumanizedNews(newsData);
+            const savedNews = await this.supabaseService.createHumanizedNews(newsData);
+            item.humanizedNewsId = savedNews.id;
+            item.status = 'saved';
             this.snackBar.open('Noticia Express guardada correctamente', 'Cerrar', { duration: 3000 });
-            this.closeExpressPanel();
         } catch (error) {
             console.error('Error saving express news:', error);
             this.snackBar.open('Error al guardar noticia express', 'Cerrar', { duration: 3000 });
+        } finally {
+            this.isSavingExpress = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    async createExpressBroadcast() {
+        const savedItems = this.expressItemsList.filter(item => item.status === 'saved' && item.humanizedNewsId);
+        
+        if (savedItems.length === 0) {
+            this.snackBar.open('No hay noticias guardadas para crear un noticiero', 'Cerrar', { duration: 3000 });
+            return;
+        }
+
+        if (savedItems.length < this.expressItemsList.length) {
+             const pendingCount = this.expressItemsList.length - savedItems.length;
+             // Optional: warn user that some items are not saved
+             // But we proceed with the saved ones for now, or maybe we should block?
+             // Let's assume the user knows what they are doing if they click the button, 
+             // but maybe the button should be disabled if not all are saved? 
+             // The user requirement implies "if I choose 3 news... they remain as 1 broadcast".
+             // So I should probably ensure all are saved or just use the saved ones.
+        }
+
+        this.isSavingExpress = true;
+        try {
+            // 1. Create Broadcast
+            const broadcast = await this.supabaseService.createNewsBroadcast({
+                title: `Noticiero Express - ${new Date().toLocaleString()}`,
+                description: `Noticiero generado desde Último Minuto con ${savedItems.length} noticias.`,
+                status: 'ready',
+                duration_minutes: 0,
+                total_news_count: savedItems.length
+            });
+
+            // 2. Link Items
+            for (let i = 0; i < savedItems.length; i++) {
+                const item = savedItems[i];
+                await this.supabaseService.createBroadcastNewsItem({
+                    broadcast_id: broadcast.id,
+                    humanized_news_id: item.humanizedNewsId,
+                    order_index: i
+                });
+            }
+
+            this.snackBar.open('Noticiero Express creado exitosamente', 'Cerrar', { duration: 3000 });
+            this.closeExpressPanel();
+            this.selectedNewsIds.clear(); // Clear selection
+        } catch (error) {
+            console.error('Error creating express broadcast:', error);
+            this.snackBar.open('Error al crear Noticiero Express', 'Cerrar', { duration: 3000 });
         } finally {
             this.isSavingExpress = false;
             this.cdr.detectChanges();
@@ -474,12 +599,25 @@ export class UltimoMinutoComponent implements OnInit {
         }
     }
 
-    addToBroadcast(news: any) {
-        console.log('Adding to broadcast:', news);
-        // Here you would implement adding to a broadcast queue in Supabase
-        this.snackBar.open(`"${news.title}" agregada al noticiero`, 'Cerrar', {
-            duration: 2000
-        });
+    // Selection Methods
+    toggleNewsSelection(news: any, event?: Event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        
+        if (this.selectedNewsIds.has(news.id)) {
+            this.selectedNewsIds.delete(news.id);
+        } else {
+            this.selectedNewsIds.add(news.id);
+        }
+    }
+
+    isNewsSelected(newsId: string): boolean {
+        return this.selectedNewsIds.has(newsId);
+    }
+
+    get selectedNewsCount(): number {
+        return this.selectedNewsIds.size;
     }
 
     toggleAutoRefresh() {

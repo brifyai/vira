@@ -167,25 +167,42 @@
     <!-- Timeline View -->
     <div class="timeline-view" *ngIf="selectedBroadcast">
         <div class="timeline-header">
-            <button class="back-btn" (click)="closeTimeline()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                    <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
-                Volver
-            </button>
-            <div class="broadcast-info">
-                <h2 class="broadcast-title">{{ selectedBroadcast.title }}</h2>
-                <p class="broadcast-description">{{ selectedBroadcast.description }}</p>
+            <div class="header-left">
+                <button class="back-btn" (click)="closeTimeline()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    Volver
+                </button>
+                <div class="broadcast-info">
+                    <h2 class="broadcast-title">{{ selectedBroadcast.title }}</h2>
+                </div>
             </div>
-            <button class="export-btn" (click)="exportTimeline()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Exportar
-            </button>
+            
+            <div class="timeline-actions">
+                <button class="tool-btn" (click)="addBlock('intro')">
+                    <span class="icon">+</span> Intro
+                </button>
+                <button class="tool-btn" (click)="addBlock('text')">
+                    <span class="icon">+</span> Texto
+                </button>
+                <button class="tool-btn" (click)="fileInput.click()">
+                    <span class="icon">+</span> Audio/Ad
+                </button>
+                <input #fileInput type="file" (change)="onFileSelected($event)" accept="audio/*" hidden>
+                <button class="tool-btn" (click)="addBlock('outro')">
+                    <span class="icon">+</span> Cierre
+                </button>
+                <button class="export-btn" (click)="exportTimeline()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Exportar
+                </button>
+            </div>
         </div>
 
         <!-- Loading Timeline -->
@@ -196,21 +213,92 @@
 
         <!-- Timeline Content -->
         <div class="timeline-content" *ngIf="!loadingTimeline">
-            <div class="timeline">
-                <div class="timeline-line"></div>
-                <div class="timeline-events">
-                    <div class="timeline-event" *ngFor="let event of timelineEvents"
-                        [class]="getEventTypeClass(event.type)">
-                        <div class="event-marker"></div>
-                        <div class="event-card">
-                            <div class="event-header">
-                                <span class="event-time">{{ formatDuration(event.startTime) }}</span>
-                                <span class="event-duration">{{ formatDuration(event.duration) }}</span>
+            <div class="timeline-list" cdkDropList (cdkDropListDropped)="drop($event)">
+                <div class="timeline-item" *ngFor="let event of timelineEvents" cdkDrag [class]="getEventTypeClass(event.type)">
+                    
+                    <div class="item-handle" cdkDragHandle>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                    </div>
+
+                    <div class="item-content">
+                        <div class="item-header">
+                            <span class="item-type">{{ event.type | uppercase }}</span>
+                            <span class="item-time">{{ formatDuration(event.startTime) }} - {{ formatDuration(event.endTime) }}</span>
+                        </div>
+                        
+                        <div class="item-body">
+                            <h3 class="item-title">{{ event.title }}</h3>
+
+                            <!-- Editable Content for Intro/Outro/Text -->
+                            <div *ngIf="['intro', 'outro', 'text'].includes(event.type)">
+                                <div class="voice-controls-row" style="display: flex; gap: 10px; margin-bottom: 8px;">
+                                    <div class="control-group" style="flex: 1;">
+                                        <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Voz:</label>
+                                        <select [(ngModel)]="event.voice" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+                                            <option *ngFor="let voice of availableVoices" [value]="voice.name">
+                                                {{ voice.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="control-group" style="flex: 1;">
+                                        <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Velocidad: {{ event.speed }}x</label>
+                                        <input type="range" [(ngModel)]="event.speed" min="0.5" max="2.0" step="0.1" style="width: 100%;">
+                                    </div>
+                                </div>
+                                <textarea 
+                                    [(ngModel)]="event.description" 
+                                    (blur)="updateBlockText(event, event.description)"
+                                    placeholder="Escribe el texto aquí..."
+                                    class="block-editor"
+                                    rows="3"></textarea>
                             </div>
-                            <h3 class="event-title">{{ event.title }}</h3>
-                            <p class="event-description">{{ event.description }}</p>
+
+                            <!-- Display Content for News -->
+                            <p class="item-description" *ngIf="event.type === 'news'">
+                                {{ event.description | slice:0:100 }}{{ event.description.length > 100 ? '...' : '' }}
+                            </p>
+
+                            <!-- Display Content for Ad -->
+                            <p class="item-description" *ngIf="event.type === 'ad'">
+                                Audio Publicitario
+                            </p>
+                            
+                            <div class="audio-player" *ngIf="event.audioUrl">
+                                <audio [src]="event.audioUrl" controls controlsList="nodownload"></audio>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="item-actions">
+                        <button class="action-btn" 
+                                *ngIf="['intro', 'outro', 'text'].includes(event.type)" 
+                                (click)="generateBlockAudio(event)" 
+                                [disabled]="isGeneratingAudio"
+                                [title]="event.audioUrl ? 'Regenerar Audio' : 'Generar Audio'">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="23"></line>
+                                <line x1="8" y1="23" x2="16" y2="23"></line>
+                            </svg>
+                        </button>
+
+                        <button class="delete-btn" (click)="deleteBlock(event)" title="Eliminar bloque">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="cdk-drag-placeholder" *cdkDragPlaceholder></div>
                 </div>
             </div>
 
@@ -218,15 +306,11 @@
             <div class="timeline-summary">
                 <div class="summary-item">
                     <span class="summary-label">Duración Total:</span>
-                    <span class="summary-value">{{ formatDuration(selectedBroadcast.duration * 60) }}</span>
+                    <span class="summary-value">{{ formatDuration(timelineEvents[timelineEvents.length-1]?.endTime || 0) }}</span>
                 </div>
                 <div class="summary-item">
-                    <span class="summary-label">Eventos:</span>
+                    <span class="summary-label">Bloques:</span>
                     <span class="summary-value">{{ timelineEvents.length }}</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">Noticias:</span>
-                    <span class="summary-value">{{ selectedBroadcast.totalNews }}</span>
                 </div>
             </div>
         </div>
