@@ -1,5 +1,8 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatButtonModule } from '@angular/material/button';
 import { SupabaseService } from '../../services/supabase.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import Swal from 'sweetalert2';
@@ -7,7 +10,7 @@ import Swal from 'sweetalert2';
 @Component({
   selector: 'app-mis-noticieros',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MatIconModule, MatMenuModule, MatButtonModule],
   templateUrl: './mis-noticieros.component.html',
   styleUrls: ['./mis-noticieros.component.scss']
 })
