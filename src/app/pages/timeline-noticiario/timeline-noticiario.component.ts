@@ -486,16 +486,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         });
     }
 
-    playBroadcast(broadcast: any) {
-        console.log('Playing broadcast:', broadcast);
-        Swal.fire({
-            title: 'Reproduciendo',
-            text: broadcast.title,
-            icon: 'info',
-            timer: 2000,
-            showConfirmButton: false
-        });
-    }
+
 
     async updateBlockText(event: TimelineEvent, newText: string) {
         event.description = newText;
