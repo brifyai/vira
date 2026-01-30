@@ -49,14 +49,4 @@ export class LoginComponent {
             }
         });
     }
-
-    fillDemoAdmin(): void {
-        this.email = 'admin@vira.com';
-        this.password = 'admin123';
-    }
-
-    fillDemoUser(): void {
-        this.email = 'user@vira.com';
-        this.password = 'user123';
-    }
 }
