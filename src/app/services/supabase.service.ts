@@ -347,7 +347,7 @@ export class SupabaseService {
         if (error) throw error;
     }
 
-    async getGeneratedBroadcasts(options?: { limit?: number; offset?: number }) {
+    async getGeneratedBroadcasts(options?: { limit?: number; offset?: number; broadcastId?: string }) {
         let query = this.supabase
             .from('generated_broadcasts')
             .select('*')
@@ -359,6 +359,10 @@ export class SupabaseService {
 
         if (options?.offset) {
             query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+        }
+
+        if (options?.broadcastId) {
+            query = query.eq('broadcast_id', options.broadcastId);
         }
 
         const { data, error } = await query;

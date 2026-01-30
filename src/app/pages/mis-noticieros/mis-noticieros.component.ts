@@ -28,8 +28,20 @@ export class MisNoticierosComponent implements OnInit {
   async loadBroadcasts() {
     this.loading = true;
     try {
-      this.broadcasts = await this.supabaseService.getGeneratedBroadcasts();
-      console.log('Broadcasts loaded:', this.broadcasts);
+      // Load news broadcasts (projects)
+      const newsBroadcasts = await this.supabaseService.getNewsBroadcasts();
+      
+      // Fetch generated audio for each broadcast
+      this.broadcasts = await Promise.all(newsBroadcasts.map(async (b: any) => {
+        const generated = await this.supabaseService.getGeneratedBroadcasts({ broadcastId: b.id, limit: 1 });
+        return {
+          ...b,
+          audio_url: generated && generated.length > 0 ? generated[0].audio_url : null,
+          generated_id: generated && generated.length > 0 ? generated[0].id : null
+        };
+      }));
+      
+      console.log('Broadcasts loaded with audio:', this.broadcasts);
     } catch (error) {
       console.error('Error loading broadcasts:', error);
       this.snackBar.open('Error al cargar mis noticieros', 'Cerrar', { duration: 3000 });
@@ -40,19 +52,21 @@ export class MisNoticierosComponent implements OnInit {
   }
 
   formatDuration(seconds: number): string {
+    if (!seconds) return '0:00';
     const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
+    const remainingSeconds = Math.round(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
 
   formatDate(dateStr: string): string {
+    if (!dateStr) return '';
     return new Date(dateStr).toLocaleString();
   }
 
   async deleteBroadcast(id: string) {
     const result = await Swal.fire({
       title: '¿Estás seguro?',
-      text: "No podrás revertir esto",
+      text: "Se eliminará el noticiero y todos sus archivos asociados.",
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -64,7 +78,7 @@ export class MisNoticierosComponent implements OnInit {
     if (!result.isConfirmed) return;
 
     try {
-      await this.supabaseService.deleteGeneratedBroadcast(id);
+      await this.supabaseService.deleteNewsBroadcast(id);
       this.broadcasts = this.broadcasts.filter(b => b.id !== id);
       Swal.fire('Eliminado!', 'El noticiero ha sido eliminado.', 'success');
     } catch (error) {

@@ -17,22 +17,31 @@
         <div class="broadcast-card" *ngFor="let broadcast of broadcasts">
             <div class="card-header">
                 <h3>{{ broadcast.title }}</h3>
-                <span class="date">{{ formatDate(broadcast.created_at) }}</span>
+                <div class="header-meta">
+                    <span class="status-badge" [class]="broadcast.status">
+                        {{ broadcast.status === 'ready' ? 'Listo' : (broadcast.status === 'draft' ? 'Borrador' : broadcast.status) }}
+                    </span>
+                    <span class="date">{{ formatDate(broadcast.created_at) }}</span>
+                </div>
             </div>
             
             <div class="card-body">
                 <div class="info-row">
-                    <span class="label">Duración:</span>
-                    <span class="value">{{ formatDuration(broadcast.duration_seconds) }}</span>
+                    <span class="label">Duración Estimada:</span>
+                    <span class="value">{{ formatDuration(broadcast.total_reading_time_seconds) }}</span>
                 </div>
                 
-                <div class="audio-player">
+                <div class="audio-player" *ngIf="broadcast.audio_url">
                     <audio [src]="broadcast.audio_url" controls controlsList="nodownload"></audio>
+                </div>
+                <div class="no-audio-state" *ngIf="!broadcast.audio_url">
+                    <p>Audio no disponible</p>
+                    <span class="sub-text" *ngIf="broadcast.status === 'draft'">El noticiero está en borrador</span>
                 </div>
             </div>
 
             <div class="card-footer">
-                <a [href]="broadcast.audio_url" [download]="broadcast.title + '.wav'" class="download-btn">
+                <a *ngIf="broadcast.audio_url" [href]="broadcast.audio_url" [download]="broadcast.title + '.mp3'" class="download-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
@@ -40,7 +49,9 @@
                     </svg>
                     Descargar
                 </a>
-                <button class="delete-btn" (click)="deleteBroadcast(broadcast.id)">
+                <span *ngIf="!broadcast.audio_url" class="placeholder-btn"></span>
+                
+                <button class="delete-btn" (click)="deleteBroadcast(broadcast.id)" title="Eliminar noticiero">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"></polyline>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>

@@ -33,9 +33,7 @@
             <div class="stat-card stat-card-secondary">
                 <div class="stat-icon">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon
-                            points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
-                        </polygon>
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                     </svg>
                 </div>
                 <div class="stat-content">
@@ -44,155 +42,151 @@
                 </div>
             </div>
 
-            <div class="stat-card stat-card-success">
-                <div class="stat-icon">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-value">{{ stats.activeAutomations }}</div>
-                    <div class="stat-label">Automatizaciones Activas</div>
-                </div>
-            </div>
-
             <div class="stat-card stat-card-info">
                 <div class="stat-icon">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
+                        <path d="M2 12h20"></path>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
                     </svg>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-value">{{ stats.recentNews }}</div>
-                    <div class="stat-label">Noticias Recientes</div>
+                    <div class="stat-value">{{ stats.totalRadios }}</div>
+                    <div class="stat-label">Radios</div>
+                </div>
+            </div>
+
+            <div class="stat-card stat-card-success">
+                <div class="stat-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ stats.totalSources }}</div>
+                    <div class="stat-label">Fuentes</div>
                 </div>
             </div>
         </div>
 
         <!-- Main Content Grid -->
         <div class="content-grid">
-            <!-- Recent News -->
-            <div class="content-card">
-                <div class="card-header">
-                    <h2 class="card-title">
-                        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                        </svg>
-                        Noticias Recientes
-                    </h2>
-                    <button class="btn btn-primary btn-sm">Ver Todas</button>
-                </div>
-                <div class="card-body">
-                    <div class="news-list">
-                        <div class="news-item" *ngFor="let news of recentNews">
-                            <div class="news-content">
-                                <h3 class="news-title">{{ news.title }}</h3>
-                                <div class="news-meta">
-                                    <span class="news-source">{{ news.source }}</span>
-                                    <span class="news-category">{{ news.category }}</span>
-                                    <span class="news-time">{{ formatDate(news.publishedAt) }}</span>
+            <!-- Left Column -->
+            <div class="content-column">
+                <!-- Recent News -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            Noticias Recientes
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="news-list">
+                            <div class="news-item" *ngFor="let news of recentNews">
+                                <div class="news-content">
+                                    <h3 class="news-title">{{ news.title }}</h3>
+                                    <div class="news-meta">
+                                        <span class="news-source">{{ news.source }}</span>
+                                        <span class="news-time">{{ formatDate(news.created_at) }}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <button class="btn-icon" aria-label="Más opciones">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="1"></circle>
-                                    <circle cx="12" cy="5" r="1"></circle>
-                                    <circle cx="12" cy="19" r="1"></circle>
-                                </svg>
-                            </button>
+                            <div class="empty-message" *ngIf="recentNews.length === 0">
+                                No hay noticias recientes
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sources List -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                            Fuentes de Noticias
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-container">
+                            <div class="list-item" *ngFor="let source of sources">
+                                <div class="item-content">
+                                    <h3 class="item-title">{{ source.name }}</h3>
+                                    <a [href]="source.url" target="_blank" class="item-link">{{ source.url }}</a>
+                                </div>
+                            </div>
+                            <div class="empty-message" *ngIf="sources.length === 0">
+                                No hay fuentes configuradas
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Recent Broadcasts -->
-            <div class="content-card">
-                <div class="card-header">
-                    <h2 class="card-title">
-                        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polygon
-                                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
-                            </polygon>
-                        </svg>
-                        Noticieros Recientes
-                    </h2>
-                    <button class="btn btn-primary btn-sm">Ver Todos</button>
-                </div>
-                <div class="card-body">
-                    <div class="broadcasts-list">
-                        <div class="broadcast-item" *ngFor="let broadcast of recentBroadcasts">
-                            <div class="broadcast-content">
-                                <h3 class="broadcast-title">{{ broadcast.title }}</h3>
-                                <div class="broadcast-meta">
-                                    <span class="broadcast-duration">{{ broadcast.duration }} min</span>
-                                    <span class="broadcast-status" [class]="getStatusClass(broadcast.status)">
-                                        {{ getStatusText(broadcast.status) }}
-                                    </span>
-                                    <span class="broadcast-date">{{ formatDate(broadcast.createdAt) }}</span>
+            <!-- Right Column -->
+            <div class="content-column">
+                <!-- Recent Broadcasts -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                            Mis Noticieros
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="broadcast-list">
+                            <div class="broadcast-item" *ngFor="let broadcast of recentBroadcasts">
+                                <div class="broadcast-content">
+                                    <h3 class="broadcast-title">{{ broadcast.title }}</h3>
+                                    <div class="broadcast-meta">
+                                        <span class="status-badge" [ngClass]="getStatusClass(broadcast.status)">
+                                            {{ getStatusText(broadcast.status) }}
+                                        </span>
+                                        <span class="broadcast-time">{{ formatDate(broadcast.created_at) }}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <button class="btn-icon" aria-label="Más opciones">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="1"></circle>
-                                    <circle cx="12" cy="5" r="1"></circle>
-                                    <circle cx="12" cy="19" r="1"></circle>
-                                </svg>
-                            </button>
+                            <div class="empty-message" *ngIf="recentBroadcasts.length === 0">
+                                No hay noticieros creados
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Automations Status -->
-        <div class="content-card full-width">
-            <div class="card-header">
-                <h2 class="card-title">
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                    </svg>
-                    Estado de Automatizaciones
-                </h2>
-                <button class="btn btn-primary btn-sm">Gestionar</button>
-            </div>
-            <div class="card-body">
-                <div class="automations-grid">
-                    <div class="automation-item" *ngFor="let automation of automations">
-                        <div class="automation-header">
-                            <div class="automation-icon">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path
-                                        d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
-                                    </path>
-                                </svg>
+                <!-- Radios List -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M2 12h20"></path>
+                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                            </svg>
+                            Radios
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-container">
+                            <div class="list-item" *ngFor="let radio of radios">
+                                <div class="item-content">
+                                    <h3 class="item-title">{{ radio.name }}</h3>
+                                    <p class="item-subtitle">{{ radio.city || 'Sin ubicación' }}</p>
+                                    <span class="item-link">{{ radio.stream_url }}</span>
+                                </div>
                             </div>
-                            <div class="automation-info">
-                                <h3 class="automation-name">{{ automation.name }}</h3>
-                                <span class="automation-type">{{ automation.type }}</span>
-                            </div>
-                            <div class="automation-status" [class]="getStatusClass(automation.status)">
-                                {{ getStatusText(automation.status) }}
-                            </div>
-                        </div>
-                        <div class="automation-footer">
-                            <div class="automation-time">
-                                <svg class="time-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <polyline points="12 6 12 12 16 14"></polyline>
-                                </svg>
-                                Última ejecución: {{ formatDate(automation.lastRun) }}
-                            </div>
-                            <div class="automation-time" *ngIf="automation.nextRun">
-                                <svg class="time-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <polyline points="12 6 12 12 16 14"></polyline>
-                                </svg>
-                                Próxima ejecución: {{ formatDate(automation.nextRun) }}
+                            <div class="empty-message" *ngIf="radios.length === 0">
+                                No hay radios configuradas
                             </div>
                         </div>
                     </div>

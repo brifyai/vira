@@ -15,8 +15,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const scrapingBeeApiKey = '0PP8W5U3GBAJ5LCIOHHZ2MDDVYAG4EQK599KIO00EWIVER2I0NN5MKV37TTRM51FWUJCZC56G2ZK0XK3';
 // Using the same API Key as Gemini which follows the standard AIza format
 const googleCloudTtsApiKey = 'AIzaSyCvgEjsSLxBC-UCUGiWg7CsbPe8IXx8EPc';
-const AZURE_API_KEY = 'TU_API_KEY_AZURE'; // Reemplazar con la clave real
-const AZURE_REGION = 'eastus'; // Reemplazar con la región correcta
+const AZURE_API_KEY = process.env.AZURE_API_KEY || 'TU_API_KEY_AZURE'; // Configurar en Vercel Environment Variables
+const AZURE_REGION = process.env.AZURE_REGION || 'eastus'; // Configurar en Vercel Environment Variables
 
 // Helper for escaping XML
 function escapeXml(text) {
