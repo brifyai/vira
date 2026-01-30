@@ -133,6 +133,8 @@ export class CrearNoticiarioComponent implements OnInit {
     selectedRadioId: string | null = null;
     scheduledTime: string = '';
 
+    currentAudio: HTMLAudioElement | null = null;
+
     constructor(
         private supabaseService: SupabaseService,
         private snackBar: MatSnackBar,
@@ -438,6 +440,36 @@ export class CrearNoticiarioComponent implements OnInit {
             audio.onerror = () => resolve(0);
             audio.src = url;
         });
+    }
+
+    playAudio(item: TimelineEvent) {
+        // Stop currently playing audio if any
+        if (this.currentAudio) {
+            this.currentAudio.pause();
+            this.currentAudio.currentTime = 0;
+            this.currentAudio = null;
+        }
+
+        let url = item.audioUrl;
+        if (item.type === 'news' && item.originalItem) {
+            url = item.originalItem.generatedAudioUrl;
+        }
+
+        if (url) {
+            this.currentAudio = new Audio(url);
+            this.currentAudio.play().catch(e => {
+                console.error('Error playing audio:', e);
+                this.snackBar.open('Error al reproducir el audio', 'Cerrar', { duration: 2000 });
+            });
+            
+            // Reset currentAudio when ended
+            this.currentAudio.onended = () => {
+                this.currentAudio = null;
+                this.cdr.detectChanges();
+            };
+        } else {
+            this.snackBar.open('No hay audio disponible para reproducir. Genere el audio primero.', 'Cerrar', { duration: 3000 });
+        }
     }
 
     removeTimelineItem(index: number) {

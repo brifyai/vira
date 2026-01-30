@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, from } from 'rxjs';
 import { SupabaseService } from './supabase.service';
-import { map, switchMap, tap } from 'rxjs/operators';
+import { map, switchMap, tap, filter, take } from 'rxjs/operators';
 
 export interface User {
     id: string;
@@ -17,15 +17,22 @@ export interface User {
 export class AuthService {
     private currentUserSubject = new BehaviorSubject<User | null>(null);
     public currentUser$: Observable<User | null> = this.currentUserSubject.asObservable();
+    private authInitialized = new BehaviorSubject<boolean>(false);
 
     constructor(private supabaseService: SupabaseService) {
         this.initializeAuth();
     }
 
     private async initializeAuth() {
-        const { data: { session } } = await this.supabaseService.getClient().auth.getSession();
-        if (session?.user) {
-            await this.updateCurrentUser(session.user.id, session.user.email);
+        try {
+            const { data: { session } } = await this.supabaseService.getClient().auth.getSession();
+            if (session?.user) {
+                await this.updateCurrentUser(session.user.id, session.user.email);
+            }
+        } catch (error) {
+            console.error('Error initializing auth:', error);
+        } finally {
+            this.authInitialized.next(true);
         }
 
         this.supabaseService.getClient().auth.onAuthStateChange(async (event, session) => {
@@ -35,6 +42,14 @@ export class AuthService {
                 this.currentUserSubject.next(null);
             }
         });
+    }
+
+    waitForAuth(): Observable<boolean> {
+        return this.authInitialized.pipe(
+            filter(initialized => initialized),
+            take(1),
+            map(() => true)
+        );
     }
 
     private async updateCurrentUser(userId: string, email?: string) {

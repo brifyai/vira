@@ -231,6 +231,13 @@
 
                         <!-- Audio Controls for Non-News items (Intro, Outro, Text) -->
                         <div class="item-actions-row" *ngIf="item.type !== 'news' && item.type !== 'ad'">
+                            <button class="mini-btn play-btn" (click)="playAudio(item); $event.stopPropagation()" 
+                                    [disabled]="!item.audioUrl"
+                                    title="Reproducir Audio">
+                                <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="16" height="16">
+                                    <path d="M8 5v14l11-7z"></path>
+                                </svg>
+                            </button>
                             <button class="mini-btn" (click)="item.showAudioPanel = !item.showAudioPanel; $event.stopPropagation()"
                                     [class.active]="item.showAudioPanel"
                                     [class.has-audio]="item.audioUrl">
