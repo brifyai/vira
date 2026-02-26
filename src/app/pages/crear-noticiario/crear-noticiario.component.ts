@@ -10,7 +10,6 @@ import { GeminiService } from '../../services/gemini.service';
 import { AzureTtsService } from '../../services/azure-tts.service';
 import { GoogleTtsService } from '../../services/google-tts.service';
 import { WeatherService } from '../../services/weather.service';
-import { environment } from '../../../environments/environment';
 
 declare var lamejs: any;
 
@@ -1155,7 +1154,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             console.log('Selected sources:', sourceIds);
 
             // Call the backend API to scrape news
-            const response = await fetch(`${environment.apiUrl}/api/scrape`, {
+            const response = await fetch(`/api/scrape`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { SupabaseService } from '../../services/supabase.service';
 import { AzureTtsService } from '../../services/azure-tts.service';
-import { environment } from '../../../environments/environment';
 
 interface CustomVoice {
   id: string;
@@ -165,7 +164,7 @@ export class RecursosComponent implements OnInit {
       this.qwenStep = 'creating';
       this.cdr.detectChanges();
       console.log('[QWEN] Calling backend /api/qwen-voice-create...');
-      const resp = await fetch(`${environment.apiUrl}/api/qwen-voice-create`, {
+      const resp = await fetch(`/api/qwen-voice-create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
