@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SupabaseService } from '../../services/supabase.service';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { environment } from '../../../environments/environment';
+import { config } from '../../core/config';
 import { GeminiService } from '../../services/gemini.service';
 import { GoogleTtsService } from '../../services/google-tts.service';
 import { GeminiTtsService } from '../../services/gemini-tts.service';
@@ -261,7 +261,7 @@ export class UltimoMinutoComponent implements OnInit {
             console.log('Scraping sources:', sourceIds);
             
             // Call scraping API with streaming support
-            const response = await fetch(`${environment.apiUrl}/api/scrape`, {
+            const response = await fetch(`${config.apiUrl}/api/scrape`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

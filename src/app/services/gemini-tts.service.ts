@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { environment } from '../../environments/environment';
+import { config } from '../core/config';
 
 export interface VoiceParams {
   text: string;
@@ -13,7 +13,7 @@ export interface VoiceParams {
   providedIn: 'root'
 })
 export class GeminiTtsService {
-  private apiUrl = environment.apiUrl;
+  private apiUrl = config.apiUrl;
 
   constructor() {}
 

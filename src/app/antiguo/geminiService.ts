@@ -1,10 +1,10 @@
 import { GenerationParams } from "./types";
 import { base64ToArrayBuffer, createWavBlob } from "./audio";
-import { environment } from "../../environments/environment";
+import { config } from "../core/config";
 
 export const generateSpeech = async (params: GenerationParams): Promise<Blob> => {
   try {
-    const apiUrl = environment.apiUrl;
+    const apiUrl = config.apiUrl;
     const url = `${apiUrl}/api/gemini-tts`;
 
     const response = await fetch(url, {

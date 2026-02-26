@@ -33,34 +33,33 @@ const envConfig = {
   }
 };
 
-const getEnvFileContent = (isProduction) => {
-  return `export const environment = {
-    production: ${isProduction},
-    apiUrl: '${envConfig.apiUrl}',
-    azureWorkerUrl: '${envConfig.azureWorkerUrl}',
-    appUrl: '${envConfig.appUrl}',
-    supabaseUrl: '${envConfig.supabaseUrl}',
-    supabaseAnonKey: '${envConfig.supabaseAnonKey}',
-    scrapingBeeApiKey: '${envConfig.scrapingBeeApiKey}',
-    cronSecret: '${envConfig.cronSecret}',
-    googleClientId: '${envConfig.googleClientId}',
-    googleClientSecret: '${envConfig.googleClientSecret}',
-    googleRedirectUri: '${envConfig.googleRedirectUri}',
-    // geminiApiKey: removed,
-    googleCloudTtsApiKey: '${envConfig.googleCloudTtsApiKey}',
-    defaultVoiceSettings: ${JSON.stringify(envConfig.defaultVoiceSettings, null, 4)}
-};
+const getEnvFileContent = () => {
+  return `(function(window) {
+  window.__env = window.__env || {};
+  
+  // Environment variables
+  window.__env.production = ${envConfig.production};
+  window.__env.apiUrl = '${envConfig.apiUrl}';
+  window.__env.azureWorkerUrl = '${envConfig.azureWorkerUrl}';
+  window.__env.appUrl = '${envConfig.appUrl}';
+  window.__env.supabaseUrl = '${envConfig.supabaseUrl}';
+  window.__env.supabaseAnonKey = '${envConfig.supabaseAnonKey}';
+  window.__env.scrapingBeeApiKey = '${envConfig.scrapingBeeApiKey}';
+  window.__env.cronSecret = '${envConfig.cronSecret}';
+  window.__env.googleClientId = '${envConfig.googleClientId}';
+  window.__env.googleClientSecret = '${envConfig.googleClientSecret}';
+  window.__env.googleRedirectUri = '${envConfig.googleRedirectUri}';
+  window.__env.googleCloudTtsApiKey = '${envConfig.googleCloudTtsApiKey}';
+  window.__env.defaultVoiceSettings = ${JSON.stringify(envConfig.defaultVoiceSettings)};
+
+}(this));
 `;
 };
 
 // Ensure directory exists
-const targetDir = './src/environments';
+const targetDir = './public';
 mkdirSync(targetDir, { recursive: true });
 
-// Write environment.ts
-writeFileSync(path.join(targetDir, 'environment.ts'), getEnvFileContent(false));
-console.log('Generated src/environments/environment.ts');
-
-// Write environment.prod.ts
-writeFileSync(path.join(targetDir, 'environment.prod.ts'), getEnvFileContent(true));
-console.log('Generated src/environments/environment.prod.ts');
+// Write env.js
+writeFileSync(path.join(targetDir, 'env.js'), getEnvFileContent());
+console.log('Generated public/env.js');

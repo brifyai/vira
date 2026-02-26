@@ -1,11 +1,11 @@
 import { Injectable } from '@angular/core';
-import { environment } from '../../environments/environment';
+import { config } from '../core/config';
 
 @Injectable({
   providedIn: 'root'
 })
 export class GeminiService {
-  private apiUrl = environment.apiUrl;
+  private apiUrl = config.apiUrl;
 
   constructor() {}
 
@@ -13,8 +13,8 @@ export class GeminiService {
     if (!text) return '';
 
     try {
-      // Ensure apiUrl doesn't have trailing slash if we add one, but environment.ts says it removes /api
-      // environment.apiUrl is like "https://vira-swart.vercel.app"
+      // Ensure apiUrl doesn't have trailing slash if we add one, but config.ts says it removes /api
+      // config.apiUrl is like "https://vira-swart.vercel.app"
       // We need to call "https://vira-swart.vercel.app/api/gemini"
       
       const url = `${this.apiUrl}/api/gemini`;

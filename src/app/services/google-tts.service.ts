@@ -1,12 +1,12 @@
 import { Injectable } from '@angular/core';
-import { environment } from '../../environments/environment';
+import { config } from '../core/config';
 
 @Injectable({
   providedIn: 'root'
 })
 export class GoogleTtsService {
-  // Use environment API URL
-  private apiUrl = `${environment.apiUrl}/api/tts`;
+  // Use config API URL
+  private apiUrl = `${config.apiUrl}/api/tts`;
 
   constructor() { }
 
@@ -22,13 +22,13 @@ export class GoogleTtsService {
         body: JSON.stringify({
           text,
           voice: {
-            languageCode: environment.defaultVoiceSettings.language,
-            name: environment.defaultVoiceSettings.voice
+            languageCode: config.defaultVoiceSettings.language,
+            name: config.defaultVoiceSettings.voice
           },
           audioConfig: {
             audioEncoding: 'MP3',
-            speakingRate: environment.defaultVoiceSettings.speakingRate,
-            pitch: environment.defaultVoiceSettings.pitch
+            speakingRate: config.defaultVoiceSettings.speakingRate,
+            pitch: config.defaultVoiceSettings.pitch
           }
         })
       });

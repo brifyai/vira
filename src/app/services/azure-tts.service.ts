@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { environment } from '../../environments/environment';
+import { config } from '../core/config';
 import { firstValueFrom } from 'rxjs';
 
 declare var lamejs: any;
@@ -9,7 +9,7 @@ declare var lamejs: any;
   providedIn: 'root'
 })
 export class AzureTtsService {
-  private apiUrl = environment.azureWorkerUrl || `${environment.apiUrl}/api/azure-tts`;
+  private apiUrl = config.azureWorkerUrl || `${config.apiUrl}/api/azure-tts`;
 
   constructor(private http: HttpClient) {}
 
@@ -249,7 +249,7 @@ export class AzureTtsService {
     console.log(`[QwenAPI] Calling with text length: ${text.length}`);
     try {
       const response = await firstValueFrom(
-        this.http.post(`${environment.apiUrl}/api/qwen-tts`, {
+        this.http.post(`${config.apiUrl}/api/qwen-tts`, {
           text,
           voice,
           rate: speed, // Send 'rate' instead of 'speed'

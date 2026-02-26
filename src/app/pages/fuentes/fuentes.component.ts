@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SupabaseService } from '../../services/supabase.service';
-import { environment } from '../../../environments/environment';
+import { config } from '../../core/config';
 
 export interface Source {
     id: string;
@@ -301,7 +301,8 @@ export class FuentesComponent implements OnInit {
             console.log('Scraping news from selected sources...');
 
             // Call scraping API endpoint
-            const response = await fetch(`${environment.apiUrl}/api/scrape`, {
+            console.log('Sending scrape request to:', `${config.apiUrl}/api/scrape`);
+            const response = await fetch(`${config.apiUrl}/api/scrape`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -371,7 +372,8 @@ export class FuentesComponent implements OnInit {
             console.log('Active sources:', sourceIds);
 
             // Call scraping API endpoint
-            const response = await fetch(`${environment.apiUrl}/api/scrape`, {
+            console.log('Sending scrape request to:', `${config.apiUrl}/api/scrape`);
+            const response = await fetch(`${config.apiUrl}/api/scrape`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
