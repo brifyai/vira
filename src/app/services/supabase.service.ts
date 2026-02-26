@@ -681,7 +681,7 @@ export class SupabaseService {
                     }
 
                     const { error } = await query;
-                    if (!error) return true;
+                    if (!error) return;
                     
                     console.warn(`Attempt ${i + 1} failed to delete from ${table}:`, error);
                     if (i === MAX_RETRIES - 1) throw error;
