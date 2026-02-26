@@ -1,0 +1,61 @@
+{
+  "name": "vira-app",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "envs": "node scripts/set-envs.js",
+    "start": "npm run envs && ng serve",
+    "start:server": "npm run envs && node server.js",
+    "start:worker": "npm run envs && npx wrangler dev --config src/wrangler.toml",
+    "build": "npm run envs && ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "lint": "ng lint"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true,
+    "overrides": [
+      {
+        "files": "*.html",
+        "options": {
+          "parser": "angular"
+        }
+      }
+    ]
+  },
+  "private": true,
+  "packageManager": "npm@11.0.0",
+  "dependencies": {
+    "@angular/animations": "^21.0.0",
+    "@angular/cdk": "^21.0.0",
+    "@angular/common": "^21.0.0",
+    "@angular/compiler": "^21.0.0",
+    "@angular/core": "^21.0.0",
+    "@angular/forms": "^21.0.0",
+    "@angular/material": "^21.0.0",
+    "@angular/platform-browser": "^21.0.0",
+    "@angular/router": "^21.0.0",
+    "@google/genai": "^1.34.0",
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.89.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^4.22.1",
+    "lamejs": "^1.2.1",
+    "rxjs": "~7.8.0",
+    "sweetalert2": "^11.26.17",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.0.4",
+    "@angular/cli": "^21.0.4",
+    "@angular/compiler-cli": "^21.0.0",
+    "angular-eslint": "21.2.0",
+    "eslint": "^9.39.2",
+    "jsdom": "^27.1.0",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "8.50.1",
+    "vitest": "^4.0.8"
+  }
+}

@@ -1,0 +1,197 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.automation_assets (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name character varying NOT NULL,
+  type character varying NOT NULL,
+  config jsonb NOT NULL,
+  is_active boolean DEFAULT true,
+  schedule jsonb,
+  last_run_at timestamp with time zone,
+  next_run_at timestamp with time zone,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT automation_assets_pkey PRIMARY KEY (id),
+  CONSTRAINT automation_assets_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.automation_runs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  asset_id uuid,
+  status character varying NOT NULL,
+  started_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  completed_at timestamp with time zone,
+  result jsonb,
+  error_message text,
+  created_by uuid,
+  CONSTRAINT automation_runs_pkey PRIMARY KEY (id),
+  CONSTRAINT automation_runs_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES public.automation_assets(id),
+  CONSTRAINT automation_runs_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.broadcast_news_items (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  broadcast_id uuid,
+  humanized_news_id uuid,
+  order_index integer NOT NULL,
+  reading_time_seconds integer,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  type text DEFAULT 'news'::text,
+  custom_title text,
+  custom_content text,
+  audio_url text,
+  duration_seconds integer DEFAULT 30,
+  CONSTRAINT broadcast_news_items_pkey PRIMARY KEY (id),
+  CONSTRAINT broadcast_news_items_broadcast_id_fkey FOREIGN KEY (broadcast_id) REFERENCES public.news_broadcasts(id),
+  CONSTRAINT broadcast_news_items_humanized_news_id_fkey FOREIGN KEY (humanized_news_id) REFERENCES public.humanized_news(id)
+);
+CREATE TABLE public.generated_broadcasts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  broadcast_id uuid,
+  title text NOT NULL,
+  audio_url text NOT NULL,
+  duration_seconds integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT generated_broadcasts_pkey PRIMARY KEY (id),
+  CONSTRAINT generated_broadcasts_broadcast_id_fkey FOREIGN KEY (broadcast_id) REFERENCES public.news_broadcasts(id)
+);
+CREATE TABLE public.humanized_news (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  scraped_news_id uuid,
+  original_content text NOT NULL,
+  humanized_content text NOT NULL,
+  reading_time_seconds integer,
+  word_count integer,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  title text,
+  audio_url text,
+  status text DEFAULT 'ready'::text,
+  CONSTRAINT humanized_news_pkey PRIMARY KEY (id),
+  CONSTRAINT humanized_news_scraped_news_id_fkey FOREIGN KEY (scraped_news_id) REFERENCES public.scraped_news(id),
+  CONSTRAINT humanized_news_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.news_broadcasts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  title character varying NOT NULL,
+  description text,
+  duration_minutes integer NOT NULL,
+  status character varying DEFAULT 'draft'::character varying,
+  total_news_count integer DEFAULT 0,
+  total_reading_time_seconds integer DEFAULT 0,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  published_at timestamp with time zone,
+  radio_id uuid,
+  scheduled_time text,
+  CONSTRAINT news_broadcasts_pkey PRIMARY KEY (id),
+  CONSTRAINT news_broadcasts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT news_broadcasts_radio_id_fkey FOREIGN KEY (radio_id) REFERENCES public.radios(id)
+);
+CREATE TABLE public.news_sources (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name character varying NOT NULL,
+  url text NOT NULL,
+  description text,
+  category character varying,
+  scraping_config jsonb,
+  is_active boolean DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  selector_list_container text,
+  selector_link text,
+  selector_content text,
+  selector_ignore text,
+  CONSTRAINT news_sources_pkey PRIMARY KEY (id),
+  CONSTRAINT news_sources_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.radios (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  region text,
+  comuna text,
+  frequency text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT radios_pkey PRIMARY KEY (id),
+  CONSTRAINT radios_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.scraped_news (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  source_id uuid,
+  title text NOT NULL,
+  content text NOT NULL,
+  summary text,
+  original_url text,
+  image_url text,
+  published_at timestamp with time zone,
+  scraped_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  is_processed boolean DEFAULT false,
+  is_selected boolean DEFAULT false,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  category character varying,
+  CONSTRAINT scraped_news_pkey PRIMARY KEY (id),
+  CONSTRAINT scraped_news_source_id_fkey FOREIGN KEY (source_id) REFERENCES public.news_sources(id)
+);
+CREATE TABLE public.settings (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  key character varying NOT NULL UNIQUE,
+  value jsonb NOT NULL,
+  description text,
+  updated_by uuid,
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT settings_pkey PRIMARY KEY (id),
+  CONSTRAINT settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.timeline_events (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  broadcast_id uuid,
+  event_type character varying NOT NULL,
+  title character varying,
+  description text,
+  start_time_seconds integer NOT NULL,
+  end_time_seconds integer,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT timeline_events_pkey PRIMARY KEY (id),
+  CONSTRAINT timeline_events_broadcast_id_fkey FOREIGN KEY (broadcast_id) REFERENCES public.news_broadcasts(id)
+);
+CREATE TABLE public.tts_audio_files (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  humanized_news_id uuid,
+  broadcast_news_item_id uuid,
+  audio_url text NOT NULL,
+  audio_duration_seconds integer,
+  voice_settings jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT tts_audio_files_pkey PRIMARY KEY (id),
+  CONSTRAINT tts_audio_files_humanized_news_id_fkey FOREIGN KEY (humanized_news_id) REFERENCES public.humanized_news(id),
+  CONSTRAINT tts_audio_files_broadcast_news_item_id_fkey FOREIGN KEY (broadcast_news_item_id) REFERENCES public.broadcast_news_items(id)
+);
+CREATE TABLE public.user_radios (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  radio_id uuid,
+  assigned_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  assigned_by uuid,
+  CONSTRAINT user_radios_pkey PRIMARY KEY (id),
+  CONSTRAINT user_radios_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT user_radios_radio_id_fkey FOREIGN KEY (radio_id) REFERENCES public.radios(id),
+  CONSTRAINT user_radios_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.users (
+  id uuid NOT NULL,
+  email character varying NOT NULL UNIQUE,
+  full_name character varying,
+  avatar_url text,
+  role USER-DEFINED NOT NULL DEFAULT 'viewer'::user_role,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT users_pkey PRIMARY KEY (id),
+  CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);

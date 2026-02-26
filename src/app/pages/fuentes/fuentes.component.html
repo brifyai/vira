@@ -1,0 +1,200 @@
+<div class="fuentes-container">
+    <div class="page-header">
+        <div class="header-content">
+            <div class="header-left">
+                <h1 class="page-title">Fuentes de Noticias</h1>
+                <p class="page-subtitle">Gestiona las fuentes de donde se extraen las noticias</p>
+            </div>
+            <div class="header-actions">
+                <div class="source-selector">
+                    <select class="form-select" [(ngModel)]="selectedSourceId"
+                        [disabled]="loading || sources.length === 0">
+                        <option value="all">Todas las fuentes</option>
+                        <option *ngFor="let source of sources" [value]="source.id">{{ source.name }}</option>
+                    </select>
+                    <button class="scrape-btn" (click)="scrapeSelectedSources()"
+                        [disabled]="loading || sources.length === 0 || selectedSourceId === ''">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                            <polyline points="9 11 12 14 22 14"></polyline>
+                        </svg>
+                        Obtener Noticias
+                    </button>
+                    <button class="create-btn" (click)="openCreateModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Nueva Fuente
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading-state" *ngIf="loading">
+            <div class="spinner"></div>
+            <p>Cargando fuentes...</p>
+        </div>
+
+        <!-- Sources List -->
+        <div class="sources-list" *ngIf="!loading">
+            <div class="source-card" *ngFor="let source of sources">
+                <div class="card-header">
+                    <div class="source-info">
+                        <div class="source-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="source-name">{{ source.name }}</h3>
+                            <a class="source-url" [href]="source.url" target="_blank" rel="noopener">{{ source.url
+                                }}</a>
+                        </div>
+                    </div>
+                    <div class="source-status" [class]="source.active ? 'status-active' : 'status-inactive'">
+                        {{ source.active ? 'Activa' : 'Inactiva' }}
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div class="source-meta">
+                        <div class="meta-item">
+                            <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                            <span class="meta-label">Categoría:</span>
+                            <span class="meta-value">{{ getCategoryText(source.category) }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            <span class="meta-label">Último scrape:</span>
+                            <span class="meta-value">{{ formatDate(source.lastScraped) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-footer">
+                    <button class="action-btn toggle-btn" (click)="toggleSourceStatus(source)">
+                        <svg *ngIf="source.active" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="6" y="4" width="4" height="16"></rect>
+                            <rect x="14" y="4" width="4" height="16"></rect>
+                        </svg>
+                        <svg *ngIf="!source.active" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                    </button>
+                    <button class="action-btn edit-btn" (click)="openEditModal(source)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="action-btn delete-btn" (click)="deleteSource(source)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" *ngIf="sources.length === 0">
+                <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                </svg>
+                <p>No hay fuentes configuradas</p>
+                <p class="empty-hint">Agrega tu primera fuente para comenzar</p>
+            </div>
+        </div>
+
+        <!-- Create/Edit Modal -->
+        <div class="modal-overlay" *ngIf="showCreateModal || showEditModal" (click)="closeModals()">
+            <div class="modal" (click)="$event.stopPropagation()">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        {{ showCreateModal ? 'Nueva Fuente' : 'Editar Fuente' }}
+                    </h2>
+                    <button class="close-btn" (click)="closeModals()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Nombre</label>
+                        <input type="text" class="form-input" [(ngModel)]="formData.name"
+                            placeholder="Nombre de la fuente">
+                    </div>
+                    <div class="form-group">
+                        <label>URL</label>
+                        <input type="url" class="form-input" [(ngModel)]="formData.url"
+                            placeholder="https://ejemplo.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Categoría</label>
+                        <select class="form-select" [(ngModel)]="formData.category">
+                            <option *ngFor="let category of categories" [value]="category">
+                                {{ getCategoryText(category) }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="scraping-config">
+                        <h3>Configuración de Scraping (Opcional)</h3>
+                        <p class="help-text">Define selectores CSS para extraer contenido dinámicamente.</p>
+                        
+                        <div class="form-group">
+                            <label>Selector Contenedor (Lista)</label>
+                            <input type="text" class="form-input" [(ngModel)]="formData.selectorListContainer"
+                                placeholder="Ej: .destacadas-wrapper">
+                        </div>
+                        <div class="form-group">
+                            <label>Selector Link</label>
+                            <input type="text" class="form-input" [(ngModel)]="formData.selectorLink"
+                                placeholder="Ej: .media-desc a">
+                        </div>
+                        <div class="form-group">
+                            <label>Selector Contenido</label>
+                            <input type="text" class="form-input" [(ngModel)]="formData.selectorContent"
+                                placeholder="Ej: .textoDetalle">
+                        </div>
+                        <div class="form-group">
+                            <label>Selectores a Ignorar</label>
+                            <input type="text" class="form-input" [(ngModel)]="formData.selectorIgnore"
+                                placeholder="Ej: .publicidad, .relacionadas">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" [(ngModel)]="formData.active">
+                            <span>Fuente activa</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" (click)="closeModals()">Cancelar</button>
+                    <button class="btn btn-primary" (click)="showCreateModal ? createSource() : updateSource()">
+                        {{ showCreateModal ? 'Crear' : 'Actualizar' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>

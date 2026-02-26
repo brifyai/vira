@@ -1,0 +1,435 @@
+$primary-color: #6366f1;
+$primary-dark: #4f46e5;
+$primary-light: #818cf8;
+$secondary-color: #8b5cf6;
+$success-color: #10b981;
+$warning-color: #f59e0b;
+$danger-color: #ef4444;
+$dark-bg: #0f172a;
+$dark-surface: #1e293b;
+$dark-border: #334155;
+$text-primary: #f8fafc;
+$text-secondary: #94a3b8;
+$text-muted: #64748b;
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+$transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+.radios-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+    width: 100%;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+
+    .title-section {
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: $text-primary;
+            margin: 0 0 8px 0;
+        }
+
+        p {
+            font-size: 14px;
+            color: $text-secondary;
+            margin: 0;
+        }
+    }
+
+    .create-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, $primary-color 0%, $secondary-color 100%);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: $transition;
+
+        svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+        }
+
+        &:active {
+            transform: translateY(0);
+        }
+    }
+}
+
+.radios-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.radio-card {
+    background: $dark-surface;
+    border-radius: 12px;
+    border: 1px solid $dark-border;
+    overflow: hidden;
+    transition: $transition;
+    cursor: pointer;
+
+    &:hover {
+        border-color: rgba(99, 102, 241, 0.3);
+        box-shadow: $shadow-lg;
+        transform: translateY(-2px);
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 20px;
+        border-bottom: 1px solid $dark-border;
+
+        .radio-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: $primary-light;
+
+            svg {
+                width: 24px;
+                height: 24px;
+            }
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+
+            .action-btn {
+                padding: 6px;
+                border: none;
+                border-radius: 6px;
+                background: transparent;
+                color: $text-secondary;
+                cursor: pointer;
+                transition: $transition;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                svg {
+                    width: 16px;
+                    height: 16px;
+                }
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.05);
+                    color: $text-primary;
+                }
+
+                &.edit:hover {
+                    color: $primary-light;
+                    background: rgba(99, 102, 241, 0.1);
+                }
+
+                &.delete:hover {
+                    color: $danger-color;
+                    background: rgba(239, 68, 68, 0.1);
+                }
+            }
+        }
+    }
+
+    .card-content {
+        padding: 20px;
+
+        h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: $text-primary;
+            margin: 0 0 16px 0;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+
+            .label {
+                color: $text-secondary;
+            }
+
+            .value {
+                color: $text-primary;
+                font-weight: 500;
+            }
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 12px;
+    border: 1px dashed $dark-border;
+    text-align: center;
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: rgba(99, 102, 241, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+        color: $primary-light;
+
+        svg {
+            width: 32px;
+            height: 32px;
+        }
+    }
+
+    h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: $text-primary;
+        margin: 0 0 8px 0;
+    }
+
+    p {
+        color: $text-secondary;
+        font-size: 14px;
+        margin: 0 0 24px 0;
+        max-width: 400px;
+    }
+
+    .create-btn {
+        padding: 10px 20px;
+        background: $primary-color;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: $transition;
+
+        &:hover {
+            background: $primary-dark;
+        }
+    }
+}
+
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    gap: 16px;
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid $dark-border;
+        border-top-color: $primary-color;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    p {
+        color: $text-secondary;
+        font-size: 14px;
+        margin: 0;
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+// Modal Styles
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+    padding: 20px;
+}
+
+.modal-content {
+    background: $dark-surface;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    border: 1px solid $dark-border;
+    box-shadow: $shadow-xl;
+    overflow: hidden;
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid $dark-border;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: $text-primary;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: $text-secondary;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: $transition;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.05);
+                color: $text-primary;
+            }
+
+            svg {
+                width: 20px;
+                height: 20px;
+            }
+        }
+    }
+
+    .modal-body {
+        padding: 24px;
+        max-height: 70vh;
+        overflow-y: auto;
+
+        .form-group {
+            margin-bottom: 20px;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+
+            label {
+                display: block;
+                margin-bottom: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                color: $text-secondary;
+            }
+
+            input, select {
+                width: 100%;
+                padding: 10px 12px;
+                background: $dark-bg;
+                border: 1px solid $dark-border;
+                border-radius: 8px;
+                color: $text-primary;
+                font-size: 14px;
+                transition: $transition;
+
+                &:focus {
+                    outline: none;
+                    border-color: $primary-color;
+                    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+                }
+
+                &::placeholder {
+                    color: $text-muted;
+                }
+            }
+        }
+    }
+
+    .modal-footer {
+        padding: 20px 24px;
+        border-top: 1px solid $dark-border;
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+
+        button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: $transition;
+
+            &.cancel-btn {
+                background: transparent;
+                border: 1px solid $dark-border;
+                color: $text-secondary;
+
+                &:hover {
+                    border-color: $text-primary;
+                    color: $text-primary;
+                }
+            }
+
+            &.save-btn {
+                background: $primary-color;
+                color: white;
+
+                &:hover {
+                    background: $primary-dark;
+                }
+            }
+        }
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

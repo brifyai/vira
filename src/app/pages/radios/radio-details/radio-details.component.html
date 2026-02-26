@@ -1,0 +1,77 @@
+<div class="radio-details-container">
+  <div class="header">
+    <button class="back-btn" routerLink="/radios">
+      <i class="fas fa-arrow-left"></i> Volver a Radios
+    </button>
+  </div>
+
+  <div class="loading-container" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Cargando información de la radio...</p>
+  </div>
+
+  <div class="content" *ngIf="!loading && radio">
+    <!-- Radio Info Card -->
+    <div class="radio-card">
+      <div class="radio-header">
+        <div class="radio-icon">
+          <i class="fas fa-broadcast-tower"></i>
+        </div>
+        <div class="radio-title">
+          <h1>{{ radio.name }}</h1>
+          <span class="location">
+            <i class="fas fa-map-marker-alt"></i> {{ radio.comuna }}, {{ radio.region }}
+          </span>
+        </div>
+      </div>
+      <div class="radio-details" *ngIf="radio.frequency">
+        <div class="detail-item">
+          <span class="label">Frecuencia</span>
+          <span class="value">{{ radio.frequency }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Broadcasts Section -->
+    <div class="broadcasts-section">
+      <h2>Noticieros Creados</h2>
+      
+      <div class="loading-broadcasts" *ngIf="loadingBroadcasts">
+        <div class="spinner-small"></div>
+        <p>Cargando noticieros...</p>
+      </div>
+
+      <div class="empty-state" *ngIf="!loadingBroadcasts && broadcasts.length === 0">
+        <i class="fas fa-microphone-slash"></i>
+        <p>No hay noticieros creados para esta radio aún.</p>
+        <button class="create-btn" routerLink="/crear-noticiario">
+          Crear Nuevo Noticiero
+        </button>
+      </div>
+
+      <div class="broadcasts-grid" *ngIf="!loadingBroadcasts && broadcasts.length > 0">
+        <div class="broadcast-card" *ngFor="let broadcast of broadcasts">
+          <div class="card-header">
+            <span class="status-badge" [class]="broadcast.status">{{ getStatusLabel(broadcast.status) }}</span>
+            <span class="date">{{ formatDate(broadcast.created_at) }}</span>
+          </div>
+          <div class="card-body">
+            <h3>{{ broadcast.title }}</h3>
+            <div class="scheduled-time" *ngIf="broadcast.scheduled_time">
+              <i class="far fa-clock"></i> Programado para: {{ broadcast.scheduled_time }}
+            </div>
+            <div class="duration" *ngIf="broadcast.duration">
+              <i class="fas fa-stopwatch"></i> Duración: {{ (broadcast.duration / 60) | number:'1.0-0' }} min
+            </div>
+          </div>
+          <div class="card-footer">
+            <a [href]="broadcast.audio_url" target="_blank" class="play-btn" *ngIf="broadcast.audio_url">
+              <i class="fas fa-play"></i> Escuchar
+            </a>
+            <!-- Could add an edit button here that navigates to crear-noticiario with ID if supported -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

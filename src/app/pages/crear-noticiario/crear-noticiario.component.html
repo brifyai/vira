@@ -1,0 +1,517 @@
+<div class="crear-noticiario-container">
+    <div class="page-header">
+        <h1 class="page-title">Crear Noticiero</h1>
+        <p class="page-subtitle">Selecciona las noticias y crea tu noticiero personalizado</p>
+    </div>
+
+    <!-- Form Section -->
+    <div class="form-section">
+        <div class="form-card">
+            <h2 class="form-title">Información del Noticiero</h2>
+
+            <div class="form-group">
+                <label for="title">Título del Noticiero *</label>
+                <input type="text" id="title" class="form-input" [(ngModel)]="broadcastTitle"
+                    placeholder="Ej: Noticiero Matutino">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Descripción</label>
+                <textarea id="description" class="form-textarea" [(ngModel)]="broadcastDescription"
+                    placeholder="Describe el contenido del noticiero..." rows="3"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="radio">Radio *</label>
+                <select id="radio" class="form-select" [(ngModel)]="selectedRadioId" (change)="onRadioSelect()">
+                    <option value="" disabled selected>Seleccionar Radio</option>
+                    <option *ngFor="let radio of radios" [value]="radio.id">{{ radio.name }}</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="scheduledTime">Horario de Emisión *</label>
+                <input type="time" id="scheduledTime" class="form-input" [(ngModel)]="scheduledTime" (change)="onRadioSelect()">
+            </div>
+
+            <div class="form-group">
+                <label for="duration">Duración (minutos) *</label>
+                <input type="number" id="duration" class="form-input" [(ngModel)]="duration" min="5" max="60">
+                
+                <div class="duration-progress" *ngIf="duration > 0 && (audiosReady || generatingSmartAudios)">
+                    <div class="progress-info">
+                        <span>Seleccionado: {{ formatReadingTime(getTotalReadingTime()) }}</span>
+                        <span>Meta: {{ duration }} min</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" 
+                             [style.width.%]="progressPercentage" 
+                             [class.over-limit]="getTotalReadingTime() > duration * 60">
+                        </div>
+                    </div>
+                    <p class="progress-hint" *ngIf="progressPercentage < 100">
+                        Faltan {{ formatReadingTime((duration * 60) - getTotalReadingTime()) }} para completar
+                    </p>
+                    <p class="progress-hint warning" *ngIf="getTotalReadingTime() > duration * 60">
+                        Excede por {{ formatReadingTime(getTotalReadingTime() - (duration * 60)) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="content-grid">
+        <!-- Available News -->
+        <div class="news-section">
+            <div class="section-header">
+                <h2 class="section-title">Noticias Disponibles</h2>
+                <div class="filters">
+                    <select class="filter-select" [(ngModel)]="dateFilter">
+                        <option *ngFor="let filter of dateFilters" [value]="filter.value">
+                            {{ filter.label }}
+                        </option>
+                    </select>
+                    <select class="filter-select source-scrape-select" [(ngModel)]="selectedSourceId"
+                        [disabled]="loading || activeSources.length === 0">
+                        <option value="all">Todas las fuentes</option>
+                        <option *ngFor="let source of activeSources" [value]="source.id">{{ source.name }}</option>
+                    </select>
+                    <button class="scrape-btn" (click)="scrapeNews()"
+                        [disabled]="loading || activeSources.length === 0 || selectedSourceId === ''">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                            <polyline points="9 11 12 14 22 14"></polyline>
+                        </svg>
+                        Obtener Noticias
+                    </button>
+                </div>
+            </div>
+
+            <div class="news-list">
+                <div class="loading-state" *ngIf="loading">
+                    <div class="spinner"></div>
+                    <p>Cargando noticias...</p>
+                </div>
+
+                <div class="news-item" *ngFor="let news of filteredNews" (click)="selectNews(news)">
+                    <div class="news-content">
+                        <h3 class="news-title">{{ news.title }}</h3>
+                        <p class="news-excerpt">{{ news.content ? news.content.substring(0, 100) : (news.summary ||
+                            '').substring(0, 100) }}...</p>
+                        <div class="news-meta">
+                            <span class="news-source">{{ news.source_name || 'Fuente desconocida' }}</span>
+                        
+                            <span class="news-time">{{ formatReadingTime(news.readingTime) }}</span>
+                            <span class="news-date">{{ news.formattedDate }}</span>
+                        </div>
+                    </div>
+                    <button class="add-btn" aria-label="Agregar noticia">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="empty-state" *ngIf="!loading && filteredNews.length === 0">
+                    <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <p>No hay noticias disponibles con los filtros seleccionados</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected News / Timeline Builder -->
+        <div class="selected-section">
+            <div class="section-header">
+                <h2 class="section-title">Armar Noticiero</h2>
+                <div class="selected-count">
+                    <span class="count-number">{{ timelineEvents.length }}</span>
+                    <span class="count-label">bloques</span>
+                </div>
+            </div>
+            
+            <!-- Timeline Controls -->
+            <div class="timeline-controls">
+                <button class="control-btn" (click)="addBlock('intro')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 3l14 9-14 9V3z"></path>
+                    </svg>
+                    Intro
+                </button>
+                <button class="control-btn" (click)="addBlock('outro')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    </svg>
+                    Cierre
+                </button>
+                <button class="control-btn" (click)="addBlock('text')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Texto
+                </button>
+                <label class="control-btn upload-btn">
+                    <input type="file" accept="audio/*" (change)="onFileSelected($event)" hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Audio/Ad
+                </label>
+            </div>
+
+            <div class="selected-list timeline-list" cdkDropList [cdkDropListData]="timelineEvents" (cdkDropListDropped)="drop($event)">
+                <div class="empty-state" *ngIf="timelineEvents.length === 0">
+                    <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                    </svg>
+                    <p>Tu noticiero está vacío</p>
+                    <p class="empty-hint">Agrega noticias, intros o anuncios para comenzar</p>
+                </div>
+
+                <div class="timeline-item-card" *ngFor="let item of timelineEvents; let i = index" cdkDrag>
+                    <div class="item-handle" cdkDragHandle>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                    </div>
+                    
+                    <div class="item-content-wrapper">
+                        <div class="item-header">
+                            <span class="item-type" [ngClass]="item.type">{{ item.type | titlecase }}</span>
+                            <span class="item-duration">{{ formatReadingTime(item.duration) }}</span>
+                        </div>
+                        
+                        <div class="item-body">
+                            <h3 class="item-title" *ngIf="item.type !== 'text'">{{ item.title }}</h3>
+                            <textarea *ngIf="item.type === 'text' || item.type === 'intro' || item.type === 'outro'" 
+                                      [(ngModel)]="item.description" 
+                                      (ngModelChange)="invalidateAudio(item)"
+                                      class="item-description-input"
+                                      placeholder="Escribe el contenido..."></textarea>
+                            <p class="item-description" *ngIf="item.type === 'news' || item.type === 'ad'">
+                                {{ item.description }}
+                            </p>
+                        </div>
+
+                        <!-- Audio Generation Progress -->
+                        <div class="generation-progress" *ngIf="item.isGeneratingAudio || (item.type === 'news' && item.originalItem?.isGeneratingAudio)">
+                            <div class="progress-info-row">
+                                <span class="generating-text">
+                                    <span class="spinner-inline"></span>
+                                    Generando audio...
+                                </span>
+                                <span class="percentage">{{ (item.type === 'news' ? item.originalItem?.progress : item.progress) || 0 }}%</span>
+                            </div>
+                            <div class="progress-track-small">
+                                <div class="progress-fill-small" [style.width.%]="(item.type === 'news' ? item.originalItem?.progress : item.progress) || 0"></div>
+                            </div>
+                        </div>
+
+                        <!-- Audio Controls for News items within Timeline -->
+                        <div class="item-actions-row" *ngIf="item.type === 'news' && item.originalItem">
+                            <button class="mini-btn" (click)="toggleAudioPanel(item.originalItem); $event.stopPropagation()"
+                                    [class.active]="item.originalItem.showAudioPanel"
+                                    [class.has-audio]="item.originalItem.generatedAudioUrl">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                </svg>
+                                {{ item.originalItem.generatedAudioUrl ? 'Audio Listo' : 'Configurar Audio' }}
+                            </button>
+                             <button class="mini-btn" (click)="viewNewsDetail(item.originalItem)"
+                                    [class.humanized]="item.originalItem.humanizedContent">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                {{ item.originalItem.humanizedContent ? 'Ver Humanizado' : 'Ver Original' }}
+                            </button>
+                        </div>
+
+                        <!-- Audio Controls for Non-News items (Intro, Outro, Text) -->
+                        <div class="item-actions-row" *ngIf="item.type !== 'news' && item.type !== 'ad'">
+                            <button class="mini-btn play-btn" (click)="playAudio(item); $event.stopPropagation()" 
+                                    title="Reproducir Audio">
+                                <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="16" height="16">
+                                    <path d="M8 5v14l11-7z"></path>
+                                </svg>
+                            </button>
+                            <button class="mini-btn" (click)="item.showAudioPanel = !item.showAudioPanel; $event.stopPropagation()"
+                                    [class.active]="item.showAudioPanel"
+                                    [class.has-audio]="item.audioUrl">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                </svg>
+                                {{ item.audioUrl ? 'Audio Listo' : 'Configurar Audio' }}
+                            </button>
+                        </div>
+                        
+                        <!-- Audio Player for Ads -->
+                        <div class="audio-preview" *ngIf="item.type === 'ad' && item.file">
+                            <audio controls [src]="item.audioUrl"></audio>
+                        </div>
+
+                         <!-- Embedded Audio Panel for News -->
+                        <div class="embedded-audio-panel" *ngIf="item.type === 'news' && item.originalItem && (item.originalItem.showAudioPanel || item.originalItem.humanizedContent)" (click)="$event.stopPropagation()">
+                             <div class="audio-controls-embedded" *ngIf="item.originalItem.showAudioPanel">
+                                <div class="control-group">
+                                    <label>Fuente:</label>
+                                    <div class="voice-source-tabs">
+                                        <button class="tab-btn" [class.active]="!item.originalItem.voiceSource || item.originalItem.voiceSource === 'azure'" (click)="setVoiceSource(item, 'azure')">Azure</button>
+                                        <button class="tab-btn" [class.active]="item.originalItem.voiceSource === 'custom'" (click)="setVoiceSource(item, 'custom')">Recursos</button>
+                                    </div>
+                                </div>
+                                <div class="control-group" *ngIf="!item.originalItem.voiceSource || item.originalItem.voiceSource === 'azure'">
+                                    <label>Voz Azure:</label>
+                                    <select [(ngModel)]="item.originalItem.selectedVoice" (ngModelChange)="invalidateAudio(item)">
+                                        <option *ngFor="let voice of azureVoices" [value]="voice.name">{{voice.label}}</option>
+                                    </select>
+                                </div>
+                                <div class="control-group" *ngIf="item.originalItem.voiceSource === 'custom'">
+                                    <label>Voz Recursos:</label>
+                                    <select [(ngModel)]="item.originalItem.selectedVoice" (ngModelChange)="invalidateAudio(item)">
+                                        <option *ngFor="let voice of customVoices" [value]="voice.name">{{voice.label}}</option>
+                                    </select>
+                                    <p *ngIf="customVoices.length === 0" class="no-voices-hint">No hay voces personalizadas.</p>
+                                </div>
+                                <div class="control-group">
+                                    <label>Velocidad:</label>
+                                    <input type="range" min="0.2" max="10.0" step="0.1" [(ngModel)]="item.originalItem.selectedSpeed" (ngModelChange)="invalidateAudio(item)">
+                                    <span>{{item.originalItem.selectedSpeed}}x</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Tono:</label>
+                                    <input type="range" min="0.2" max="10.0" step="0.1" [(ngModel)]="item.originalItem.selectedPitch" (ngModelChange)="invalidateAudio(item)">
+                                    <span>{{item.originalItem.selectedPitch}}</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Desfase Inicio (seg):</label>
+                                    <div class="slider-group">
+                                        <input type="range" min="0" max="10" step="0.5" [(ngModel)]="item.originalItem.voiceDelay" (ngModelChange)="invalidateAudio(item)">
+                                        <span>{{ item.originalItem.voiceDelay || 0 }}s</span>
+                                    </div>
+                                </div>
+                                 <div class="audio-player" *ngIf="item.originalItem.generatedAudioUrl">
+                                    <audio [src]="item.originalItem.generatedAudioUrl" controls></audio>
+                                </div>
+                             </div>
+                        </div>
+
+                        <!-- Embedded Audio Panel for Non-News -->
+                        <div class="embedded-audio-panel" *ngIf="item.type !== 'news' && item.type !== 'ad' && item.showAudioPanel" (click)="$event.stopPropagation()">
+                            <div class="audio-controls-embedded">
+                               <div class="control-group">
+                                   <label>Fuente:</label>
+                                   <div class="voice-source-tabs">
+                                       <button class="tab-btn" [class.active]="!item.voiceSource || item.voiceSource === 'azure'" (click)="setVoiceSource(item, 'azure')">Azure</button>
+                                       <button class="tab-btn" [class.active]="item.voiceSource === 'custom'" (click)="setVoiceSource(item, 'custom')">Recursos</button>
+                                   </div>
+                               </div>
+                               <div class="control-group" *ngIf="!item.voiceSource || item.voiceSource === 'azure'">
+                                   <label>Voz Azure:</label>
+                                   <select [(ngModel)]="item.selectedVoice" (ngModelChange)="invalidateAudio(item)">
+                                       <option *ngFor="let voice of azureVoices" [value]="voice.name">{{voice.label}}</option>
+                                   </select>
+                               </div>
+                               <div class="control-group" *ngIf="item.voiceSource === 'custom'">
+                                   <label>Voz Recursos:</label>
+                                   <select [(ngModel)]="item.selectedVoice" (ngModelChange)="invalidateAudio(item)">
+                                       <option *ngFor="let voice of customVoices" [value]="voice.name">{{voice.label}}</option>
+                                   </select>
+                                   <p *ngIf="customVoices.length === 0" class="no-voices-hint">No hay voces personalizadas. Ve a la sección Recursos para crear una.</p>
+                               </div>
+                               <div class="control-group">
+                                   <label>Velocidad:</label>
+                                   <input type="range" min="0.2" max="10.0" step="0.1" [(ngModel)]="item.selectedSpeed" (ngModelChange)="invalidateAudio(item)">
+                                   <span>{{item.selectedSpeed}}x</span>
+                               </div>
+                               <div class="control-group">
+                                   <label>Tono:</label>
+                                   <input type="range" min="0.2" max="10.0" step="0.1" [(ngModel)]="item.selectedPitch" (ngModelChange)="invalidateAudio(item)">
+                                   <span>{{item.selectedPitch}}</span>
+                               </div>
+
+                               <!-- Music Controls for Intro/Outro -->
+                               <div class="control-group" *ngIf="item.type === 'intro' || item.type === 'outro'">
+                                   <label>Música de Fondo:</label>
+                                   <select [(ngModel)]="item.musicUrl" (ngModelChange)="invalidateAudio(item)">
+                                       <option [ngValue]="undefined">Sin música</option>
+                                       <option *ngFor="let music of musicResources" [value]="music.url">
+                                           {{ music.name }} ({{ music.type }})
+                                       </option>
+                                   </select>
+                               </div>
+
+                               <div class="control-group" *ngIf="(item.type === 'intro' || item.type === 'outro') && item.musicUrl">
+                                   <label>Volumen Música:</label>
+                                   <div class="slider-group">
+                                       <input type="range" min="0.1" max="1.0" step="0.1" [(ngModel)]="item.musicVolume" (ngModelChange)="invalidateAudio(item)">
+                                       <span>{{ (item.musicVolume || 0.5) * 100 | number:'1.0-0' }}%</span>
+                                   </div>
+                               </div>
+
+                               <div class="control-group" *ngIf="(item.type === 'intro' || item.type === 'outro') && item.musicUrl">
+                                   <label>Desfase Voz (seg):</label>
+                                   <div class="slider-group">
+                                       <input type="range" min="0" max="10" step="0.5" [(ngModel)]="item.voiceDelay" (ngModelChange)="invalidateAudio(item)">
+                                       <span>{{ item.voiceDelay || 0 }}s</span>
+                                   </div>
+                               </div>
+
+                                <div class="audio-player" *ngIf="item.audioUrl">
+                                   <audio [src]="item.audioUrl" controls></audio>
+                               </div>
+                            </div>
+                       </div>
+                    </div>
+
+                    <button class="remove-item-btn" (click)="removeTimelineItem(i)" title="Eliminar bloque">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Action Buttons Container -->
+            <div class="action-buttons-container">
+                <!-- Humanize Button -->
+                <button class="humanize-btn" (click)="humanizeNews()" 
+                    [disabled]="hasHumanized || humanizing || generatingSmartAudios || timelineEvents.length === 0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    <span *ngIf="!humanizing">Humanizar Texto</span>
+                    <span *ngIf="humanizing">
+                        <span class="spinner-small"></span>
+                        Humanizando...
+                    </span>
+                </button>
+
+                <!-- Generate Audio Button (New) -->
+                <!-- Only visible if we have humanized news or prepared audio -->
+                <button class="generate-audio-global-btn" (click)="generateSmartAudiosAndAdjust()"
+                    *ngIf="hasHumanized"
+                    [disabled]="generatingSmartAudios">
+                    <svg *ngIf="!generatingSmartAudios" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                    <span *ngIf="!generatingSmartAudios">Generar Audio del Noticiero</span>
+                    <div *ngIf="generatingSmartAudios" class="generating-status">
+                        <div class="status-text">
+                            <span class="spinner-small"></span>
+                            <span>Generando y Ajustando... {{ globalProgress | number:'1.0-0' }}%</span>
+                        </div>
+                        <div class="mini-progress-track">
+                            <div class="mini-progress-fill" [style.width.%]="globalProgress"></div>
+                        </div>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Summary Card -->
+            <div class="summary-card" *ngIf="timelineEvents.length > 0">
+                <h3 class="summary-title">Resumen del Noticiero</h3>
+                <div class="summary-stats">
+                    <div class="summary-stat">
+                        <span class="stat-label">Bloques:</span>
+                        <span class="stat-value">{{ timelineEvents.length }}</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="stat-label">Tiempo total:</span>
+                        <span class="stat-value">{{ formatReadingTime(getTotalReadingTime()) }}</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="stat-label">Duración máxima:</span>
+                        <span class="stat-value">{{ duration }} min</span>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" [style.width.%]="(getTotalReadingTime() / (duration * 60)) * 100"></div>
+                </div>
+                <p class="progress-text" *ngIf="getTotalReadingTime() > duration * 60">
+                    ⚠️ Has excedido la duración máxima del noticiero
+                </p>
+            </div>
+
+            <!-- Create Button -->
+            <button class="create-btn" (click)="createBroadcast()" [disabled]="!canCreateBroadcast() || generating || !audiosReady">
+                <span *ngIf="!generating">Crear Noticiero</span>
+                <span *ngIf="generating">
+                    <span class="spinner-small"></span>
+                    {{ loadingMessage || 'Creando...' }}
+                </span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- News Detail Modal -->
+<div class="modal-overlay" *ngIf="selectedNewsDetail" (click)="closeNewsDetail()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+            <h2 class="modal-title">{{ selectedNewsDetail.title }}</h2>
+            <button class="modal-close" (click)="closeNewsDetail()" aria-label="Cerrar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-meta">
+                <span class="modal-source">{{ selectedNewsDetail.source_name || 'Fuente desconocida' }}</span>
+                <span class="modal-category">{{ selectedNewsDetail.category || 'General' }}</span>
+                <span class="modal-date">{{ formatDate(selectedNewsDetail.publishedAt) }}</span>
+            </div>
+            <div class="modal-content-text">
+                <h3>Contenido Original</h3>
+                <p>{{ selectedNewsDetail.content }}</p>
+                
+                <div *ngIf="selectedNewsDetail.summary" class="modal-summary">
+                    <h3>Resumen</h3>
+                    <p>{{ selectedNewsDetail.summary }}</p>
+                </div>
+                
+                <div *ngIf="selectedNewsDetail.humanizedContent" class="modal-humanized">
+                    <h3>Contenido Humanizado</h3>
+                    <p>{{ selectedNewsDetail.humanizedContent }}</p>
+                </div>
+            </div>
+            <div class="modal-footer" *ngIf="selectedNewsDetail.original_url">
+                <a [href]="selectedNewsDetail.original_url" target="_blank" rel="noopener noreferrer" class="modal-link">
+                    Ver noticia original
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
