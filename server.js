@@ -6,9 +6,13 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Initialize Express app
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(cors({
+    origin: '*', // Allow all origins (including localhost and Vercel)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+app.use(express.json({ limit: '50mb' })); // Increased limit for voice cloning audio uploads
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Initialize Supabase client
 const supabaseUrl = 'https://themdawboacvgyyaftus.supabase.co';
@@ -946,10 +950,10 @@ app.post('/api/qwen-voice-create', async (req, res) => {
     try {
         const { audioUrl, audio_data, preferred_name, target_model } = req.body;
 
-        // console.log('[QWEN] /api/qwen-voice-create called');
-        // console.log('[QWEN] Env DASHSCOPE_API_KEY set:', !!(process.env.DASHSCOPE_API_KEY && process.env.DASHSCOPE_API_KEY !== 'YOUR_QWEN_API_KEY'));
+        // console.log('[QWEN] /api/qwen-voice-create called', { preferred_name, target_model, hasAudioData: !!audio_data, hasAudioUrl: !!audioUrl });
 
         if (!DASHSCOPE_API_KEY || DASHSCOPE_API_KEY === 'YOUR_QWEN_API_KEY') {
+            console.error('[QWEN] API Key missing for voice creation');
             return res.status(500).json({
                 error: 'API Key de DashScope no configurada',
                 message: 'Configura DASHSCOPE_API_KEY en variables de entorno'
@@ -961,7 +965,6 @@ app.post('/api/qwen-voice-create', async (req, res) => {
         }
 
         // Validación estricta de preferred_name para evitar errores de DashScope
-        // Eliminamos guiones bajos para asegurar compatibilidad total (solo alfanumérico)
         const normalized = String(preferred_name)
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '') // Elimina todo lo que no sea a-z o 0-9
@@ -996,7 +999,7 @@ app.post('/api/qwen-voice-create', async (req, res) => {
             const base64Str = audioBuffer.toString('base64');
             dataUri = `data:${contentType};base64,${base64Str}`;
         } else {
-            return res.status(400).json({ error: 'Se requiere audio_data (data URI) o audioUrl' });
+            return res.status(400).json({ error: 'Se requiere audio_data (data URI) o audioUrl válido' });
         }
 
         const url = 'https://dashscope-intl.aliyuncs.com/api/v1/services/audio/tts/customization';
@@ -1016,29 +1019,42 @@ app.post('/api/qwen-voice-create', async (req, res) => {
 
         const resp = await fetchWithTimeout(url, { method: 'POST', headers, body: JSON.stringify(payload) }, 60000);
         const textBody = await resp.text();
+        
         if (!resp.ok) {
+            console.error('[QWEN] DashScope Enrollment Error:', textBody);
             let details = textBody;
             try {
                 const parsed = JSON.parse(textBody);
-                details = parsed?.error || parsed?.message || textBody;
+                details = parsed; // Send full object
             } catch (_) {}
-            console.error('DashScope Enrollment Error:', details);
-            return res.status(resp.status).json({ error: 'Error al crear voz clonada', details });
+            return res.status(resp.status).json({ error: 'Error al crear voz clonada en DashScope', details });
         }
+
         let json;
         try {
             json = JSON.parse(textBody);
-        } catch {
-            return res.status(500).json({ error: 'Respuesta inválida de DashScope' });
+        } catch (e) {
+            console.error('[QWEN] Invalid JSON response:', textBody);
+            return res.status(500).json({ error: 'Respuesta inválida de DashScope (JSON parse error)' });
         }
+
+        // Check for specific DashScope error codes in success 200 response (if any)
+        if (json.code && json.code !== 'Success') {
+             console.error('[QWEN] DashScope Logical Error:', json);
+             return res.status(500).json({ error: 'Error lógico de DashScope', details: json });
+        }
+
         const voice = json?.output?.voice;
         if (!voice) {
-            return res.status(500).json({ error: 'No se recibió parámetro de voz en la respuesta de DashScope' });
+            console.error('[QWEN] No voice ID in response:', json);
+            return res.status(500).json({ error: 'No se recibió parámetro de voz en la respuesta de DashScope', response: json });
         }
+        
         res.json({ voice, target_model, preferred_name });
+
     } catch (error) {
-        console.error('Qwen Voice Create Error:', error);
-        res.status(500).json({ error: 'Error interno al crear voz clonada' });
+        console.error('[QWEN] Voice Create Endpoint Error:', error);
+        res.status(500).json({ error: 'Error interno al crear voz clonada', details: error.message });
     }
 });
 

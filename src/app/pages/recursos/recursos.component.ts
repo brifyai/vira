@@ -136,13 +136,20 @@ export class RecursosComponent implements OnInit {
     this.qwenStep = 'uploading';
     this.cdr.detectChanges();
     try {
-      // Convertir el archivo a Data URI (evita depender de políticas públicas del bucket)
-      const dataUri = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('No se pudo leer el archivo de audio'));
-        reader.readAsDataURL(this.qwenFile as File);
-      });
+      this.qwenStep = 'uploading';
+      this.cdr.detectChanges();
+
+      // Subir archivo a Supabase Storage para obtener URL pública
+      // Esto evita enviar el archivo en base64 al backend, lo que causa errores 413 Payload Too Large en Vercel
+      const filePath = `temp-voice-cloning/${Date.now()}_${this.qwenFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      let audioUrl: string;
+      try {
+        audioUrl = await this.supabaseService.uploadAudioFile(this.qwenFile, filePath);
+      } catch (uploadError: any) {
+        console.error('Error uploading file to Supabase:', uploadError);
+        throw new Error('Error al subir el archivo de audio. Verifica tu conexión o permisos.');
+      }
+
       // preferred_name es requerido por DashScope. Aseguramos un valor válido con patrón estricto:
       // ^[a-z][a-z0-9]{2,19}$  (inicia con letra, 3–20 chars, minúsculas, números, SIN guiones bajos)
       const basePref = (this.formData.label || '').trim() || `voz${Date.now()}`;
@@ -160,34 +167,42 @@ export class RecursosComponent implements OnInit {
 
       this.qwenPreferredName = preferredName;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for backend processing
+      
       this.qwenStep = 'creating';
       this.cdr.detectChanges();
-      // console.log('[QWEN] Calling backend /api/qwen-voice-create...');
+      
+      // console.log('[QWEN] Calling backend /api/qwen-voice-create with audioUrl:', audioUrl);
+      
       const resp = await fetch(`/api/qwen-voice-create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          audio_data: dataUri,
+          audioUrl: audioUrl, // Send URL instead of base64 data
           preferred_name: preferredName,
           target_model: this.qwenTargetModel
         }),
         signal: controller.signal
       }).finally(() => clearTimeout(timeoutId));
+
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({} as any));
         const msg = err.details || err.error || 'Error al crear voz clonada';
-        throw new Error(msg);
+        throw new Error(JSON.stringify(msg));
       }
+      
       const data = await resp.json();
       const voiceParam = data.voice;
       this.qwenLastVoiceId = voiceParam;
+      
       this.snackBar.open('Voz clonada creada correctamente. Ahora puedes guardarla.', 'Cerrar', {
         duration: 3000,
         panelClass: ['success-snackbar']
       });
+      
       this.qwenFile = null;
       this.qwenPreferredName = '';
+      
     } catch (error: any) {
       console.error('Error creating Qwen voice', error);
       const message =
