@@ -1,6 +1,6 @@
 export const config = (window as any).__env || {
     production: false,
-    apiUrl: '',
+    apiUrl: 'http://localhost:8888',
     azureWorkerUrl: '',
     appUrl: '',
     supabaseUrl: '',

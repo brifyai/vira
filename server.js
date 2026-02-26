@@ -16,7 +16,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Initialize Supabase client
 const supabaseUrl = 'https://themdawboacvgyyaftus.supabase.co';
-const supabaseKey = process.env.SUPABASE_KEY || 'YOUR_SUPABASE_KEY';
+const supabaseKey = process.env.SUPABASE_KEY || process.env.supabaseAnonKey || 'YOUR_SUPABASE_KEY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const scrapingBeeApiKey =
@@ -395,8 +395,7 @@ app.post('/api/scrape', async (req, res) => {
                         const fullContent = extractContent(articleHtml, article.title, article.url, source);
                         
                         // console.log(`[DEBUG] Extracted content length for ${article.url}: ${fullContent.length}`);
-                        if (fullContent.length < 200) // console.log(`[DEBUG] Content preview: ${fullContent}`);
-
+                        
                         // Validation: Check for invalid content phrases
                         const invalidPhrases = [
                             'Error de conexión', 
@@ -1149,8 +1148,8 @@ app.post('/api/qwen-tts', async (req, res) => {
 
         const headers = {
             Authorization: `Bearer ${DASHSCOPE_API_KEY}`,
-            'Content-Type': 'application/json',
-            'X-DashScope-Async': 'enable' // Enable async mode to handle timeouts better
+            'Content-Type': 'application/json'
+            // 'X-DashScope-Async': 'enable' // Disabled: User API key does not support async calls
         };
         
         const resp = await fetchWithTimeout(url, { method: 'POST', headers, body: JSON.stringify(payload) }, 60000);
@@ -1529,9 +1528,9 @@ const PORT = process.env.PORT || 8888;
 
 if (require.main === module) {
     app.listen(PORT, () => {
-        // console.log(`Server running on port ${PORT}`);
-        // console.log(`Health check: http://localhost:${PORT}/api/health`);
-        // console.log(`Scrape endpoint: http://localhost:${PORT}/api/scrape`);
+        console.log(`Server running on port ${PORT}`);
+        console.log(`Health check: http://localhost:${PORT}/api/health`);
+        console.log(`Scrape endpoint: http://localhost:${PORT}/api/scrape`);
     });
 }
 
