@@ -82,13 +82,23 @@ export class MisNoticierosComponent implements OnInit {
 
     if (!result.isConfirmed) return;
 
+    // Show loading state
+    Swal.fire({
+      title: 'Eliminando...',
+      text: 'Por favor espere mientras se elimina el noticiero y sus archivos.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
     try {
       await this.supabaseService.deleteNewsBroadcast(id);
       this.broadcasts = this.broadcasts.filter(b => b.id !== id);
       Swal.fire('Eliminado!', 'El noticiero ha sido eliminado.', 'success');
     } catch (error) {
       console.error('Error deleting broadcast:', error);
-      Swal.fire('Error', 'No se pudo eliminar el noticiero', 'error');
+      Swal.fire('Error', 'No se pudo eliminar el noticiero. Por favor intente nuevamente.', 'error');
     }
   }
 }

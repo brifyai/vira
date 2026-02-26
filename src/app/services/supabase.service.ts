@@ -666,51 +666,65 @@ export class SupabaseService {
     }
 
     async deleteNewsBroadcast(id: string) {
-        // 1. Delete generated broadcasts
-        const { error: genError } = await this.supabase
-            .from('generated_broadcasts')
-            .delete()
-            .eq('broadcast_id', id);
-        if (genError) console.warn('Error deleting generated_broadcasts:', genError);
-
-        // 2. Delete timeline events
-        const { error: timelineError } = await this.supabase
-            .from('timeline_events')
-            .delete()
-            .eq('broadcast_id', id);
-        if (timelineError) console.warn('Error deleting timeline_events:', timelineError);
-
-        // 3. Delete broadcast news items (and their related TTS files)
-        const { data: items } = await this.supabase
-            .from('broadcast_news_items')
-            .select('id')
-            .eq('broadcast_id', id);
+        const MAX_RETRIES = 3;
         
-        if (items && items.length > 0) {
-            const itemIds = items.map(i => i.id);
-            
-            // Delete tts_audio_files referencing these items
-            const { error: ttsError } = await this.supabase
-                .from('tts_audio_files')
-                .delete()
-                .in('broadcast_news_item_id', itemIds);
-             if (ttsError) console.warn('Error deleting tts_audio_files:', ttsError);
+        // Helper for retrying delete operations
+        const deleteWithRetry = async (table: string, matchColumn: string, matchValue: any, isIn: boolean = false) => {
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    let query = this.supabase.from(table).delete();
+                    
+                    if (isIn) {
+                        query = query.in(matchColumn, matchValue);
+                    } else {
+                        query = query.eq(matchColumn, matchValue);
+                    }
 
-            // Now delete items
-            const { error: itemsError } = await this.supabase
+                    const { error } = await query;
+                    if (!error) return true;
+                    
+                    console.warn(`Attempt ${i + 1} failed to delete from ${table}:`, error);
+                    if (i === MAX_RETRIES - 1) throw error;
+                    await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
+                } catch (e) {
+                    if (i === MAX_RETRIES - 1) throw e;
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        };
+
+        try {
+            // 1. Delete generated broadcasts
+            await deleteWithRetry('generated_broadcasts', 'broadcast_id', id);
+
+            // 2. Delete timeline events
+            await deleteWithRetry('timeline_events', 'broadcast_id', id);
+
+            // 3. Delete broadcast news items (and their related TTS files)
+            const { data: items } = await this.supabase
                 .from('broadcast_news_items')
-                .delete()
+                .select('id')
                 .eq('broadcast_id', id);
-            if (itemsError) throw itemsError;
+            
+            if (items && items.length > 0) {
+                const itemIds = items.map(i => i.id);
+                
+                // Delete tts_audio_files referencing these items
+                if (itemIds.length > 0) {
+                     await deleteWithRetry('tts_audio_files', 'broadcast_news_item_id', itemIds, true);
+                }
+
+                // Now delete items
+                await deleteWithRetry('broadcast_news_items', 'broadcast_id', id);
+            }
+
+            // 4. Finally delete the broadcast
+            await deleteWithRetry('news_broadcasts', 'id', id);
+
+        } catch (error) {
+            console.error('Final error deleting broadcast:', error);
+            throw error;
         }
-
-        // 4. Finally delete the broadcast
-        const { error } = await this.supabase
-            .from('news_broadcasts')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
     }
 
     // ============================================
