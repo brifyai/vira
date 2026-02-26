@@ -31,6 +31,16 @@ const AZURE_API_KEY = process.env.AZURE_API_KEY || 'TU_API_KEY_AZURE'; // Config
 const AZURE_REGION = process.env.AZURE_REGION || 'eastus'; // Configurar en Vercel Environment Variables
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || 'YOUR_QWEN_API_KEY';
 
+// --- Debug Environment Variables (Safe Log) ---
+console.log('[Server] Starting...');
+console.log('[Server] Environment Check:');
+console.log(`- NODE_ENV: ${process.env.NODE_ENV}`);
+console.log(`- DASHSCOPE_API_KEY Present: ${!!process.env.DASHSCOPE_API_KEY && process.env.DASHSCOPE_API_KEY !== 'YOUR_QWEN_API_KEY'}`);
+console.log(`- AZURE_API_KEY Present: ${!!process.env.AZURE_API_KEY && process.env.AZURE_API_KEY !== 'TU_API_KEY_AZURE'}`);
+console.log(`- AZURE_REGION: ${AZURE_REGION}`);
+console.log(`- GEMINI_API_KEY Present: ${!!(process.env.GEMINI_API_KEY || process.env.geminiApiKey)}`);
+// ----------------------------------------------
+
 // Helper for escaping XML
 function escapeXml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
