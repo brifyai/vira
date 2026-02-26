@@ -33,7 +33,7 @@ export class LoginComponent implements OnDestroy {
         // Listen for auth changes to auto-redirect if session is restored
         this.authSubscription = this.authService.currentUser$.subscribe(user => {
             if (user && !this.loading) { // Only redirect if not currently logging in manually (handled in onSubmit)
-                console.log('LoginComponent: User authenticated via subscription, redirecting to dashboard');
+                // console.log('LoginComponent: User authenticated via subscription, redirecting to dashboard');
                 this.ngZone.run(() => {
                     this.router.navigate(['/dashboard']).then(success => {
                         if (!success) console.warn('LoginComponent: Auto-redirect failed');
@@ -54,23 +54,23 @@ export class LoginComponent implements OnDestroy {
         
         this.loading = true;
         this.errorMessage = '';
-        console.log('LoginComponent: Submitting login form...');
+        // console.log('LoginComponent: Submitting login form...');
 
         this.authService.login(this.email, this.password).subscribe({
             next: async (user: User) => {
-                console.log('LoginComponent: Login successful');
+                // console.log('LoginComponent: Login successful');
                 // Explicit navigation for manual login
                 this.ngZone.run(async () => {
                     try {
-                        console.log('LoginComponent: Attempting navigation to /dashboard');
+                        // console.log('LoginComponent: Attempting navigation to /dashboard');
                         const success = await this.router.navigate(['/dashboard']);
-                        console.log('LoginComponent: Navigation result:', success);
+                        // console.log('LoginComponent: Navigation result:', success);
                         
                         if (!success) {
                             // Retry with replaceUrl if standard navigation fails
-                            console.log('LoginComponent: Retrying navigation with replaceUrl');
+                            // console.log('LoginComponent: Retrying navigation with replaceUrl');
                             const retrySuccess = await this.router.navigate(['/dashboard'], { replaceUrl: true });
-                            console.log('LoginComponent: Retry navigation result:', retrySuccess);
+                            // console.log('LoginComponent: Retry navigation result:', retrySuccess);
                             
                             if (!retrySuccess) {
                                 this.errorMessage = 'No se pudo redirigir al dashboard. Por favor recarga la página.';
@@ -91,7 +91,7 @@ export class LoginComponent implements OnDestroy {
                 });
             },
             complete: () => {
-                console.log('LoginComponent: Login observable completed');
+                // console.log('LoginComponent: Login observable completed');
                 this.ngZone.run(() => {
                     this.loading = false;
                     this.cdr.detectChanges();

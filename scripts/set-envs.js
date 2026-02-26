@@ -62,4 +62,4 @@ mkdirSync(targetDir, { recursive: true });
 
 // Write env.js
 writeFileSync(path.join(targetDir, 'env.js'), getEnvFileContent());
-console.log('Generated public/env.js');
+// console.log('Generated public/env.js');

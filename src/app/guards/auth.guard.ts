@@ -8,12 +8,12 @@ export const authGuard: CanActivateFn = (route, state) => {
     const authService = inject(AuthService);
     const router = inject(Router);
 
-    console.log('AuthGuard: Checking access for', state.url);
+    // console.log('AuthGuard: Checking access for', state.url);
 
     return authService.waitForAuth().pipe(
         map(() => {
             const loggedIn = authService.isLoggedIn();
-            console.log('AuthGuard: Auth ready. User logged in?', loggedIn);
+            // console.log('AuthGuard: Auth ready. User logged in?', loggedIn);
             
             if (loggedIn) {
                 return true;

@@ -34,20 +34,20 @@ export class WeatherService {
         }
       }
 
-      console.log('WeatherService: Searching location with strategies:', searchStrategies);
+      // console.log('WeatherService: Searching location with strategies:', searchStrategies);
 
       for (const term of searchStrategies) {
         if (!term || term.trim() === ',' || term.trim() === '') continue;
         
         try {
             const geoUrl = `${this.GEOCODING_API}?name=${encodeURIComponent(term)}&count=1&language=es&format=json`;
-            console.log(`WeatherService: Trying geocoding url: ${geoUrl}`);
+            // console.log(`WeatherService: Trying geocoding url: ${geoUrl}`);
             const geoData: any = await firstValueFrom(this.http.get(geoUrl));
 
             if (geoData.results && geoData.results.length > 0) {
                 latitude = geoData.results[0].latitude;
                 longitude = geoData.results[0].longitude;
-                console.log(`WeatherService: Found coordinates for "${term}":`, { latitude, longitude });
+                // console.log(`WeatherService: Found coordinates for "${term}":`, { latitude, longitude });
                 break; // Found coordinates, stop searching
             }
         } catch (e) {

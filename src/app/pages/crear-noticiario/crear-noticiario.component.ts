@@ -202,13 +202,12 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
 
         try {
-            console.log('Loading scraped news...');
             const data = await this.supabaseService.safeFetch(
                 () => this.supabaseService.getScrapedNews(),
                 3, // 3 retries
                 15000 // 15s timeout
             );
-            console.log('Scraped news loaded:', data);
+            
 
             // Map database fields to interface
             this.availableNews = (data || []).map(item => {
@@ -237,7 +236,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 };
             });
 
-            console.log('Available news mapped:', this.availableNews);
+            // console.log('Available news mapped:', this.availableNews);
         } catch (error) {
             console.error('Error loading news:', error);
             this.snackBar.open('Error al cargar noticias', 'Cerrar', {
@@ -297,7 +296,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
             // Extract source names for the dropdown (only active sources)
             this.sourceNames = ['all', ...this.activeSources.map(s => s.name)];
-            console.log('Sources loaded:', this.sources);
+            // console.log('Sources loaded:', this.sources);
         } catch (error) {
             console.error('Error loading sources:', error);
         }
@@ -1149,7 +1148,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
 
         try {
-            console.log('Scraping news from selected sources...');
+            // console.log('Scraping news from selected sources...');
 
             // Get source IDs based on selection
             let sourceIds: string[];
@@ -1159,7 +1158,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 sourceIds = [this.selectedSourceId];
             }
 
-            console.log('Selected sources:', sourceIds);
+            // console.log('Selected sources:', sourceIds);
 
             // Call the backend API to scrape news
             const response = await fetch(`/api/scrape`, {
@@ -1179,7 +1178,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             }
 
             const data = await response.json();
-            console.log('Scraping response:', data);
+            // console.log('Scraping response:', data);
 
             this.snackBar.open(
                 `Noticias obtenidas exitosamente: ${data.count} noticias`,
@@ -1260,7 +1259,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 calculatedSpeed = Math.min(Math.max(calculatedSpeed, 0.75), 1.25);
                 
                 news.selectedSpeed = Number(calculatedSpeed.toFixed(2));
-                console.log(`Auto-adjusting speed to ${news.selectedSpeed} for target ${news.targetDuration}s (Est: ${estimatedBaseDuration}s)`);
+                // console.log(`Auto-adjusting speed to ${news.selectedSpeed} for target ${news.targetDuration}s (Est: ${estimatedBaseDuration}s)`);
             }
 
             let voice = news.selectedVoice;
@@ -1304,7 +1303,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 });
                 
                 if (audio.duration && audio.duration !== Infinity) {
-                    console.log(`Actual audio duration: ${audio.duration}s (Target: ${news.targetDuration}s)`);
+                    // console.log(`Actual audio duration: ${audio.duration}s (Target: ${news.targetDuration}s)`);
                     news.readingTime = Math.round(audio.duration);
                 }
             } catch (e) {
@@ -1473,7 +1472,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         try {
             // 1. Initial Audio Generation (Pass 1)
             // We need to know the REAL duration of what we currently have
-            console.log('Starting Smart Audio Generation - Pass 1');
+            // console.log('Starting Smart Audio Generation - Pass 1');
             // Assume 50% progress for first pass, will jump to 100% if no adjustment needed
             await this.generateBatchAudios(0, 50);
 
@@ -1482,7 +1481,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             const currentTotalSeconds = this.getTotalReadingTime(); // Now based on audio duration
             
             const diff = Math.abs(currentTotalSeconds - targetTotalSeconds);
-            console.log(`Duration check: Target ${targetTotalSeconds}s, Actual ${currentTotalSeconds}s, Diff ${diff}s`);
+            // console.log(`Duration check: Target ${targetTotalSeconds}s, Actual ${currentTotalSeconds}s, Diff ${diff}s`);
 
             // Tolerance: +/- 5 seconds (User wants "EXACTO" but we need a break condition)
             if (diff > 5) {
@@ -1491,7 +1490,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 // 3. Adjustment Loop
                 // Calculate global ratio needed
                 const ratio = targetTotalSeconds / currentTotalSeconds;
-                console.log(`Adjustment needed. Ratio: ${ratio}`);
+                // console.log(`Adjustment needed. Ratio: ${ratio}`);
 
                 // Process sequentially to avoid 429 errors
                 let processedAdjustments = 0;
@@ -1510,7 +1509,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         const targetItemTime = news.readingTime * ratio;
                         const targetItemWords = Math.round((targetItemTime / 60) * wpm);
 
-                        console.log(`Adjusting News ${news.id}: Current ${news.readingTime}s (${currentWords} words) -> Target ${targetItemTime.toFixed(1)}s (${targetItemWords} words)`);
+                        // console.log(`Adjusting News ${news.id}: Current ${news.readingTime}s (${currentWords} words) -> Target ${targetItemTime.toFixed(1)}s (${targetItemWords} words)`);
 
                         // Call Gemini to resize text
                         try {
@@ -1537,7 +1536,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 }
 
                 // 4. Regenerate Audio (Pass 2)
-                console.log('Regenerating Audios after adjustment...');
+                // console.log('Regenerating Audios after adjustment...');
                 // Pass 2: 60% -> 100%
                 await this.generateBatchAudios(60, 100);
             } else {

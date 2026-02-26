@@ -87,17 +87,17 @@ var worker_azure_default = {
       let processedText = escapeXml(text).replace(/,/g, ',<break time="100ms"/>').replace(/\./g, '.<break time="140ms"/>').replace(/;/g, ';<break time="120ms"/>').replace(/:/g, ':<break time="100ms"/>').replace(/\?/g, '?<break time="250ms"/>').replace(/!/g, '!<break time="250ms"/>');
       const finalRate = 0.95 * speechRate;
       const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'><voice name='${voice}'><prosody rate="${finalRate}" pitch="0%" volume="+3%">${processedText}</prosody></voice></speak>`;
-      console.log("=== DEBUG INFO ===");
-      console.log("Voice:", voice);
-      console.log("Language:", lang);
-      console.log("User speed:", speechRate);
-      console.log("Final rate:", finalRate);
-      console.log("Text length:", text.length);
-      console.log("SSML length:", ssml.length);
-      console.log("Azure URL:", `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`);
-      console.log("API Key length:", AZURE_API_KEY ? AZURE_API_KEY.length : 0);
+      // console.log("=== DEBUG INFO ===");
+      // console.log("Voice:", voice);
+      // console.log("Language:", lang);
+      // console.log("User speed:", speechRate);
+      // console.log("Final rate:", finalRate);
+      // console.log("Text length:", text.length);
+      // console.log("SSML length:", ssml.length);
+      // console.log("Azure URL:", `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`);
+      // console.log("API Key length:", AZURE_API_KEY ? AZURE_API_KEY.length : 0);
       const azureUrl = `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
-      console.log("Intentando con endpoint:", azureUrl);
+      // console.log("Intentando con endpoint:", azureUrl);
       const azureResponse = await fetch(azureUrl, {
         method: "POST",
         headers: {

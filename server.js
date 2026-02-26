@@ -51,7 +51,7 @@ const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
 
 // Scrape endpoint
 app.post('/api/scrape', async (req, res) => {
-    console.log('Scrape request received:', req.body);
+    // console.log('Scrape request received:', req.body);
     const startTime = Date.now();
 
     // Send standard JSON response (no streaming)
@@ -60,7 +60,7 @@ app.post('/api/scrape', async (req, res) => {
 
     const sendUpdate = (data) => {
         // Log updates to console instead of streaming to client
-        console.log('[UPDATE]', JSON.stringify(data));
+        // console.log('[UPDATE]', JSON.stringify(data));
     };
 
     try {
@@ -86,7 +86,7 @@ app.post('/api/scrape', async (req, res) => {
             return res.status(404).json({ error: 'No active sources found' });
         }
 
-        console.log(`Processing ${sourcesData.length} sources`);
+        // console.log(`Processing ${sourcesData.length} sources`);
         sendUpdate({ type: 'start', total: sourcesData.length, message: `Iniciando análisis de ${sourcesData.length} fuentes...` });
 
         // Scrape sources with concurrency limit
@@ -98,7 +98,7 @@ app.post('/api/scrape', async (req, res) => {
         // Helper function to process a single source
         const processSource = async (source) => {
             // ... (existing scraping logic)
-            console.log(`[START] Scraping source: ${source.name} (${source.url})`);
+            // console.log(`[START] Scraping source: ${source.name} (${source.url})`);
             sendUpdate({ type: 'progress', message: `Contactando ScrapingBee para: ${source.name}...` });
             
             try {
@@ -110,7 +110,7 @@ app.post('/api/scrape', async (req, res) => {
                 // Check for ScrapingBee specific headers if possible (usually in response headers)
                 const usedCredits = response.headers.get('Spb-Used-Credits');
                 const remainingCredits = response.headers.get('Spb-Remaining-Credits');
-                if (usedCredits) console.log(`[INFO] ScrapingBee Credits - Used: ${usedCredits}, Remaining: ${remainingCredits}`);
+                if (usedCredits) // console.log(`[INFO] ScrapingBee Credits - Used: ${usedCredits}, Remaining: ${remainingCredits}`);
 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -126,7 +126,7 @@ app.post('/api/scrape', async (req, res) => {
                     }
 
                 const html = await response.text();
-                console.log(`[INFO] HTML content length for ${source.name}: ${html.length}`);
+                // console.log(`[INFO] HTML content length for ${source.name}: ${html.length}`);
                 
                 if (html.length < 1000) {
                      console.warn(`[WARN] HTML content too short for ${source.name}. Possible bot detection or empty page.`);
@@ -160,7 +160,7 @@ app.post('/api/scrape', async (req, res) => {
                 
                 // Dynamic Selector Support (High Priority)
                 if (source.selector_list_container) {
-                    console.log(`[DEBUG] Using dynamic selector_list_container: ${source.selector_list_container}`);
+                    // console.log(`[DEBUG] Using dynamic selector_list_container: ${source.selector_list_container}`);
                     
                     let selector = source.selector_list_container;
                     let regexPattern;
@@ -190,13 +190,13 @@ app.post('/api/scrape', async (req, res) => {
                                  } catch (e) {}
                              }
                              highPriorityUrls.add(url);
-                             console.log(`[DEBUG] Found High Priority URL via Dynamic Selector: ${url}`);
+                             // console.log(`[DEBUG] Found High Priority URL via Dynamic Selector: ${url}`);
                         }
                     }
                 } else {
                     // Legacy/Fallback Logic
                     if (source.url.includes('soychile.cl')) {
-                        console.log(`[DEBUG] Scanning SoyChile specific structure: destacadas-wrapper -> media-desc -> a`);
+                        // console.log(`[DEBUG] Scanning SoyChile specific structure: destacadas-wrapper -> media-desc -> a`);
                         const wrapperRegex = /<div[^>]*class=["'][^"']*destacadas-wrapper[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi;
                         let wrapperMatch;
                         while ((wrapperMatch = wrapperRegex.exec(html)) !== null) {
@@ -213,13 +213,13 @@ app.post('/api/scrape', async (req, res) => {
                                     } catch (e) {}
                                 }
                                 highPriorityUrls.add(url);
-                                console.log(`[DEBUG] Found High Priority SoyChile URL: ${url}`);
+                                // console.log(`[DEBUG] Found High Priority SoyChile URL: ${url}`);
                             }
                         }
                     }
 
                     if (source.url.includes('emol.com')) {
-                        console.log(`[DEBUG] Scanning Emol specific structure: ucHomePage_cuNoticiasCentral`);
+                        // console.log(`[DEBUG] Scanning Emol specific structure: ucHomePage_cuNoticiasCentral`);
                         // Patterns: 
                         // 1. ucHomePage_cuNoticiasCentral_contTitular (Main)
                         // 2. ucHomePage_cuNoticiasCentral_repNoticiasCetral_cajaSec_X (Secondary)
@@ -241,7 +241,7 @@ app.post('/api/scrape', async (req, res) => {
                                     } catch (e) {}
                                 }
                                 highPriorityUrls.add(url);
-                                console.log(`[DEBUG] Found High Priority Emol URL: ${url}`);
+                                // console.log(`[DEBUG] Found High Priority Emol URL: ${url}`);
                             }
                         }
                     }
@@ -287,7 +287,7 @@ app.post('/api/scrape', async (req, res) => {
 
                     // Debug log for first few links to verify patterns
                     if (foundLinksCount <= 5) {
-                        console.log(`[DEBUG] Analyzing link: ${fullUrl} | Text: "${linkText}"`);
+                        // console.log(`[DEBUG] Analyzing link: ${fullUrl} | Text: "${linkText}"`);
                     }
                     
                     if (linkText.length > 10 && // Reduced to 10 to catch very short titles
@@ -336,7 +336,7 @@ app.post('/api/scrape', async (req, res) => {
                         // New High Priority check based on specific structure
                         if (highPriorityUrls.has(fullUrl)) {
                             score += 50; // Massive boost for structurally verified links
-                            console.log(`[DEBUG] Boosted score for structural match: ${fullUrl}`);
+                            // console.log(`[DEBUG] Boosted score for structural match: ${fullUrl}`);
                         }
 
                         candidates.push({
@@ -353,7 +353,7 @@ app.post('/api/scrape', async (req, res) => {
                 const topCandidates = candidates.slice(0, ARTICLES_PER_SOURCE);
                 newsArticles.push(...topCandidates);
                 
-                console.log(`[INFO] Found ${foundLinksCount} total links. Valid candidates: ${validLinksCount}. Selected top ${newsArticles.length} to process.`);
+                // console.log(`[INFO] Found ${foundLinksCount} total links. Valid candidates: ${validLinksCount}. Selected top ${newsArticles.length} to process.`);
                 sendUpdate({ type: 'progress', message: `Encontrados ${newsArticles.length} artículos nuevos en ${source.name}. Procesando...` });
 
                 if (newsArticles.length === 0) {
@@ -380,8 +380,8 @@ app.post('/api/scrape', async (req, res) => {
                         const articleHtml = await articleResponse.text();
                         const fullContent = extractContent(articleHtml, article.title, article.url, source);
                         
-                        console.log(`[DEBUG] Extracted content length for ${article.url}: ${fullContent.length}`);
-                        if (fullContent.length < 200) console.log(`[DEBUG] Content preview: ${fullContent}`);
+                        // console.log(`[DEBUG] Extracted content length for ${article.url}: ${fullContent.length}`);
+                        if (fullContent.length < 200) // console.log(`[DEBUG] Content preview: ${fullContent}`);
 
                         // Validation: Check for invalid content phrases
                         const invalidPhrases = [
@@ -492,7 +492,7 @@ app.post('/api/scrape', async (req, res) => {
         }
 
         const duration = (Date.now() - startTime) / 1000;
-        console.log(`[COMPLETE] Scraped ${scrapedNews.length} news in ${duration}s`);
+        // console.log(`[COMPLETE] Scraped ${scrapedNews.length} news in ${duration}s`);
         
         res.json({
             success: true,
@@ -528,7 +528,7 @@ function extractContent(html, title, url, source) {
     
     // Pattern 0: Dynamic Selector (High Priority)
     if (source && source.selector_content) {
-        console.log(`[DEBUG] Using dynamic selector_content: ${source.selector_content} for ${url}`);
+        // console.log(`[DEBUG] Using dynamic selector_content: ${source.selector_content} for ${url}`);
         let selector = source.selector_content;
         let regexPattern;
 
@@ -548,7 +548,7 @@ function extractContent(html, title, url, source) {
         
         const match = html.match(regexPattern);
         if (match) {
-             console.log(`[DEBUG] Found content using dynamic selector`);
+             // console.log(`[DEBUG] Found content using dynamic selector`);
              const chunk = match[0]; // The whole div
              // Use existing extraction logic on this chunk
              fullContent = extractParagraphs(chunk);
@@ -570,7 +570,7 @@ function extractContent(html, title, url, source) {
     // SoyChile: id="textoDetalle" OR class="textoDetalle"
     const soyMatch = html.match(/<div[^>]*(?:id|class)=["']textoDetalle["'][^>]*>/i);
     if (soyMatch) {
-        console.log(`[DEBUG] Found SoyChile content container for ${url}`);
+        // console.log(`[DEBUG] Found SoyChile content container for ${url}`);
         const soyIndex = soyMatch.index;
         const tagLength = soyMatch[0].length;
         
@@ -587,7 +587,7 @@ function extractContent(html, title, url, source) {
         if (firstTagIndex > 0) {
             const initialText = chunk.substring(0, firstTagIndex).trim();
             if (initialText.length > 20) {
-                console.log(`[DEBUG] Found initial text in SoyChile: "${initialText.substring(0, 50)}..."`);
+                // console.log(`[DEBUG] Found initial text in SoyChile: "${initialText.substring(0, 50)}..."`);
                 fullContent += initialText + '\n\n';
             }
         }
@@ -628,7 +628,7 @@ function extractContent(html, title, url, source) {
                 !text.includes('window.') &&
                 !text.includes('googletag')
                ) {
-                 console.log(`[DEBUG] Found loose text node: "${text.substring(0, 30)}..."`);
+                 // console.log(`[DEBUG] Found loose text node: "${text.substring(0, 30)}..."`);
                  fullContent += text + '\n\n';
             }
         }
@@ -643,7 +643,7 @@ function extractContent(html, title, url, source) {
         }
 
         if (emolIndex !== -1) {
-             console.log(`[DEBUG] Found Emol content container for ${url}`);
+             // console.log(`[DEBUG] Found Emol content container for ${url}`);
              const chunk = html.substring(emolIndex, emolIndex + 25000);
              
              // Emol uses <div> for paragraphs often, not just <p>
@@ -751,7 +751,7 @@ function extractContent(html, title, url, source) {
     
     for (const marker of menuStartMarkers) {
         if (fullContent.includes(marker)) {
-             console.log(`[DEBUG] Removing SoyChile header menu (marker: ${marker})`);
+             // console.log(`[DEBUG] Removing SoyChile header menu (marker: ${marker})`);
              // Try to find the end of the menu (usually 'soychiloé' is the last one, or 'soyosorno' etc)
              const lastCityIndex = fullContent.lastIndexOf('soychiloé');
              if (lastCityIndex !== -1) {
@@ -774,7 +774,7 @@ function extractContent(html, title, url, source) {
     for (const phrase of modalPhrases) {
         const idx = fullContent.indexOf(phrase);
         if (idx !== -1) {
-             console.log(`[DEBUG] Truncating content at modal phrase: "${phrase}"`);
+             // console.log(`[DEBUG] Truncating content at modal phrase: "${phrase}"`);
              fullContent = fullContent.substring(0, idx).trim();
         }
     }
@@ -905,7 +905,7 @@ app.post('/api/azure-tts', async (req, res) => {
         const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'><voice name='${voice}'><prosody rate="${finalRate}" pitch="${pitchStr}" volume="+3%">${processedText}</prosody></voice></speak>`;
 
         const azureUrl = `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
-        console.log(`Sending request to Azure TTS: ${azureUrl}`);
+        // console.log(`Sending request to Azure TTS: ${azureUrl}`);
 
         const azureResponse = await fetch(azureUrl, {
             method: "POST",
@@ -946,8 +946,8 @@ app.post('/api/qwen-voice-create', async (req, res) => {
     try {
         const { audioUrl, audio_data, preferred_name, target_model } = req.body;
 
-        console.log('[QWEN] /api/qwen-voice-create called');
-        console.log('[QWEN] Env DASHSCOPE_API_KEY set:', !!(process.env.DASHSCOPE_API_KEY && process.env.DASHSCOPE_API_KEY !== 'YOUR_QWEN_API_KEY'));
+        // console.log('[QWEN] /api/qwen-voice-create called');
+        // console.log('[QWEN] Env DASHSCOPE_API_KEY set:', !!(process.env.DASHSCOPE_API_KEY && process.env.DASHSCOPE_API_KEY !== 'YOUR_QWEN_API_KEY'));
 
         if (!DASHSCOPE_API_KEY || DASHSCOPE_API_KEY === 'YOUR_QWEN_API_KEY') {
             return res.status(500).json({
@@ -1047,7 +1047,7 @@ app.post('/api/qwen-tts', async (req, res) => {
     try {
         const { text, voice, speed, rate, pitch } = req.body;
 
-        console.log('[QWEN] /api/qwen-tts called', { voice, speed, rate, pitch });
+        // console.log('[QWEN] /api/qwen-tts called', { voice, speed, rate, pitch });
 
         if (!DASHSCOPE_API_KEY || DASHSCOPE_API_KEY === 'YOUR_QWEN_API_KEY') {
             return res.status(500).json({
@@ -1122,7 +1122,7 @@ app.post('/api/qwen-tts', async (req, res) => {
             }
         };
 
-        console.log('[QWEN] Payload:', JSON.stringify(payload));
+        // console.log('[QWEN] Payload:', JSON.stringify(payload));
 
         const headers = {
             Authorization: `Bearer ${DASHSCOPE_API_KEY}`,
@@ -1455,9 +1455,9 @@ const PORT = process.env.PORT || 8888;
 
 if (require.main === module) {
     app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-        console.log(`Health check: http://localhost:${PORT}/api/health`);
-        console.log(`Scrape endpoint: http://localhost:${PORT}/api/scrape`);
+        // console.log(`Server running on port ${PORT}`);
+        // console.log(`Health check: http://localhost:${PORT}/api/health`);
+        // console.log(`Scrape endpoint: http://localhost:${PORT}/api/scrape`);
     });
 }
 

@@ -100,7 +100,7 @@ export class AuthService {
     }
 
     login(email: string, password: string): Observable<User> {
-        console.log('AuthService: Login attempt for', email);
+        // console.log('AuthService: Login attempt for', email);
         
         // Create a timeout promise that rejects after 15 seconds
         const timeoutPromise = new Promise((_, reject) => 
@@ -123,7 +123,7 @@ export class AuthService {
                 if (error) throw error;
                 if (!data?.user) throw new Error('No se recibió información del usuario');
                 
-                console.log('AuthService: Login successful, emitting initial user immediately...');
+                // console.log('AuthService: Login successful, emitting initial user immediately...');
                 
                 // FORCE AUTH INITIALIZED: We have a valid session now, so we are initialized.
                 // This unblocks AuthGuard if initializeAuth() was somehow stuck.

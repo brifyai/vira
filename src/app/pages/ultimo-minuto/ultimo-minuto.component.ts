@@ -258,7 +258,7 @@ export class UltimoMinutoComponent implements OnInit {
                 return;
             }
 
-            console.log('Scraping sources:', sourceIds);
+            // console.log('Scraping sources:', sourceIds);
             
             // Call scraping API with streaming support
             const response = await fetch(`${config.apiUrl}/api/scrape`, {

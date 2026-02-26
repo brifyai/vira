@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
         // Scrape each source
         for (const source of sourcesData) {
             try {
-                console.log(`Scraping source: ${source.name} (${source.url})`);
+                // console.log(`Scraping source: ${source.name} (${source.url})`);
 
                 const response = await fetch(
                     `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(source.url)}&render_js=true`
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
                 };
 
                 scrapedNews.push(newsItem);
-                console.log(`Successfully scraped ${source.name}`);
+                // console.log(`Successfully scraped ${source.name}`);
             } catch (error) {
                 console.error(`Error scraping ${source.name}:`, error);
                 continue;

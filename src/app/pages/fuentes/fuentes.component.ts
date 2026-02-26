@@ -58,13 +58,13 @@ export class FuentesComponent implements OnInit {
     }
 
     async loadSources(): Promise<void> {
-        console.log('Starting to load sources...');
+        // console.log('Starting to load sources...');
         this.loading = true;
         this.cdr.detectChanges(); // Force update
         try {
-            console.log('Calling supabaseService.getNewsSources()...');
+            // console.log('Calling supabaseService.getNewsSources()...');
             const data = await this.supabaseService.getNewsSources();
-            console.log('Data received:', data);
+            // console.log('Data received:', data);
             // Map database fields to interface fields
             this.sources = (data || []).map(item => ({
                 id: item.id,
@@ -79,13 +79,13 @@ export class FuentesComponent implements OnInit {
                 selectorContent: item.selector_content,
                 selectorIgnore: item.selector_ignore
             }));
-            console.log('Sources mapped:', this.sources);
-            console.log('Sources length:', this.sources.length);
+            // console.log('Sources mapped:', this.sources);
+            // console.log('Sources length:', this.sources.length);
         } catch (error) {
             console.error('Error loading sources:', error);
             this.sources = [];
         } finally {
-            console.log('Loading finished, setting loading to false');
+            // console.log('Loading finished, setting loading to false');
             this.loading = false;
             this.cdr.detectChanges(); // Force update
         }
@@ -121,16 +121,16 @@ export class FuentesComponent implements OnInit {
     }
 
     closeModals(): void {
-        console.log('Closing modals...');
+        // console.log('Closing modals...');
         this.showCreateModal = false;
         this.showEditModal = false;
         this.selectedSource = null;
         this.cdr.detectChanges();
-        console.log('Modals closed, showCreateModal:', this.showCreateModal, 'showEditModal:', this.showEditModal);
+        // console.log('Modals closed, showCreateModal:', this.showCreateModal, 'showEditModal:', this.showEditModal);
     }
 
     async createSource(): Promise<void> {
-        console.log('Creating source...');
+        // console.log('Creating source...');
         try {
             const newSource = await this.supabaseService.createNewsSource({
                 name: this.formData.name,
@@ -142,18 +142,18 @@ export class FuentesComponent implements OnInit {
                 selector_content: this.formData.selectorContent,
                 selector_ignore: this.formData.selectorIgnore
             });
-            console.log('Source created:', newSource);
-            console.log('Loading sources...');
+            // console.log('Source created:', newSource);
+            // console.log('Loading sources...');
             await this.loadSources();
-            console.log('Sources loaded, closing modals...');
+            // console.log('Sources loaded, closing modals...');
             this.closeModals();
-            console.log('Modals closed, showing snackbar...');
+            // console.log('Modals closed, showing snackbar...');
             this.snackBar.open('Fuente creada exitosamente', 'Cerrar', {
                 duration: 3000,
                 horizontalPosition: 'end',
                 verticalPosition: 'top'
             });
-            console.log('Snackbar shown');
+            // console.log('Snackbar shown');
         } catch (error) {
             console.error('Error creating source:', error);
             this.snackBar.open('Error al crear la fuente', 'Cerrar', {
@@ -179,7 +179,7 @@ export class FuentesComponent implements OnInit {
                 selector_content: this.formData.selectorContent,
                 selector_ignore: this.formData.selectorIgnore
             });
-            console.log('Source updated:', this.selectedSource);
+            // console.log('Source updated:', this.selectedSource);
             await this.loadSources();
             this.closeModals();
             this.snackBar.open('Fuente actualizada exitosamente', 'Cerrar', {
@@ -203,7 +203,7 @@ export class FuentesComponent implements OnInit {
 
         try {
             await this.supabaseService.deleteNewsSource(source.id);
-            console.log('Source deleted:', source);
+            // console.log('Source deleted:', source);
             await this.loadSources();
             this.snackBar.open('Fuente eliminada exitosamente', 'Cerrar', {
                 duration: 3000,
@@ -227,7 +227,7 @@ export class FuentesComponent implements OnInit {
                 is_active: !source.active
             });
             source.active = !source.active;
-            console.log('Source status toggled:', source);
+            // console.log('Source status toggled:', source);
             this.snackBar.open(
                 `Fuente ${source.active ? 'activada' : 'desactivada'} exitosamente`,
                 'Cerrar',
@@ -292,16 +292,16 @@ export class FuentesComponent implements OnInit {
             sourcesToScrape = [this.selectedSourceId];
         }
 
-        console.log('Sources to scrape:', sourcesToScrape);
+        // console.log('Sources to scrape:', sourcesToScrape);
 
         this.loading = true;
         this.cdr.detectChanges();
 
         try {
-            console.log('Scraping news from selected sources...');
+            // console.log('Scraping news from selected sources...');
 
             // Call scraping API endpoint
-            console.log('Sending scrape request to:', `${config.apiUrl}/api/scrape`);
+            // console.log('Sending scrape request to:', `${config.apiUrl}/api/scrape`);
             const response = await fetch(`${config.apiUrl}/api/scrape`, {
                 method: 'POST',
                 headers: {
@@ -319,7 +319,7 @@ export class FuentesComponent implements OnInit {
             }
 
             const result = await response.json();
-            console.log('Scraping result:', result);
+            // console.log('Scraping result:', result);
 
             this.snackBar.open(
                 `Noticias obtenidas exitosamente: ${result.count || 0} noticias`,
@@ -363,16 +363,16 @@ export class FuentesComponent implements OnInit {
         this.cdr.detectChanges();
 
         try {
-            console.log('Scraping news from all sources...');
+            // console.log('Scraping news from all sources...');
 
             // Get only active sources
             const activeSources = this.sources.filter(s => s.active);
             const sourceIds = activeSources.map(s => s.id);
 
-            console.log('Active sources:', sourceIds);
+            // console.log('Active sources:', sourceIds);
 
             // Call scraping API endpoint
-            console.log('Sending scrape request to:', `${config.apiUrl}/api/scrape`);
+            // console.log('Sending scrape request to:', `${config.apiUrl}/api/scrape`);
             const response = await fetch(`${config.apiUrl}/api/scrape`, {
                 method: 'POST',
                 headers: {
@@ -390,7 +390,7 @@ export class FuentesComponent implements OnInit {
             }
 
             const result = await response.json();
-            console.log('Scraping result:', result);
+            // console.log('Scraping result:', result);
 
             this.snackBar.open(
                 `Noticias obtenidas exitosamente: ${result.count || 0} noticias`,

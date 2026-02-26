@@ -22,7 +22,7 @@ export class GeminiTtsService {
     
     // Check if text is long and needs chunking
     if (cleanText.length > 300) {
-      console.log('Texto largo detectado, usando chunking...');
+      // console.log('Texto largo detectado, usando chunking...');
       return this.processLongText(cleanText, params.voiceName, params.speed, params.pitch);
     }
 
@@ -59,7 +59,7 @@ export class GeminiTtsService {
 
   private async processLongText(text: string, voiceName: string, speed?: number, pitch?: number): Promise<string> {
     const chunks = this.splitTextIntoChunks(text, 300);
-    console.log(`Texto dividido en ${chunks.length} chunks. Procesando con concurrencia...`);
+    // console.log(`Texto dividido en ${chunks.length} chunks. Procesando con concurrencia...`);
 
     const concurrency = 3;
     const results: { index: number, blob: Blob }[] = [];

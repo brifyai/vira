@@ -163,7 +163,7 @@ export class RecursosComponent implements OnInit {
       const timeoutId = setTimeout(() => controller.abort(), 45000);
       this.qwenStep = 'creating';
       this.cdr.detectChanges();
-      console.log('[QWEN] Calling backend /api/qwen-voice-create...');
+      // console.log('[QWEN] Calling backend /api/qwen-voice-create...');
       const resp = await fetch(`/api/qwen-voice-create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

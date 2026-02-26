@@ -300,11 +300,11 @@ export class AutomatizacionActivosComponent implements OnInit {
 
     toggleAutomation(automation: any) {
         automation.isActive = !automation.isActive;
-        console.log('Toggling automation:', automation);
+        // console.log('Toggling automation:', automation);
     }
 
     runNow(automation: any) {
-        console.log('Running automation now:', automation);
+        // console.log('Running automation now:', automation);
         alert(`Ejecutando: ${automation.name}`);
     }
 
@@ -344,20 +344,20 @@ export class AutomatizacionActivosComponent implements OnInit {
     }
 
     createAutomation() {
-        console.log('Creating automation:', this.formData);
+        // console.log('Creating automation:', this.formData);
         alert('Automatización creada exitosamente');
         this.closeModals();
     }
 
     updateAutomation() {
-        console.log('Updating automation:', this.formData);
+        // console.log('Updating automation:', this.formData);
         alert('Automatización actualizada exitosamente');
         this.closeModals();
     }
 
     deleteAutomation(automation: any) {
         if (confirm(`¿Estás seguro de eliminar "${automation.name}"?`)) {
-            console.log('Deleting automation:', automation);
+            // console.log('Deleting automation:', automation);
             alert('Automatización eliminada');
         }
     }

@@ -25,7 +25,7 @@ export class AzureTtsService {
         }
         // Split text using Qwen specific limit
         const chunks = this.splitTextIntoChunks(params.text, QWEN_MAX_CHARS);
-        console.log(`[Qwen] Text too long (${params.text.length} chars). Split into ${chunks.length} chunks (Limit: ${QWEN_MAX_CHARS}).`);
+        // console.log(`[Qwen] Text too long (${params.text.length} chars). Split into ${chunks.length} chunks (Limit: ${QWEN_MAX_CHARS}).`);
         
         return this.processChunksParallel(chunks, params, onProgress);
       }
@@ -37,7 +37,7 @@ export class AzureTtsService {
 
       // Split text into chunks for Azure
       const chunks = this.splitTextIntoChunks(params.text, AZURE_MAX_CHARS);
-      console.log(`[Azure] Text too long (${params.text.length} chars). Split into ${chunks.length} chunks.`);
+      // console.log(`[Azure] Text too long (${params.text.length} chars). Split into ${chunks.length} chunks.`);
 
       // Generate audio for each chunk
       const blobs: Blob[] = [];
@@ -68,29 +68,29 @@ export class AzureTtsService {
       const results: { index: number, blob: Blob }[] = [];
       let completed = 0;
       
-      console.log(`[AzureTTS] Processing ${chunks.length} chunks sequentially...`);
+      // console.log(`[AzureTTS] Processing ${chunks.length} chunks sequentially...`);
 
       // If sequential (concurrency 1), we can just loop directly without Promise.race complexity
       // This is cleaner and allows for delays
       if (concurrency === 1) {
           for (let i = 0; i < chunks.length; i++) {
-              console.log(`[AzureTTS] Processing chunk ${i + 1}/${chunks.length} (Length: ${chunks[i].length})`);
+              // console.log(`[AzureTTS] Processing chunk ${i + 1}/${chunks.length} (Length: ${chunks[i].length})`);
               try {
                   const blobUrl = await this.callQwenApi(chunks[i], params.voice, params.speed ?? 1.0, params.pitch ?? 1.0);
-                  console.log(`[AzureTTS] Chunk ${i + 1} generated. Fetching blob...`);
+                  // console.log(`[AzureTTS] Chunk ${i + 1} generated. Fetching blob...`);
                   
                   const response = await fetch(blobUrl);
                   const blob = await response.blob();
                   URL.revokeObjectURL(blobUrl);
                   
-                  console.log(`[AzureTTS] Chunk ${i + 1} blob received. Size: ${blob.size}`);
+                  // console.log(`[AzureTTS] Chunk ${i + 1} blob received. Size: ${blob.size}`);
                   results.push({ index: i, blob });
                   completed++;
                   if (onProgress) onProgress(Math.round((completed / chunks.length) * 100));
 
                   // Add delay between chunks to avoid rate limits
                   if (i < chunks.length - 1) {
-                      console.log(`[AzureTTS] Waiting 500ms before next chunk...`);
+                      // console.log(`[AzureTTS] Waiting 500ms before next chunk...`);
                       await new Promise(resolve => setTimeout(resolve, 500));
                   }
               } catch (err) {
@@ -99,15 +99,15 @@ export class AzureTtsService {
               }
           }
           
-          console.log(`[AzureTTS] All chunks processed. Combining ${results.length} blobs...`);
+          // console.log(`[AzureTTS] All chunks processed. Combining ${results.length} blobs...`);
           
           // Re-encode all blobs into a single MP3 to fix duration/playback issues
           // Using lamejs as it's available in the project
           try {
-            console.log(`[AzureTTS] Merging and re-encoding ${results.length} audio chunks...`);
+            // console.log(`[AzureTTS] Merging and re-encoding ${results.length} audio chunks...`);
             const finalBlob = await this.mergeAudioBlobs(results.map(r => r.blob));
             const finalUrl = URL.createObjectURL(finalBlob);
-            console.log(`[AzureTTS] Final audio URL created: ${finalUrl}, Size: ${finalBlob.size}`);
+            // console.log(`[AzureTTS] Final audio URL created: ${finalUrl}, Size: ${finalBlob.size}`);
             return finalUrl;
           } catch (mergeError) {
             console.error('[AzureTTS] Error merging audio blobs:', mergeError);
@@ -115,7 +115,7 @@ export class AzureTtsService {
             const blobs = results.map(r => r.blob);
             const finalBlob = new Blob(blobs, { type: 'audio/mpeg' });
             const finalUrl = URL.createObjectURL(finalBlob);
-            console.log(`[AzureTTS] Fallback: Concatenated audio URL created: ${finalUrl}`);
+            // console.log(`[AzureTTS] Fallback: Concatenated audio URL created: ${finalUrl}`);
             return finalUrl;
           }
       }
@@ -246,7 +246,7 @@ export class AzureTtsService {
   }
 
   private async callQwenApi(text: string, voice: string, speed: number = 1.0, pitch: number = 1.0): Promise<string> {
-    console.log(`[QwenAPI] Calling with text length: ${text.length}`);
+    // console.log(`[QwenAPI] Calling with text length: ${text.length}`);
     try {
       const response = await firstValueFrom(
         this.http.post(`${config.apiUrl}/api/qwen-tts`, {
@@ -262,7 +262,7 @@ export class AzureTtsService {
         throw new Error('El audio generado está vacío');
       }
       const url = URL.createObjectURL(response);
-      console.log(`[QwenAPI] Success. URL: ${url}, Size: ${response.size}`);
+      // console.log(`[QwenAPI] Success. URL: ${url}, Size: ${response.size}`);
       return url;
     } catch (error: any) {
       if (error.error instanceof Blob) {
