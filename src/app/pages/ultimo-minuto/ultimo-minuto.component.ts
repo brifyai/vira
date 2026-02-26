@@ -148,7 +148,7 @@ export class UltimoMinutoComponent implements OnInit {
             const news = await this.supabaseService.safeFetch(
                 () => this.supabaseService.getScrapedNews({ limit: 50 }),
                 4, // 4 retries
-                5000 // 5s timeout per try
+                15000 // 15s timeout per try
             );
 
             if (news) {

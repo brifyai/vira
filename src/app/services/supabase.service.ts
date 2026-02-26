@@ -28,7 +28,7 @@ export class SupabaseService {
     async safeFetch<T>(
         operation: () => Promise<T>,
         retries: number = 2,
-        timeoutMs: number = 8000
+        timeoutMs: number = 15000
     ): Promise<T | null> {
         for (let i = 0; i <= retries; i++) {
             try {
@@ -90,7 +90,7 @@ export class SupabaseService {
                 
                 if (error) throw error;
                 return data;
-            }, 2, 3000); // Retry twice, 3s timeout each
+            }, 2, 10000); // Retry twice, 10s timeout each
             
             return data;
         } catch (error) {

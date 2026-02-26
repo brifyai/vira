@@ -32,7 +32,11 @@ export class MisNoticierosComponent implements OnInit {
     this.loading = true;
     try {
       // Load news broadcasts (projects)
-      const newsBroadcasts = await this.supabaseService.getNewsBroadcasts();
+      const newsBroadcasts = await this.supabaseService.safeFetch(
+        () => this.supabaseService.getNewsBroadcasts(),
+        3, // 3 retries
+        15000 // 15s timeout
+      ) || [];
       
       // Fetch generated audio for each broadcast
       this.broadcasts = await Promise.all(newsBroadcasts.map(async (b: any) => {

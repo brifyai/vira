@@ -65,7 +65,7 @@ export class RadiosComponent implements OnInit {
             const data = await this.supabaseService.safeFetch(
                 () => this.supabaseService.getRadios(),
                 3, // 3 retries
-                6000 // 6s timeout per try
+                15000 // 15s timeout per try
             );
             
             if (data) {

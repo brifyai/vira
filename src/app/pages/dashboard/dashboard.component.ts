@@ -49,10 +49,10 @@ export class DashboardComponent implements OnInit {
                 broadcastsData,
                 newsData
             ] = await Promise.all([
-                this.supabaseService.getRadios(),
-                this.supabaseService.getNewsSources(),
-                this.supabaseService.getNewsBroadcasts({ limit: 5 }),
-                this.supabaseService.getScrapedNews({ limit: 5 })
+                this.supabaseService.safeFetch(() => this.supabaseService.getRadios(), 3, 15000),
+                this.supabaseService.safeFetch(() => this.supabaseService.getNewsSources(), 3, 15000),
+                this.supabaseService.safeFetch(() => this.supabaseService.getNewsBroadcasts({ limit: 5 }), 3, 15000),
+                this.supabaseService.safeFetch(() => this.supabaseService.getScrapedNews({ limit: 5 }), 3, 15000)
             ]);
 
             this.radios = radiosData || [];

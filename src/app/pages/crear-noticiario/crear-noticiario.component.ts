@@ -203,7 +203,11 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
         try {
             console.log('Loading scraped news...');
-            const data = await this.supabaseService.getScrapedNews();
+            const data = await this.supabaseService.safeFetch(
+                () => this.supabaseService.getScrapedNews(),
+                3, // 3 retries
+                15000 // 15s timeout
+            );
             console.log('Scraped news loaded:', data);
 
             // Map database fields to interface
@@ -301,7 +305,11 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
     async loadRadios(): Promise<void> {
         try {
-            const data = await this.supabaseService.getRadios();
+            const data = await this.supabaseService.safeFetch(
+                () => this.supabaseService.getRadios(),
+                3, // 3 retries
+                15000 // 15s timeout
+            );
             this.radios = data || [];
         } catch (error) {
             console.error('Error loading radios:', error);
