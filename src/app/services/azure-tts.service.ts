@@ -15,7 +15,7 @@ export class AzureTtsService {
 
   async generateSpeech(params: { text: string; voice: string; speed?: number; pitch?: number }, onProgress?: (percent: number) => void): Promise<string> {
     const AZURE_MAX_CHARS = 2400; // Safety margin below 2500
-    const QWEN_MAX_CHARS = 550;   // DashScope limit is strictly 600 chars. Set 550 for safety.
+    const QWEN_MAX_CHARS = 250;   // Reduced from 550 to 250 to avoid Vercel 10s timeout on generation
 
     try {
       if (params.voice && params.voice.startsWith('qwen:')) {

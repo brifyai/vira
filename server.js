@@ -1047,9 +1047,10 @@ app.post('/api/qwen-tts', async (req, res) => {
     try {
         const { text, voice, speed, rate, pitch } = req.body;
 
-        // console.log('[QWEN] /api/qwen-tts called', { voice, speed, rate, pitch });
+        // console.log('[QWEN] /api/qwen-tts called', { voice, textLength: text?.length });
 
         if (!DASHSCOPE_API_KEY || DASHSCOPE_API_KEY === 'YOUR_QWEN_API_KEY') {
+            console.error('[QWEN] API Key missing');
             return res.status(500).json({
                 error: 'API Key de DashScope no configurada',
                 message: 'Configura DASHSCOPE_API_KEY en variables de entorno'
@@ -1064,7 +1065,8 @@ app.post('/api/qwen-tts', async (req, res) => {
         }
 
         // Qwen Speed: Accept 'rate' (preferred) or 'speed' (legacy/UI)
-        // Range 0.1 to 10.0. Default 1.0.
+        // Range 0.5 to 2.0. Default 1.0.
+        // Note: Qwen might support wider range, but keeping it safe.
         let parsedRate = 1.0;
         if (rate !== undefined) {
             parsedRate = parseFloat(rate);
@@ -1073,31 +1075,22 @@ app.post('/api/qwen-tts', async (req, res) => {
         }
         
         if (isNaN(parsedRate)) parsedRate = 1.0;
-        const speechRate = Math.max(0.1, Math.min(parsedRate, 10.0));
+        const speechRate = Math.max(0.5, Math.min(parsedRate, 2.0));
             
-        // Qwen Pitch: Relaxed range 0.1 to 10.0. Default 1.0.
+        // Qwen Pitch: Range 0.5 to 2.0? Documentation varies.
+        // Let's stick to safe range.
         let parsedPitch = parseFloat(pitch);
         if (isNaN(parsedPitch)) parsedPitch = 1.0;
-        const speechPitch = Math.max(0.1, Math.min(parsedPitch, 10.0));
+        const speechPitch = Math.max(0.5, Math.min(parsedPitch, 2.0));
 
         const voiceId = voice.startsWith('qwen:') ? voice.substring(5) : voice;
 
         // Generate natural language instructions for style control
         let styleInstruction = "";
-        if (speechRate >= 2.0) {
-            styleInstruction += "Speak very fast. ";
-        } else if (speechRate >= 1.2) {
+        if (speechRate >= 1.5) {
             styleInstruction += "Speak fast. ";
-        } else if (speechRate <= 0.5) {
-            styleInstruction += "Speak very slowly. ";
         } else if (speechRate <= 0.8) {
             styleInstruction += "Speak slowly. ";
-        }
-
-        if (speechPitch >= 1.2) {
-            styleInstruction += "Use a high-pitched voice. ";
-        } else if (speechPitch <= 0.8) {
-            styleInstruction += "Use a low-pitched voice. ";
         }
 
         // Use the unified multimodal generation HTTP API
@@ -1110,15 +1103,12 @@ app.post('/api/qwen-tts', async (req, res) => {
             input: {
                 text,
                 voice: voiceId,
-                // Add instruction to input as 'prompt' or 'style_instruction' depending on specific model variant
-                // Replicate uses style_instruction, DashScope usually prompt
                 prompt: styleInstruction.trim() || undefined
             },
             parameters: {
                 rate: speechRate,
-                pitch: speechPitch,
-                // Also add style_instruction to parameters just in case
-                style_instruction: styleInstruction.trim() || undefined
+                pitch: speechPitch
+                // Removed style_instruction from parameters to avoid potential conflicts
             }
         };
 
@@ -1126,53 +1116,91 @@ app.post('/api/qwen-tts', async (req, res) => {
 
         const headers = {
             Authorization: `Bearer ${DASHSCOPE_API_KEY}`,
-            'Content-Type': 'application/json'
-            // Removed X-DashScope-Async to attempt synchronous/direct generation
+            'Content-Type': 'application/json',
+            'X-DashScope-Async': 'enable' // Enable async mode to handle timeouts better
         };
-        
-        // Note: multimodal-generation is usually async-only or SSE. 
-        // If the previous implementation worked with fetch, it might be returning a task_id or immediate result?
-        // The previous code had: const audioUrl = json?.output?.url ...
-        // If it works, great. If not, we might need to handle task status.
-        // Assuming the previous fix worked (as user said "hubo progreso... me guardo la voz").
-        // But the user reported "Invalid message type" on TTS. 
-        // We need to be careful with the payload structure.
-        // Documentation for qwen3-tts-vc might require specific structure.
-        // If "Invalid message type" happened, maybe `input` structure was wrong.
-        // The previous code had `input: { text, voice }`.
         
         const resp = await fetchWithTimeout(url, { method: 'POST', headers, body: JSON.stringify(payload) }, 60000);
         const bodyText = await resp.text();
+        
         if (!resp.ok) {
-            console.error('DashScope TTS Error:', bodyText);
+            console.error('[QWEN] DashScope TTS Error:', bodyText);
             return res.status(resp.status).json({ error: 'Error al generar audio con Qwen', dashscopeError: bodyText });
         }
+
         let json;
         try {
             json = JSON.parse(bodyText);
         } catch {
-            return res.status(500).json({ error: 'Respuesta inválida de DashScope TTS' });
+            return res.status(500).json({ error: 'Respuesta inválida de DashScope TTS (JSON parse error)' });
         }
 
+        // Handle Async Response
+        if (json.output && json.output.task_id) {
+            // console.log('[QWEN] Async task started:', json.output.task_id);
+            // Poll for result
+            const taskId = json.output.task_id;
+            const taskUrl = `https://dashscope-intl.aliyuncs.com/api/v1/tasks/${taskId}`;
+            
+            // Poll loop (max 30 seconds)
+            const startTime = Date.now();
+            while (Date.now() - startTime < 30000) {
+                await new Promise(r => setTimeout(r, 1000)); // Wait 1s
+                
+                const taskResp = await fetchWithTimeout(taskUrl, { headers: { Authorization: `Bearer ${DASHSCOPE_API_KEY}` } }, 10000);
+                if (!taskResp.ok) continue;
+                
+                const taskJson = await taskResp.json();
+                if (taskJson.output && taskJson.output.task_status === 'SUCCEEDED') {
+                    // console.log('[QWEN] Async task succeeded');
+                    const audioUrl = taskJson.output.results?.[0]?.url || taskJson.output.audio_url; // Adjust based on actual response structure
+                     if (audioUrl) {
+                        return await downloadAndSendAudio(audioUrl, res);
+                     }
+                     // Fallback for different structure
+                     if (taskJson.output.audio && taskJson.output.audio.url) {
+                         return await downloadAndSendAudio(taskJson.output.audio.url, res);
+                     }
+                } else if (taskJson.output && taskJson.output.task_status === 'FAILED') {
+                     console.error('[QWEN] Async task failed:', taskJson);
+                     return res.status(500).json({ error: 'Qwen TTS Async Task Failed', details: taskJson });
+                }
+            }
+            return res.status(504).json({ error: 'Timeout waiting for Qwen TTS generation' });
+        }
+
+        // Handle Sync Response (if supported)
         const audioUrl = json?.output?.url || json?.output?.audio_url || json?.output?.audio?.url;
         if (!audioUrl) {
-            return res.status(500).json({ error: 'URL de audio no encontrada en respuesta de DashScope' });
+            console.error('[QWEN] No audio URL in response:', json);
+            return res.status(500).json({ error: 'URL de audio no encontrada en respuesta de DashScope', response: json });
         }
-        const audioResp = await fetchWithTimeout(audioUrl, {}, 60000);
+        
+        await downloadAndSendAudio(audioUrl, res);
+
+    } catch (error) {
+        console.error('[QWEN] TTS Endpoint Error:', error);
+        res.status(500).json({ error: 'Error interno al generar audio con Qwen', details: error.message });
+    }
+});
+
+async function downloadAndSendAudio(url, res) {
+    try {
+        const audioResp = await fetchWithTimeout(url, {}, 60000);
         if (!audioResp.ok) {
             const errText = await audioResp.text().catch(() => '');
-            console.error('Fetch audio URL error:', errText);
+            console.error('[QWEN] Fetch audio URL error:', errText);
             return res.status(502).json({ error: 'No se pudo descargar el audio generado', details: errText });
         }
         const buf = Buffer.from(await audioResp.arrayBuffer());
         const mime = audioResp.headers.get('content-type') || 'audio/mpeg';
         res.set('Content-Type', mime);
         res.send(buf);
-    } catch (error) {
-        console.error('Qwen TTS Endpoint Error:', error);
-        res.status(500).json({ error: 'Error interno al generar audio con Qwen' });
+    } catch (e) {
+        console.error('[QWEN] Download error:', e);
+        res.status(500).json({ error: 'Error downloading audio file' });
     }
-});
+}
 // Gemini Endpoint
 app.post('/api/gemini', async (req, res) => {
     try {
