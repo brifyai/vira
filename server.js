@@ -960,7 +960,7 @@ app.post('/api/qwen-voice-create', async (req, res) => {
     try {
         const { audioUrl, audio_data, preferred_name, target_model } = req.body;
 
-        // console.log('[QWEN] /api/qwen-voice-create called', { preferred_name, target_model, hasAudioData: !!audio_data, hasAudioUrl: !!audioUrl });
+        console.log('[QWEN] /api/qwen-voice-create called', { preferred_name, target_model, hasAudioData: !!audio_data, hasAudioUrl: !!audioUrl });
 
         if (!DASHSCOPE_API_KEY || DASHSCOPE_API_KEY === 'YOUR_QWEN_API_KEY') {
             console.error('[QWEN] API Key missing for voice creation');
@@ -999,9 +999,14 @@ app.post('/api/qwen-voice-create', async (req, res) => {
         if (audio_data && typeof audio_data === 'string' && audio_data.startsWith('data:')) {
             dataUri = audio_data;
         } else if (audioUrl) {
-            const audioResp = await fetchWithTimeout(audioUrl, {}, 30000);
+            // Download audio from URL to convert to base64
+            // Note: DashScope enrollment usually requires base64 or OSS URL. Public URL support varies.
+            // Safest approach is base64 for small files (< 10MB).
+            console.log('[QWEN] Downloading audio from URL:', audioUrl);
+            const audioResp = await fetchWithTimeout(audioUrl, {}, 45000); // Increased timeout
             if (!audioResp.ok) {
                 const errText = await audioResp.text().catch(() => '');
+                console.error('[QWEN] Failed to download audio from URL:', errText);
                 return res.status(400).json({ error: 'No se pudo obtener el audio de referencia', details: errText });
             }
             const contentType = audioResp.headers.get('content-type') || 'audio/mpeg';
@@ -1027,6 +1032,7 @@ app.post('/api/qwen-voice-create', async (req, res) => {
             'Content-Type': 'application/json'
         };
 
+        console.log('[QWEN] Sending enrollment request to DashScope...');
         const resp = await fetchWithTimeout(url, { method: 'POST', headers, body: JSON.stringify(payload) }, 60000);
         const textBody = await resp.text();
         
@@ -1054,6 +1060,7 @@ app.post('/api/qwen-voice-create', async (req, res) => {
              return res.status(500).json({ error: 'Error lógico de DashScope', details: json });
         }
 
+        console.log('[QWEN] Voice created successfully:', json);
         const voice = json?.output?.voice;
         if (!voice) {
             console.error('[QWEN] No voice ID in response:', json);
@@ -1073,7 +1080,7 @@ app.post('/api/qwen-tts', async (req, res) => {
     try {
         const { text, voice, speed, rate, pitch } = req.body;
 
-        // console.log('[QWEN] /api/qwen-tts called', { voice, textLength: text?.length });
+        console.log('[QWEN] /api/qwen-tts called', { voice, textLength: text?.length });
 
         if (!DASHSCOPE_API_KEY || DASHSCOPE_API_KEY === 'YOUR_QWEN_API_KEY') {
             console.error('[QWEN] API Key missing');
@@ -1163,36 +1170,49 @@ app.post('/api/qwen-tts', async (req, res) => {
 
         // Handle Async Response
         if (json.output && json.output.task_id) {
-            // console.log('[QWEN] Async task started:', json.output.task_id);
+            console.log('[QWEN] Async task started:', json.output.task_id);
             // Poll for result
             const taskId = json.output.task_id;
             const taskUrl = `https://dashscope-intl.aliyuncs.com/api/v1/tasks/${taskId}`;
             
-            // Poll loop (max 30 seconds)
+            // Poll loop (max 55 seconds to stay within Vercel 60s limit)
             const startTime = Date.now();
-            while (Date.now() - startTime < 30000) {
-                await new Promise(r => setTimeout(r, 1000)); // Wait 1s
+            while (Date.now() - startTime < 55000) {
+                await new Promise(r => setTimeout(r, 2000)); // Wait 2s between polls
                 
                 const taskResp = await fetchWithTimeout(taskUrl, { headers: { Authorization: `Bearer ${DASHSCOPE_API_KEY}` } }, 10000);
-                if (!taskResp.ok) continue;
+                if (!taskResp.ok) {
+                    console.warn('[QWEN] Task poll failed, retrying...', taskResp.status);
+                    continue;
+                }
                 
                 const taskJson = await taskResp.json();
-                if (taskJson.output && taskJson.output.task_status === 'SUCCEEDED') {
-                    // console.log('[QWEN] Async task succeeded');
-                    const audioUrl = taskJson.output.results?.[0]?.url || taskJson.output.audio_url; // Adjust based on actual response structure
+                const status = taskJson.output?.task_status;
+
+                if (status === 'SUCCEEDED') {
+                    console.log('[QWEN] Async task succeeded');
+                    // Try multiple paths for audio URL
+                    const audioUrl = taskJson.output.results?.[0]?.url || 
+                                     taskJson.output.audio_url || 
+                                     taskJson.output.audio?.url ||
+                                     taskJson.output.result?.audio_url;
+
                      if (audioUrl) {
                         return await downloadAndSendAudio(audioUrl, res);
                      }
-                     // Fallback for different structure
-                     if (taskJson.output.audio && taskJson.output.audio.url) {
-                         return await downloadAndSendAudio(taskJson.output.audio.url, res);
-                     }
-                } else if (taskJson.output && taskJson.output.task_status === 'FAILED') {
+                     
+                     console.error('[QWEN] Audio URL not found in SUCCEEDED task:', JSON.stringify(taskJson));
+                     return res.status(500).json({ error: 'Audio URL no encontrada en respuesta exitosa', details: taskJson });
+
+                } else if (status === 'FAILED' || status === 'CANCELED') {
                      console.error('[QWEN] Async task failed:', taskJson);
                      return res.status(500).json({ error: 'Qwen TTS Async Task Failed', details: taskJson });
+                } else {
+                    // RUNNING, PENDING, etc. -> Continue polling
+                    // console.log('[QWEN] Task status:', status);
                 }
             }
-            return res.status(504).json({ error: 'Timeout waiting for Qwen TTS generation' });
+            return res.status(504).json({ error: 'Timeout waiting for Qwen TTS generation (Async)' });
         }
 
         // Handle Sync Response (if supported)
