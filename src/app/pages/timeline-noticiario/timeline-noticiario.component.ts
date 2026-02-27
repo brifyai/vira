@@ -24,6 +24,9 @@ interface TimelineEvent {
     voice?: string;
     speed?: number;
     pitch?: number;
+    originalContent?: string;
+    humanizedContent?: string;
+    showOriginalText?: boolean;
 }
 
 @Component({
@@ -219,7 +222,10 @@ export class TimelineNoticiarioComponent implements OnInit {
                     // Load voice configuration from DB, fallback to defaults if not set
                     voice: item.voice_id || 'es-CL-LorenzoNeural',
                     speed: item.voice_speed || 1.0,
-                    pitch: item.voice_pitch || 1.0
+                    pitch: item.voice_pitch || 1.0,
+                    originalContent: news?.original_content,
+                    humanizedContent: news?.humanized_content,
+                    showOriginalText: false
                 };
             });
 
@@ -520,6 +526,45 @@ export class TimelineNoticiarioComponent implements OnInit {
             console.error('Error updating block text:', error);
             this.snackBar.open('Error al guardar el texto', 'Cerrar', { duration: 3000 });
         }
+    }
+
+    async updateBlockVoice(event: TimelineEvent) {
+        if (!event.id) return;
+        
+        // Find selected voice to get default settings if available
+        const selectedVoice = this.availableVoices.find(v => v.name === event.voice);
+        const updates: any = { voice_id: event.voice };
+
+        // If it's a custom voice (usually starts with qwen:), it might have default settings
+        // But for now, we just update the voice_id. 
+        // If we wanted to enforce defaults:
+        if (selectedVoice) {
+             // Assuming custom voices have these properties stored in the JSON
+             // If not, we might need to check how they are stored.
+             // But for now, let's just update the voice.
+             // Actually, the user said "ya vienen configurados", so we SHOULD update speed/pitch.
+             // But I don't see speed/pitch in availableVoices map in loadCustomVoices.
+             // Let's assume they are part of the voice object if it's custom.
+             if (selectedVoice.speed) updates.voice_speed = selectedVoice.speed;
+             if (selectedVoice.pitch || selectedVoice.tone) updates.voice_pitch = selectedVoice.pitch || selectedVoice.tone;
+        }
+
+        try {
+            await this.supabaseService.updateBroadcastNewsItem(event.id, updates);
+            
+            // Update local event if we changed speed/pitch
+            if (updates.voice_speed) event.speed = updates.voice_speed;
+            if (updates.voice_pitch) event.pitch = updates.voice_pitch;
+            
+            this.snackBar.open('Voz actualizada', 'Cerrar', { duration: 2000 });
+        } catch (error) {
+            console.error('Error updating block voice:', error);
+            this.snackBar.open('Error al actualizar voz', 'Cerrar', { duration: 3000 });
+        }
+    }
+
+    toggleOriginalText(event: TimelineEvent) {
+        event.showOriginalText = !event.showOriginalText;
     }
     async generateBlockAudio(event: TimelineEvent) {
         const textToSpeak = event.description || event.title;

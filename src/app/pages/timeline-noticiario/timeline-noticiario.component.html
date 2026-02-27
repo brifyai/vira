@@ -249,19 +249,11 @@
                                 <div class="voice-controls-row" style="display: flex; gap: 10px; margin-bottom: 8px;">
                                     <div class="control-group" style="flex: 1;">
                                         <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Voz:</label>
-                                        <select [(ngModel)]="event.voice" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+                                        <select [(ngModel)]="event.voice" (change)="updateBlockVoice(event)" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
                                             <option *ngFor="let voice of availableVoices" [value]="voice.name">
                                                 {{ voice.label }}
                                             </option>
                                         </select>
-                                    </div>
-                                    <div class="control-group" style="flex: 1;">
-                                        <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Velocidad: {{ event.speed }}x</label>
-                                        <input type="range" [(ngModel)]="event.speed" min="0.2" max="10.0" step="0.1" style="width: 100%;">
-                                    </div>
-                                    <div class="control-group" style="flex: 1;">
-                                        <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Tono: {{ event.pitch || 1.0 }}</label>
-                                        <input type="range" [(ngModel)]="event.pitch" min="0.2" max="10.0" step="0.1" style="width: 100%;">
                                     </div>
                                 </div>
                                 <textarea 
@@ -273,9 +265,32 @@
                             </div>
 
                             <!-- Display Content for News -->
-                            <p class="item-description" *ngIf="event.type === 'news'">
-                                {{ event.description | slice:0:100 }}{{ event.description.length > 100 ? '...' : '' }}
-                            </p>
+                            <div *ngIf="event.type === 'news'">
+                                <div class="voice-controls-row" style="display: flex; gap: 10px; margin-bottom: 8px;">
+                                    <div class="control-group" style="flex: 1;">
+                                        <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Voz:</label>
+                                        <select [(ngModel)]="event.voice" (change)="updateBlockVoice(event)" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+                                            <option *ngFor="let voice of availableVoices" [value]="voice.name">
+                                                {{ voice.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="control-group" style="display: flex; align-items: flex-end;">
+                                         <button class="mini-btn" (click)="toggleOriginalText(event)"
+                                            style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 4px; color: inherit;">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                <circle cx="12" cy="12" r="3"></circle>
+                                            </svg>
+                                            {{ event.showOriginalText ? 'Ver Humanizado' : 'Ver Original' }}
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <p class="item-description" style="white-space: pre-wrap;">
+                                    {{ event.showOriginalText ? (event.originalContent || 'Sin contenido original') : (event.description || 'Sin contenido') }}
+                                </p>
+                            </div>
 
                             <!-- Display Content for Ad -->
                             <p class="item-description" *ngIf="event.type === 'ad'">
