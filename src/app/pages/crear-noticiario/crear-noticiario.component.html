@@ -272,35 +272,13 @@
                         <div class="embedded-audio-panel" *ngIf="item.type === 'news' && item.originalItem && (item.originalItem.showAudioPanel || item.originalItem.humanizedContent)" (click)="$event.stopPropagation()">
                              <div class="audio-controls-embedded" *ngIf="item.originalItem.showAudioPanel">
                                 <div class="control-group">
-                                    <label>Fuente:</label>
-                                    <div class="voice-source-tabs">
-                                        <button class="tab-btn" [class.active]="!item.originalItem.voiceSource || item.originalItem.voiceSource === 'azure'" (click)="setVoiceSource(item, 'azure')">Azure</button>
-                                        <button class="tab-btn" [class.active]="item.originalItem.voiceSource === 'custom'" (click)="setVoiceSource(item, 'custom')">Recursos</button>
-                                    </div>
-                                </div>
-                                <div class="control-group" *ngIf="!item.originalItem.voiceSource || item.originalItem.voiceSource === 'azure'">
-                                    <label>Voz Azure:</label>
-                                    <select [(ngModel)]="item.originalItem.selectedVoice" (ngModelChange)="invalidateAudio(item)">
-                                        <option *ngFor="let voice of azureVoices" [value]="voice.name">{{voice.label}}</option>
-                                    </select>
-                                </div>
-                                <div class="control-group" *ngIf="item.originalItem.voiceSource === 'custom'">
-                                    <label>Voz Recursos:</label>
-                                    <select [(ngModel)]="item.originalItem.selectedVoice" (ngModelChange)="invalidateAudio(item)">
+                                    <label>Voz (Clonada Qwen):</label>
+                                    <select [(ngModel)]="item.originalItem.selectedVoice" (ngModelChange)="onVoiceChange(item, $event)">
                                         <option *ngFor="let voice of customVoices" [value]="voice.name">{{voice.label}}</option>
                                     </select>
-                                    <p *ngIf="customVoices.length === 0" class="no-voices-hint">No hay voces personalizadas.</p>
+                                    <p *ngIf="customVoices.length === 0" class="no-voices-hint">No hay voces personalizadas. Ve a la sección Recursos para crear una.</p>
                                 </div>
-                                <div class="control-group">
-                                    <label>Velocidad:</label>
-                                    <input type="range" min="0.2" max="10.0" step="0.1" [(ngModel)]="item.originalItem.selectedSpeed" (ngModelChange)="invalidateAudio(item)">
-                                    <span>{{item.originalItem.selectedSpeed}}x</span>
-                                </div>
-                                <div class="control-group">
-                                    <label>Tono:</label>
-                                    <input type="range" min="0.2" max="10.0" step="0.1" [(ngModel)]="item.originalItem.selectedPitch" (ngModelChange)="invalidateAudio(item)">
-                                    <span>{{item.originalItem.selectedPitch}}</span>
-                                </div>
+
                                 <div class="control-group">
                                     <label>Desfase Inicio (seg):</label>
                                     <div class="slider-group">
@@ -318,35 +296,13 @@
                         <div class="embedded-audio-panel" *ngIf="item.type !== 'news' && item.type !== 'ad' && item.showAudioPanel" (click)="$event.stopPropagation()">
                             <div class="audio-controls-embedded">
                                <div class="control-group">
-                                   <label>Fuente:</label>
-                                   <div class="voice-source-tabs">
-                                       <button class="tab-btn" [class.active]="!item.voiceSource || item.voiceSource === 'azure'" (click)="setVoiceSource(item, 'azure')">Azure</button>
-                                       <button class="tab-btn" [class.active]="item.voiceSource === 'custom'" (click)="setVoiceSource(item, 'custom')">Recursos</button>
-                                   </div>
-                               </div>
-                               <div class="control-group" *ngIf="!item.voiceSource || item.voiceSource === 'azure'">
-                                   <label>Voz Azure:</label>
-                                   <select [(ngModel)]="item.selectedVoice" (ngModelChange)="invalidateAudio(item)">
-                                       <option *ngFor="let voice of azureVoices" [value]="voice.name">{{voice.label}}</option>
-                                   </select>
-                               </div>
-                               <div class="control-group" *ngIf="item.voiceSource === 'custom'">
-                                   <label>Voz Recursos:</label>
-                                   <select [(ngModel)]="item.selectedVoice" (ngModelChange)="invalidateAudio(item)">
+                                   <label>Voz (Clonada Qwen):</label>
+                                   <select [(ngModel)]="item.selectedVoice" (ngModelChange)="onVoiceChange(item, $event)">
                                        <option *ngFor="let voice of customVoices" [value]="voice.name">{{voice.label}}</option>
                                    </select>
                                    <p *ngIf="customVoices.length === 0" class="no-voices-hint">No hay voces personalizadas. Ve a la sección Recursos para crear una.</p>
                                </div>
-                               <div class="control-group">
-                                   <label>Velocidad:</label>
-                                   <input type="range" min="0.2" max="10.0" step="0.1" [(ngModel)]="item.selectedSpeed" (ngModelChange)="invalidateAudio(item)">
-                                   <span>{{item.selectedSpeed}}x</span>
-                               </div>
-                               <div class="control-group">
-                                   <label>Tono:</label>
-                                   <input type="range" min="0.2" max="10.0" step="0.1" [(ngModel)]="item.selectedPitch" (ngModelChange)="invalidateAudio(item)">
-                                   <span>{{item.selectedPitch}}</span>
-                               </div>
+
 
                                <!-- Music Controls for Intro/Outro -->
                                <div class="control-group" *ngIf="item.type === 'intro' || item.type === 'outro'">

@@ -134,8 +134,6 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     sourceNames: string[] = [];
 
     // Audio options
-    availableVoices: any[] = [];
-    azureVoices: any[] = [];
     customVoices: any[] = [];
     musicResources: any[] = [];
 
@@ -163,8 +161,6 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         private azureTtsService: AzureTtsService,
         private weatherService: WeatherService
     ) {
-        this.azureVoices = this.azureTtsService.getVoices();
-        this.availableVoices = this.azureVoices;
     }
 
     async ngOnInit(): Promise<void> {
@@ -257,8 +253,6 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             const value = setting?.value;
             const customVoices = Array.isArray(value) ? value : [];
             
-            this.azureVoices = this.azureTtsService.getVoices();
-            
             this.customVoices = customVoices.map((voice: any) => {
                 // Ensure Qwen voices have the correct name prefix for the service to recognize them
                 const isQwen = voice.provider?.toLowerCase() === 'qwen';
@@ -267,13 +261,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 }
                 return voice;
             });
-
-            this.availableVoices = [...this.azureVoices, ...this.customVoices];
         } catch (error) {
-            console.error('Error loading custom voices, using default Azure voices', error);
-            this.azureVoices = this.azureTtsService.getVoices();
+            console.error('Error loading custom voices', error);
             this.customVoices = [];
-            this.availableVoices = this.azureVoices;
         }
     }
 
@@ -374,8 +364,10 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     startTime: 0,
                     duration: 15, // Default duration estimation
                     order: 0,
-                    voiceSource: 'azure',
-                    selectedVoice: 'es-CL-LorenzoNeural'
+                    voiceSource: 'custom',
+                    selectedVoice: this.customVoices.length > 0 ? this.customVoices[0].name : undefined,
+                    selectedSpeed: this.customVoices.length > 0 ? (this.customVoices[0].speed || 1.0) : 1.0,
+                    selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].tone || 1.0) : 1.0
                 };
                 
                 this.timelineEvents.unshift(newIntro);
@@ -436,10 +428,15 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
         // Initialize voice settings if not present
         if (!news.voiceSource) {
-            news.voiceSource = 'azure';
+            news.voiceSource = 'custom';
         }
         if (!news.selectedVoice) {
-            news.selectedVoice = 'es-CL-LorenzoNeural';
+            if (this.customVoices.length > 0) {
+                const defaultVoice = this.customVoices[0];
+                news.selectedVoice = defaultVoice.name;
+                news.selectedSpeed = defaultVoice.speed || 1.0;
+                news.selectedPitch = defaultVoice.tone || 1.0;
+            }
         }
 
         // Add to selected list
@@ -509,9 +506,10 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             startTime: 0,
             duration: 30,
             order: this.timelineEvents.length,
-            selectedVoice: 'es-CL-LorenzoNeural',
-            voiceSource: 'azure',
-            selectedSpeed: 1.0,
+            voiceSource: 'custom',
+            selectedVoice: this.customVoices.length > 0 ? this.customVoices[0].name : undefined,
+            selectedSpeed: this.customVoices.length > 0 ? (this.customVoices[0].speed || 1.0) : 1.0,
+            selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].tone || 1.0) : 1.0,
             showAudioPanel: this.hasHumanized, // Show panel immediately if already humanized phase
             voiceDelay: 0,
             musicVolume: 0.5
@@ -576,23 +574,23 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 }
 
                 let voice = item.selectedVoice;
-                if (item.voiceSource === 'custom') {
-                     if (!voice) {
-                        if (this.customVoices.length > 0) {
-                            voice = this.customVoices[0].name;
-                        } else {
-                            throw new Error('No hay voces personalizadas disponibles');
-                        }
-                     }
-                } else {
-                    if (!voice) voice = 'es-CL-LorenzoNeural';
+                if (!voice) {
+                    if (this.customVoices.length > 0) {
+                        voice = this.customVoices[0].name;
+                        // Update item with default if missing
+                        item.selectedVoice = voice;
+                        item.selectedSpeed = this.customVoices[0].speed || 1.0;
+                        item.selectedPitch = this.customVoices[0].tone || 1.0;
+                    } else {
+                        throw new Error('No hay voces personalizadas disponibles. Por favor crea una en Recursos.');
+                    }
                 }
 
                 item.isGeneratingAudio = true;
                 item.progress = 0; // Reset progress
                 let audioUrl = await this.azureTtsService.generateSpeech({
                     text: textToSpeech,
-                    voice: voice || 'es-CL-LorenzoNeural',
+                    voice: voice || '',
                     speed: Number(item.selectedSpeed) || 1.0,
                     pitch: Number(item.selectedPitch) || 1.0
                 }, (percent) => {
@@ -1333,34 +1331,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         return voice;
     }
 
-    setVoiceSource(item: any, source: 'azure' | 'custom'): void {
-        const targetItem = item.originalItem || item;
-        targetItem.voiceSource = source;
+    // Azure functionality removed
 
-        if (source === 'custom') {
-            if (this.customVoices.length > 0) {
-                // Check if current selection is valid for custom
-                const exists = this.customVoices.find(v => v.name === targetItem.selectedVoice);
-                if (!exists) {
-                    targetItem.selectedVoice = this.customVoices[0].name;
-                }
-            } else {
-                targetItem.selectedVoice = null; // No custom voices
-            }
-        } else {
-            // Default to Azure
-            if (this.azureVoices.length > 0) {
-                 // Check if current selection is valid for azure
-                const exists = this.azureVoices.find(v => v.name === targetItem.selectedVoice);
-                if (!exists) {
-                    targetItem.selectedVoice = 'es-CL-LorenzoNeural'; // Default fallback
-                }
-            }
-        }
-
-        // Invalidate existing audio when source changes
-        this.invalidateAudio(item);
-    }
 
     invalidateAudio(item: TimelineEvent) {
         // Clear audio for this item
@@ -1378,6 +1350,36 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         }
         
         this.cdr.detectChanges();
+    }
+
+    onVoiceChange(item: TimelineEvent, voiceName: string) {
+        // Find the selected voice object to get default settings
+        const selectedVoice = this.customVoices.find((v: any) => v.name === voiceName);
+
+        if (selectedVoice) {
+            // Apply defaults if they exist in the voice configuration
+            // Note: 'tone' from DB maps to 'pitch' in audio generation
+            
+            if (item.type === 'news' && item.originalItem) {
+                if (selectedVoice.speed) {
+                    item.originalItem.selectedSpeed = selectedVoice.speed;
+                }
+                if (selectedVoice.tone) {
+                    item.originalItem.selectedPitch = selectedVoice.tone;
+                }
+            } else {
+                // Regular item (intro, outro, text)
+                if (selectedVoice.speed) {
+                    item.selectedSpeed = selectedVoice.speed;
+                }
+                if (selectedVoice.tone) {
+                    item.selectedPitch = selectedVoice.tone;
+                }
+            }
+        }
+
+        // Invalidate audio as usual
+        this.invalidateAudio(item);
     }
 
     // Simplified Humanize Only (Reverted as per user request)

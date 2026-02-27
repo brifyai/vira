@@ -81,7 +81,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         private cdr: ChangeDetectorRef,
         private route: ActivatedRoute
     ) { 
-        this.availableVoices = this.azureTtsService.getVoices();
+        // Voices will be loaded asynchronously
     }
 
     async playBroadcast(broadcast: any) {
@@ -148,22 +148,18 @@ export class TimelineNoticiarioComponent implements OnInit {
             const setting = await this.supabaseService.getSettingByKey('tts_custom_voices');
             const value = setting?.value;
             const customVoices = Array.isArray(value) ? value : [];
-            const baseVoices = this.azureTtsService.getVoices();
-            const merged = [...baseVoices];
-            customVoices.forEach((voice: any) => {
-                // Ensure Qwen voices have the correct name prefix
-                if (voice.provider === 'qwen' && !voice.name.startsWith('qwen:')) {
-                    voice.name = `qwen:${voice.voiceId || voice.id}`;
+            
+            this.availableVoices = customVoices.map((voice: any) => {
+                // Ensure Qwen voices have the correct name prefix for the service to recognize them
+                const isQwen = voice.provider?.toLowerCase() === 'qwen';
+                if (isQwen && !voice.name.startsWith('qwen:')) {
+                    return { ...voice, name: `qwen:${voice.voiceId || voice.id}` };
                 }
-                
-                if (!merged.find(v => v.name === voice.name && v.label === voice.label)) {
-                    merged.push(voice);
-                }
+                return voice;
             });
-            this.availableVoices = merged;
         } catch (error) {
-            console.error('Error loading custom voices for timeline, using default Azure voices', error);
-            this.availableVoices = this.azureTtsService.getVoices();
+            console.error('Error loading custom voices for timeline', error);
+            this.availableVoices = [];
         }
     }
 

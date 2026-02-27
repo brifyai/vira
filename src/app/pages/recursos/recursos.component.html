@@ -188,155 +188,7 @@
         ></textarea>
       </div>
 
-      <div class="mode-toggle">
-        <button
-          type="button"
-          class="mode-btn"
-          [class.active]="creationMode === 'azure'"
-          (click)="creationMode = 'azure'"
-        >
-          Crear voz base en Azure
-        </button>
-        <button
-          type="button"
-          class="mode-btn"
-          [class.active]="creationMode === 'qwen'"
-          (click)="creationMode = 'qwen'"
-        >
-          Clonar voz con Qwen3
-        </button>
-      </div>
-
-      <div class="tts-preview-section" *ngIf="creationMode === 'azure'">
-        <div class="tts-section-header">
-          <h3>Probar voz base en Azure</h3>
-          <p>Selecciona una voz, ajusta parámetros y genera una muestra.</p>
-        </div>
-
-        <div class="tts-voice-selector">
-          <div class="tts-section-label">
-            <span>Seleccionar Voz</span>
-          </div>
-          <div class="tts-voice-grid">
-            <button
-              type="button"
-              class="tts-voice-option"
-              *ngFor="let v of azureVoices"
-              [class.selected]="previewSelectedVoice?.name === v.name"
-              (click)="previewSelectedVoice = v"
-            >
-              <div class="voice-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                  <line x1="12" y1="19" x2="12" y2="23"></line>
-                  <line x1="8" y1="23" x2="16" y2="23"></line>
-                </svg>
-              </div>
-              <div class="tts-voice-text">
-                <div class="tts-voice-label">{{ v.label }}</div>
-                <div class="tts-voice-name">{{ v.name }}</div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <div class="tts-controls-grid">
-          <div class="tts-control">
-            <label>Estilo</label>
-            <select class="form-select" [(ngModel)]="previewStyle">
-              <option *ngFor="let s of styles" [ngValue]="s.value">{{ s.label }}</option>
-            </select>
-          </div>
-          <div class="tts-control">
-            <div class="tts-control-header">
-              <label>Velocidad</label>
-              <span class="tts-badge">{{ previewSpeed.toFixed(1) }}x</span>
-            </div>
-            <input
-              type="range"
-              min="0.2"
-              max="10.0"
-              step="0.1"
-              [(ngModel)]="previewSpeed"
-            />
-            <div class="tts-control-scale">
-              <span>Lento</span>
-              <span>Rápido</span>
-            </div>
-          </div>
-          <div class="tts-control">
-            <div class="tts-control-header">
-              <label>Tono</label>
-              <span class="tts-badge">
-                {{ previewPitch.toFixed(1) }}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0.2"
-              max="10.0"
-              step="0.1"
-              [(ngModel)]="previewPitch"
-            />
-            <div class="tts-control-scale">
-              <span>Grave</span>
-              <span>Agudo</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="tts-accent-banner">
-          <button type="button" disabled>Acento Chileno Activado (Bloqueado)</button>
-        </div>
-
-        <div class="tts-text-section">
-          <div class="tts-text-header">
-            <span>Texto a transformar</span>
-            <div class="tts-tags">
-              <button
-                type="button"
-                class="tts-tag-btn"
-                *ngFor="let tag of specialTags"
-                (click)="previewText = previewText + ' ' + tag.tag"
-              >
-                {{ tag.tag }}
-              </button>
-            </div>
-          </div>
-          <textarea
-            class="form-input"
-            rows="4"
-            [(ngModel)]="previewText"
-            placeholder="Escribe aquí lo que quieras decir... usa las etiquetas de arriba para efectos especiales."
-          ></textarea>
-        </div>
-
-        <div class="tts-actions">
-          <button
-            type="button"
-            class="primary-btn"
-            [disabled]="previewGenerating || !previewText.trim() || !previewSelectedVoice"
-            (click)="generatePreview()"
-          >
-            {{ previewGenerating ? 'Generando...' : 'Generar Voz' }}
-          </button>
-          <button
-            type="button"
-            class="secondary-btn"
-            [disabled]="!previewAudioUrl"
-            (click)="downloadPreview()"
-          >
-            Descargar MP3
-          </button>
-        </div>
-
-        <div class="tts-audio-preview" *ngIf="previewAudioUrl">
-          <audio [src]="previewAudioUrl" controls></audio>
-        </div>
-      </div>
-
-      <div class="tts-preview-section" *ngIf="creationMode === 'qwen'">
+      <div class="tts-preview-section">
         <div class="tts-section-header">
           <h3>Clonar voz con Qwen3 (Alibaba Cloud)</h3>
           <p>Sube un audio de referencia (10–20s, mono, ≥24kHz) y crea una voz clonada.</p>
@@ -359,6 +211,72 @@
         <div class="form-group">
           <label>Modelo objetivo</label>
           <input type="text" class="form-input" [(ngModel)]="qwenTargetModel" />
+        </div>
+
+        <div class="tts-controls-grid" style="margin-top: 15px;">
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>Velocidad Predeterminada</label>
+              <span class="tts-badge">{{ qwenVoiceSpeed.toFixed(1) }}x</span>
+            </div>
+            <input
+              type="range"
+              min="0.2"
+              max="10.0"
+              step="0.1"
+              [(ngModel)]="qwenVoiceSpeed"
+              (input)="onParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>Lento</span>
+              <span>Rápido</span>
+            </div>
+          </div>
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>Tono Predeterminado</label>
+              <span class="tts-badge">{{ qwenVoiceTone.toFixed(1) }}</span>
+            </div>
+            <input
+              type="range"
+              min="0.2"
+              max="10.0"
+              step="0.1"
+              [(ngModel)]="qwenVoiceTone"
+              (input)="onParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>Grave</span>
+              <span>Agudo</span>
+            </div>
+          </div>
+          <div class="tts-control preview-control">
+            <div class="tts-control-header" style="justify-content: center;">
+              <label>Previsualizar</label>
+            </div>
+            <div class="preview-btn-container">
+              <button
+                type="button"
+                class="tts-preview-btn"
+                [disabled]="!qwenLastVoiceId || qwenPreviewLoading"
+                (click)="previewQwenParams()"
+                title="Escuchar prueba"
+              >
+                <svg *ngIf="qwenPreviewLoading" viewBox="0 0 50 50" style="width: 20px; height: 20px; animation: spin 1s linear infinite;">
+                  <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="80" stroke-dashoffset="60"></circle>
+                </svg>
+                <svg *ngIf="!qwenPreviewLoading && !qwenPreviewPlaying" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+                <svg *ngIf="!qwenPreviewLoading && qwenPreviewPlaying" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                  <path d="M6 6h12v12H6z"/>
+                </svg>
+              </button>
+            </div>
+            <div class="tts-control-scale" style="visibility: hidden;">
+              <span>.</span>
+            </div>
+          </div>
         </div>
         <div class="tts-actions">
           <button

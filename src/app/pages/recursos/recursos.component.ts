@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -15,6 +15,8 @@ interface CustomVoice {
   provider?: string;
   voiceId?: string;
   targetModel?: string;
+  speed?: number;
+  tone?: number;
 }
 
 @Component({
@@ -49,15 +51,6 @@ export class RecursosComponent implements OnInit {
     radioId: null as string | null
   };
 
-  azureVoices: any[] = [];
-  previewSelectedVoice: any | null = null;
-  previewStyle = 'natural';
-  previewSpeed = 1.0;
-  previewPitch = 1.0;
-  previewText = '';
-  previewAudioUrl: string | null = null;
-  previewGenerating = false;
-
   qwenFile: File | null = null;
   qwenPreferredName = '';
   // Para la API HTTP usamos el modelo no-realtime, que es el recomendado
@@ -67,27 +60,21 @@ export class RecursosComponent implements OnInit {
   qwenLastVoiceId: string | null = null;
   qwenSampleDownloading = false;
   qwenStep: 'idle' | 'uploading' | 'creating' = 'idle';
+  
+  // New properties for Qwen voice configuration
+  qwenVoiceSpeed = 1.0;
+  qwenVoiceTone = 1.0;
 
   saving = false;
-  creationMode: 'azure' | 'qwen' = 'azure';
+  creationMode: 'azure' | 'qwen' = 'qwen';
   playingVoiceId: string | null = null;
   playingVoiceUrl: string | null = null;
   playingVoiceLoadingId: string | null = null;
 
-  styles = [
-    { value: 'natural', label: 'Natural' },
-    { value: 'alegre', label: 'Alegre' },
-    { value: 'triste', label: 'Triste' },
-    { value: 'susurrar', label: 'Susurrar' },
-    { value: 'storyteller', label: 'Cuentacuentos' }
-  ];
-
-  specialTags = [
-    { tag: '[pausa]', desc: 'Pausa (2s)' },
-    { tag: '[risa]', desc: 'Risa' },
-    { tag: '[grito]', desc: 'Grito' },
-    { tag: '[llanto]', desc: 'Llanto' }
-  ];
+  // Qwen Preview State
+  qwenPreviewPlaying: boolean = false;
+  qwenPreviewLoading: boolean = false;
+  qwenPreviewAudio: HTMLAudioElement | null = null;
 
   constructor(
     private supabaseService: SupabaseService,
@@ -97,10 +84,15 @@ export class RecursosComponent implements OnInit {
   ) {}
 
   async ngOnInit(): Promise<void> {
-    this.azureVoices = this.azureTtsService.getVoices();
-    this.previewSelectedVoice = this.azureVoices[0] || null;
     await this.loadVoices();
     await this.loadRadios();
+  }
+
+  ngOnDestroy(): void {
+    if (this.qwenPreviewAudio) {
+      this.qwenPreviewAudio.pause();
+      this.qwenPreviewAudio = null;
+    }
   }
 
   async loadRadios(): Promise<void> {
@@ -202,7 +194,8 @@ export class RecursosComponent implements OnInit {
         panelClass: ['success-snackbar']
       });
       
-      this.qwenFile = null;
+      // No limpiamos el archivo para permitir regenerar la voz si el usuario lo desea
+      // this.qwenFile = null; 
       this.qwenPreferredName = '';
       
     } catch (error: any) {
@@ -268,13 +261,12 @@ export class RecursosComponent implements OnInit {
     try {
       const baseLabel = this.formData.label.trim() || 'voz_clonada';
       const safeLabel = baseLabel.replace(/[^a-zA-Z0-9_-]+/g, '_');
-      const text =
-        this.previewText.trim() ||
-        'Esta es una muestra de la voz clonada para el noticiero de radio.';
+      const text = 'Esta es una muestra de la voz clonada para el noticiero de radio.';
       const url = await this.azureTtsService.generateSpeech({
         text,
         voice: `qwen:${this.qwenLastVoiceId}`,
-        speed: 1
+        speed: this.qwenVoiceSpeed,
+        pitch: this.qwenVoiceTone
       });
       const response = await fetch(url);
       const blob = await response.blob();
@@ -300,6 +292,15 @@ export class RecursosComponent implements OnInit {
       });
     } finally {
       this.qwenSampleDownloading = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  onParamChange(): void {
+    if (this.qwenPreviewPlaying && this.qwenPreviewAudio) {
+      this.qwenPreviewAudio.pause();
+      this.qwenPreviewAudio = null;
+      this.qwenPreviewPlaying = false;
       this.cdr.detectChanges();
     }
   }
@@ -337,13 +338,25 @@ export class RecursosComponent implements OnInit {
       description: ''
     };
     this.selectedVoice = null;
-    this.previewStyle = 'natural';
-    this.previewSpeed = 1.0;
-    this.previewPitch = 1.0;
-    this.previewText = '';
-    this.previewAudioUrl = null;
-    this.previewSelectedVoice = this.azureVoices[0] || null;
-    this.creationMode = 'azure';
+    this.creationMode = 'qwen';
+    
+    // Reset Qwen specific fields
+    this.qwenLastVoiceId = null;
+    this.qwenVoiceSpeed = 1.0;
+    this.qwenVoiceTone = 1.0;
+    this.qwenFile = null;
+    this.qwenPreferredName = '';
+    this.qwenCreating = false;
+    this.qwenSampleDownloading = false;
+
+    // Reset preview state
+    if (this.qwenPreviewAudio) {
+      this.qwenPreviewAudio.pause();
+      this.qwenPreviewAudio = null;
+    }
+    this.qwenPreviewPlaying = false;
+    this.qwenPreviewLoading = false;
+
     this.showCreateModal = true;
   }
 
@@ -355,20 +368,80 @@ export class RecursosComponent implements OnInit {
       gender: voice.gender,
       description: voice.description || ''
     };
-    this.previewSelectedVoice =
-      this.azureVoices.find(v => v.name === voice.name) || this.azureVoices[0] || null;
-    this.creationMode =
-      voice.provider === 'qwen' || voice.name.startsWith('qwen:') ? 'qwen' : 'azure';
-    this.previewAudioUrl = null;
+    
+    // Load speed and tone if available, otherwise default
+    this.qwenVoiceSpeed = voice.speed || 1.0;
+    this.qwenVoiceTone = voice.tone || 1.0;
+    
+    // Load Qwen specific fields
+    this.qwenLastVoiceId = voice.voiceId || null;
+    this.qwenTargetModel = voice.targetModel || 'qwen3-tts-vc-2026-01-22';
+
+    this.creationMode = 'qwen';
     this.showEditModal = true;
   }
 
   closeModals(): void {
+    // Stop preview if playing
+    if (this.qwenPreviewAudio) {
+      this.qwenPreviewAudio.pause();
+      this.qwenPreviewAudio = null;
+    }
+    this.qwenPreviewPlaying = false;
+    this.qwenPreviewLoading = false;
+
     this.showCreateModal = false;
     this.showEditModal = false;
     this.selectedVoice = null;
-    this.previewAudioUrl = null;
-    this.previewText = '';
+  }
+
+  async previewQwenParams(): Promise<void> {
+    if (!this.qwenLastVoiceId) return;
+
+    if (this.qwenPreviewPlaying && this.qwenPreviewAudio) {
+      this.qwenPreviewAudio.pause();
+      this.qwenPreviewAudio = null;
+      this.qwenPreviewPlaying = false;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.qwenPreviewLoading = true;
+    this.cdr.detectChanges();
+
+    try {
+      const text = 'Esta es una prueba de voz con los ajustes seleccionados.';
+      // Use AzureTtsService which handles Qwen if voice starts with qwen:
+      const url = await this.azureTtsService.generateSpeech({
+        text,
+        voice: `qwen:${this.qwenLastVoiceId}`,
+        speed: this.qwenVoiceSpeed,
+        pitch: this.qwenVoiceTone
+      });
+
+      if (this.qwenPreviewAudio) {
+        this.qwenPreviewAudio.pause();
+      }
+      
+      this.qwenPreviewAudio = new Audio(url);
+      this.qwenPreviewAudio.onended = () => {
+        this.qwenPreviewPlaying = false;
+        this.qwenPreviewAudio = null;
+        this.cdr.detectChanges();
+      };
+      
+      this.qwenPreviewLoading = false;
+      this.qwenPreviewPlaying = true;
+      this.qwenPreviewAudio.play();
+      
+    } catch (error) {
+      console.error('Error previewing Qwen voice:', error);
+      this.snackBar.open('Error al generar la prueba de voz', 'Cerrar', { duration: 3000 });
+      this.qwenPreviewLoading = false;
+      this.qwenPreviewPlaying = false;
+    } finally {
+      this.cdr.detectChanges();
+    }
   }
 
   async saveVoice(): Promise<void> {
@@ -401,11 +474,15 @@ export class RecursosComponent implements OnInit {
 
       if (this.selectedVoice) {
         // Update existing voice
-        const updatedVoice = {
+        let updatedVoice: CustomVoice = {
           ...this.selectedVoice,
           label: label,
           description: this.formData.description.trim()
         };
+        
+        // Update speed/tone if it's a Qwen voice
+        updatedVoice.speed = this.qwenVoiceSpeed;
+        updatedVoice.tone = this.qwenVoiceTone;
         
         const updatedVoices = currentVoices.map(v => 
           v.id === this.selectedVoice?.id ? updatedVoice : v
@@ -418,36 +495,26 @@ export class RecursosComponent implements OnInit {
           panelClass: ['success-snackbar']
         });
       } else {
-        // Create new voice (Azure or Qwen)
+        // Create new Qwen voice
         let newVoice: CustomVoice;
 
-        if (this.creationMode === 'qwen') {
-            if (!this.qwenLastVoiceId) {
-                this.snackBar.open('Primero debes crear la voz clonada (botón Crear)', 'Cerrar', { duration: 3000 });
-                this.saving = false;
-                return;
-            }
-            newVoice = {
-                id: this.generateId(),
-                name: `qwen:${this.qwenLastVoiceId}`, // Prefijo para identificar proveedor
-                label: label,
-                gender: this.formData.gender,
-                description: this.formData.description.trim(),
-                provider: 'qwen',
-                voiceId: this.qwenLastVoiceId,
-                targetModel: this.qwenTargetModel
-            };
-        } else {
-            // Azure logic (Add an Azure voice as a custom preset)
-             newVoice = {
-                id: this.generateId(),
-                name: this.previewSelectedVoice?.name || this.formData.name || 'es-CL-LorenzoNeural',
-                label: label,
-                gender: this.formData.gender,
-                description: this.formData.description.trim(),
-                provider: 'azure'
-              };
+        if (!this.qwenLastVoiceId) {
+            this.snackBar.open('Primero debes crear la voz clonada (botón Crear)', 'Cerrar', { duration: 3000 });
+            this.saving = false;
+            return;
         }
+        newVoice = {
+            id: this.generateId(),
+            name: `qwen:${this.qwenLastVoiceId}`, // Prefijo para identificar proveedor
+            label: label,
+            gender: this.formData.gender,
+            description: this.formData.description.trim(),
+            provider: 'qwen',
+            voiceId: this.qwenLastVoiceId,
+            targetModel: this.qwenTargetModel,
+            speed: this.qwenVoiceSpeed,
+            tone: this.qwenVoiceTone
+        };
         
         const updatedVoices = [...currentVoices, newVoice];
         await this.supabaseService.upsertSetting('tts_custom_voices', updatedVoices);
@@ -598,88 +665,6 @@ export class RecursosComponent implements OnInit {
       this.playingVoiceLoadingId = null;
       this.cdr.detectChanges();
     }
-  }
-
-  async generatePreview(): Promise<void> {
-    const text = this.previewText.trim();
-    if (!text || !this.previewSelectedVoice) {
-      return;
-    }
-
-    this.previewGenerating = true;
-    this.previewAudioUrl = null;
-    this.cdr.detectChanges();
-
-    try {
-      const url = await this.azureTtsService.generateSpeech({
-        text,
-        voice: this.previewSelectedVoice.name,
-        speed: Number(this.previewSpeed) || 1.0,
-        pitch: Number(this.previewPitch) || 1.0
-      });
-      this.previewAudioUrl = url;
-    } catch (error: any) {
-      console.error('Error generating preview audio', error);
-      const message = error?.message || 'Error al generar la vista previa de audio';
-      this.snackBar.open(message, 'Cerrar', {
-        duration: 4000,
-        panelClass: ['error-snackbar']
-      });
-    } finally {
-      this.previewGenerating = false;
-      this.cdr.detectChanges();
-    }
-  }
-
-  async downloadPreview(): Promise<void> {
-    if (!this.previewAudioUrl) {
-      return;
-    }
-
-    try {
-      const response = await fetch(this.previewAudioUrl);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-
-      const baseLabel =
-        this.formData.label.trim() ||
-        (this.previewSelectedVoice?.label as string | undefined) ||
-        'voz';
-      const safeLabel = baseLabel.replace(/[^a-zA-Z0-9_-]+/g, '_');
-      const fileName = `preview_${safeLabel}.mp3`;
-
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      URL.revokeObjectURL(url);
-
-      this.snackBar.open('Descarga iniciada', 'Cerrar', {
-        duration: 2000
-      });
-    } catch (error) {
-      console.error('Error downloading preview audio', error);
-      this.snackBar.open('Error al descargar el audio de ejemplo', 'Cerrar', {
-        duration: 4000,
-        panelClass: ['error-snackbar']
-      });
-    }
-  }
-
-  selectPreviewVoice(voice: any): void {
-    this.previewSelectedVoice = voice;
-    this.formData.name = voice.name;
-    if (voice.gender) {
-      this.formData.gender = voice.gender;
-    }
-  }
-
-  appendTag(tag: string): void {
-    const separator = this.previewText && !this.previewText.endsWith(' ') ? ' ' : '';
-    this.previewText = `${this.previewText}${separator}${tag} `;
   }
 
   private async persistVoices(): Promise<void> {

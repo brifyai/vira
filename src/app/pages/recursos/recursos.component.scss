@@ -14,6 +14,11 @@ $text-muted: #64748b;
 $shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 .laoplus{font-size: 10px;}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .recursos-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -501,6 +506,52 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
   input[type='range'] {
     width: 100%;
+  }
+
+  &.preview-control {
+    justify-content: space-between;
+    
+    .preview-btn-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 24px; // Match range input height approximately
+      margin-top: 4px; // Fine tune alignment
+    }
+  }
+}
+
+.tts-preview-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, $primary-color, $secondary-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: $transition;
+  box-shadow: $shadow-md;
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  }
+
+  &:disabled {
+    background: $dark-border;
+    color: $text-muted;
+    cursor: not-allowed;
+    opacity: 0.5;
+    box-shadow: none;
+    transform: none;
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
   }
 }
 
