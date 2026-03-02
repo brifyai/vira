@@ -143,16 +143,18 @@ export class FuentesComponent implements OnInit {
                 selector_ignore: this.formData.selectorIgnore
             });
             // console.log('Source created:', newSource);
-            // console.log('Loading sources...');
-            await this.loadSources();
-            // console.log('Sources loaded, closing modals...');
+            
+            // Close modals first to improve UX
             this.closeModals();
-            // console.log('Modals closed, showing snackbar...');
+            
             this.snackBar.open('Fuente creada exitosamente', 'Cerrar', {
                 duration: 3000,
                 horizontalPosition: 'end',
                 verticalPosition: 'top'
             });
+
+            // Reload sources
+            await this.loadSources();
             // console.log('Snackbar shown');
         } catch (error) {
             console.error('Error creating source:', error);
@@ -180,13 +182,18 @@ export class FuentesComponent implements OnInit {
                 selector_ignore: this.formData.selectorIgnore
             });
             // console.log('Source updated:', this.selectedSource);
-            await this.loadSources();
+            
+            // Close modals first
             this.closeModals();
+            
             this.snackBar.open('Fuente actualizada exitosamente', 'Cerrar', {
                 duration: 3000,
                 horizontalPosition: 'end',
                 verticalPosition: 'top'
             });
+
+            // Reload sources
+            await this.loadSources();
         } catch (error) {
             console.error('Error updating source:', error);
             this.snackBar.open('Error al actualizar la fuente', 'Cerrar', {

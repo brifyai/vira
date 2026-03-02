@@ -256,6 +256,39 @@
                                         </select>
                                     </div>
                                 </div>
+                                
+                                <!-- Music Controls -->
+                                <div class="music-controls-row" style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #eee;">
+                                    <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                                        <div class="control-group" style="flex: 1;">
+                                            <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Música de Fondo:</label>
+                                            <select [(ngModel)]="event.musicUrl" (change)="updateBlockMusic(event)" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+                                                <option [ngValue]="undefined">Sin música</option>
+                                                <option *ngFor="let music of musicResources" [value]="music.url">
+                                                    {{ music.name }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="display: flex; gap: 15px;" *ngIf="event.musicUrl">
+                                        <div class="control-group" style="flex: 1;">
+                                            <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Volumen Música ({{ (event.musicVolume || 0.5) * 100 | number:'1.0-0' }}%):</label>
+                                            <input type="range" min="0" max="1" step="0.1" 
+                                                [(ngModel)]="event.musicVolume" 
+                                                (change)="updateBlockMusic(event)"
+                                                style="width: 100%;">
+                                        </div>
+                                        <div class="control-group" style="flex: 1;">
+                                            <label style="font-size: 0.8em; color: #666; display: block; margin-bottom: 2px;">Inicio Voz ({{ event.voiceDelay || 0 }}s):</label>
+                                            <input type="range" min="0" max="10" step="0.5" 
+                                                [(ngModel)]="event.voiceDelay" 
+                                                (change)="updateBlockMusic(event)"
+                                                style="width: 100%;">
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <textarea 
                                     [(ngModel)]="event.description" 
                                     (blur)="updateBlockText(event, event.description)"

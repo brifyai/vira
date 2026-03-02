@@ -7,19 +7,6 @@
             </div>
             <div class="header-actions">
                 <div class="source-selector">
-                    <select class="form-select" [(ngModel)]="selectedSourceId"
-                        [disabled]="loading || sources.length === 0">
-                        <option value="all">Todas las fuentes</option>
-                        <option *ngFor="let source of sources" [value]="source.id">{{ source.name }}</option>
-                    </select>
-                    <button class="scrape-btn" (click)="scrapeSelectedSources()"
-                        [disabled]="loading || sources.length === 0 || selectedSourceId === ''">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                            <polyline points="9 11 12 14 22 14"></polyline>
-                        </svg>
-                        Obtener Noticias
-                    </button>
                     <button class="create-btn" (click)="openCreateModal()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -163,7 +150,8 @@
                         <div class="form-group">
                             <label>Selector Contenedor (Lista)</label>
                             <input type="text" class="form-input" [(ngModel)]="formData.selectorListContainer"
-                                placeholder="Ej: .destacadas-wrapper">
+                                placeholder="Ej: .destacadas-wrapper, #sidebar-news, .main-content">
+                            <small class="help-text">Puedes ingresar múltiples selectores separados por coma.</small>
                         </div>
                         <div class="form-group">
                             <label>Selector Link</label>

@@ -27,6 +27,12 @@ interface TimelineEvent {
     originalContent?: string;
     humanizedContent?: string;
     showOriginalText?: boolean;
+    // Music config
+    musicResourceId?: string;
+    musicUrl?: string;
+    musicName?: string;
+    voiceDelay?: number; // seconds
+    musicVolume?: number; // 0.0 to 1.0
 }
 
 @Component({
@@ -72,6 +78,8 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     // Voice options
     availableVoices: any[] = [];
+    // Music resources
+    musicResources: any[] = [];
 
     // Audio playback
     currentAudio: HTMLAudioElement | null = null;
@@ -134,6 +142,7 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     async ngOnInit(): Promise<void> {
         await this.loadCustomVoices();
+        await this.loadMusicResources();
         await this.loadBroadcasts();
         
         // Check for ID in route to auto-select
@@ -163,6 +172,18 @@ export class TimelineNoticiarioComponent implements OnInit {
         } catch (error) {
             console.error('Error loading custom voices for timeline', error);
             this.availableVoices = [];
+        }
+    }
+
+    async loadMusicResources(radioId?: string): Promise<void> {
+        try {
+            const data = await this.supabaseService.getMusicResources(radioId);
+            this.musicResources = data || [];
+        } catch (error) {
+            console.error('Error loading music resources:', error);
+            this.snackBar.open('Error al cargar recursos de música', 'Cerrar', {
+                duration: 3000
+            });
         }
     }
 
@@ -225,7 +246,12 @@ export class TimelineNoticiarioComponent implements OnInit {
                     pitch: item.voice_pitch || 1.0,
                     originalContent: news?.original_content,
                     humanizedContent: news?.humanized_content,
-                    showOriginalText: false
+                    showOriginalText: false,
+                    // Music config
+                    musicResourceId: item.music_resource_id,
+                    musicUrl: item.music_url || (item.music_resource_id ? this.findMusicUrl(item.music_resource_id) : undefined),
+                    voiceDelay: item.voice_delay || 0,
+                    musicVolume: item.music_volume || 0.5
                 };
             });
 
@@ -242,6 +268,11 @@ export class TimelineNoticiarioComponent implements OnInit {
             this.loadingTimeline = false;
             this.cdr.detectChanges();
         }
+    }
+
+    findMusicUrl(id: string): string | undefined {
+        const music = this.musicResources.find(m => m.id === id);
+        return music ? music.url : undefined;
     }
 
     calculateTimes() {
@@ -281,13 +312,41 @@ export class TimelineNoticiarioComponent implements OnInit {
 
         this.loadingTimeline = true; // Show loading immediately
         
+        // Find default voice from existing items
+        // Prioritize "news" items as they likely carry the main voice of the noticiero
+        let defaultVoice = 'es-CL-LorenzoNeural';
+        let defaultSpeed = 1.0;
+        let defaultPitch = 1.0;
+        
+        const mainNewsItem = this.timelineEvents.find(e => e.type === 'news' && e.voice);
+        const anyItemWithVoice = this.timelineEvents.find(e => e.voice);
+        
+        const sourceItem = mainNewsItem || anyItemWithVoice;
+
+        if (sourceItem) {
+            defaultVoice = sourceItem.voice!;
+            defaultSpeed = sourceItem.speed || 1.0;
+            defaultPitch = sourceItem.pitch || 1.0;
+        } else if (this.availableVoices.length > 0) {
+            // Fallback to first custom voice
+            const firstVoice = this.availableVoices[0];
+            defaultVoice = firstVoice.name;
+            defaultSpeed = firstVoice.speed || 1.0;
+            defaultPitch = firstVoice.pitch || firstVoice.tone || 1.0;
+        }
+        
         const newItem = {
             broadcast_id: this.selectedBroadcast.id,
             type: type,
             custom_title: type === 'intro' ? 'Introducción' : type === 'outro' ? 'Cierre' : 'Nuevo Texto',
             custom_content: type === 'intro' ? 'Bienvenidos al noticiero...' : type === 'outro' ? 'Gracias por sintonizar...' : 'Escribe aquí...',
             order_index: this.timelineEvents.length,
-            duration_seconds: 30
+            duration_seconds: 30,
+            voice_id: defaultVoice,
+            voice_speed: defaultSpeed,
+            voice_pitch: defaultPitch,
+            music_volume: 0.5,
+            voice_delay: 0
         };
 
         try {
@@ -563,6 +622,39 @@ export class TimelineNoticiarioComponent implements OnInit {
         }
     }
 
+    async updateBlockMusic(event: TimelineEvent) {
+        if (!event.id) return;
+
+        // Find music resource to get URL
+        let musicUrl = event.musicUrl;
+        let musicResourceId = null;
+        
+        // If musicUrl is selected, find the corresponding resource ID
+        if (event.musicUrl) {
+            const musicResource = this.musicResources.find(m => m.url === event.musicUrl);
+            if (musicResource) {
+                musicResourceId = musicResource.id;
+            }
+        }
+
+        const updates: any = {
+            music_url: event.musicUrl, // Store URL for easier access
+            music_resource_id: musicResourceId,
+            music_volume: event.musicVolume,
+            voice_delay: event.voiceDelay
+        };
+
+        try {
+            await this.supabaseService.updateBroadcastNewsItem(event.id, updates);
+            // Invalidate generated audio if any
+            event.audioUrl = undefined;
+            this.snackBar.open('Configuración de música actualizada', 'Cerrar', { duration: 2000 });
+        } catch (error) {
+            console.error('Error updating block music:', error);
+            this.snackBar.open('Error al actualizar música', 'Cerrar', { duration: 3000 });
+        }
+    }
+
     toggleOriginalText(event: TimelineEvent) {
         event.showOriginalText = !event.showOriginalText;
     }
@@ -572,34 +664,56 @@ export class TimelineNoticiarioComponent implements OnInit {
         this.isGeneratingAudio = true;
 
         try {
-            // 1. Generate Audio (returns Blob URL)
-            const audioUrl = await this.azureTtsService.generateSpeech({
+            // 1. Generate Speech Audio (returns Blob URL)
+            let audioUrl = await this.azureTtsService.generateSpeech({
                 text: textToSpeak,
                 voice: event.voice || 'es-MX-DaliaNeural',
                 speed: Number(event.speed) || 1.0,
                 pitch: Number(event.pitch) || 1.0
             });
 
-            // 2. Convert to Blob
+            // 2. Mix with Music if configured
+            if (event.musicUrl) {
+                try {
+                    const mode = event.type === 'outro' ? 'outro' : 'intro';
+                    const mixedUrl = await this.azureTtsService.mixVoiceAndMusic(
+                        audioUrl,
+                        event.musicUrl,
+                        Number(event.voiceDelay) || 0,
+                        Number(event.musicVolume) || 0.5,
+                        mode
+                    );
+                    // Revoke original speech url to free memory
+                    URL.revokeObjectURL(audioUrl);
+                    audioUrl = mixedUrl;
+                } catch (mixError) {
+                    console.error('Error mixing audio:', mixError);
+                    this.snackBar.open('Error al mezclar música, se usará solo voz', 'Cerrar', { duration: 3000 });
+                }
+            }
+
+            // 3. Convert to Blob
             const response = await fetch(audioUrl);
             const blob = await response.blob();
             const file = new File([blob], `block_${event.id}.mp3`, { type: 'audio/mpeg' });
 
-            // 3. Upload to Supabase
-            // Ensure bucket exists or handle error gracefully if possible, but bucket should exist.
-            // Using 'noticias' bucket as updated in service.
+            // 4. Upload to Supabase
             const path = `generated/${this.selectedBroadcast.id}/${event.id}_${Date.now()}.mp3`;
             const publicUrl = await this.supabaseService.uploadAudioFile(file, path);
 
-            // 4. Update Block in DB with audio URL and voice settings
+            // 5. Update Block in DB
             await this.supabaseService.updateBroadcastNewsItem(event.id, { 
                 audio_url: publicUrl,
                 voice_id: event.voice,
                 voice_speed: Number(event.speed),
-                voice_pitch: Number(event.pitch)
+                voice_pitch: Number(event.pitch),
+                music_url: event.musicUrl,
+                music_resource_id: event.musicResourceId,
+                music_volume: event.musicVolume,
+                voice_delay: event.voiceDelay
             });
 
-            // 5. Update local state
+            // 6. Update local state
             event.audioUrl = publicUrl;
             
             // Get duration

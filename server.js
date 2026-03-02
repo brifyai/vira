@@ -104,7 +104,7 @@ app.post('/api/scrape', async (req, res) => {
         sendUpdate({ type: 'start', total: sourcesData.length, message: `Iniciando análisis de ${sourcesData.length} fuentes...` });
 
         // Scrape sources with concurrency limit
-        const CONCURRENT_SOURCES = 3;
+        const CONCURRENT_SOURCES = 6;
         const ARTICLES_PER_SOURCE = 3; 
         const scrapedNews = [];
         let processedCount = 0;
@@ -116,8 +116,8 @@ app.post('/api/scrape', async (req, res) => {
             sendUpdate({ type: 'progress', message: `Contactando ScrapingBee para: ${source.name}...` });
             
             try {
-                // Get HTML with render_js enabled and wait for content to load
-                const sbUrl = `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(source.url)}&render_js=true&wait=2000&window_width=1920&window_height=1080`;
+                // Get HTML with render_js enabled and block unnecessary resources for speed
+                const sbUrl = `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(source.url)}&render_js=true&block_ads=true&block_resources=false&wait=1500&window_width=1920&window_height=1080`;
                 
                 const response = await fetchWithTimeout(sbUrl, {}, 45000); // Increased timeout
 
@@ -176,35 +176,39 @@ app.post('/api/scrape', async (req, res) => {
                 if (source.selector_list_container) {
                     // console.log(`[DEBUG] Using dynamic selector_list_container: ${source.selector_list_container}`);
                     
-                    let selector = source.selector_list_container;
-                    let regexPattern;
+                    // Split by comma to support multiple selectors
+                    const selectors = source.selector_list_container.split(',').map(s => s.trim()).filter(s => s.length > 0);
                     
-                    if (selector.startsWith('.')) {
-                        const className = selector.substring(1);
-                        regexPattern = new RegExp(`<div[^>]*class=["'][^"']*${className}[^"']*["'][^>]*>([\\s\\S]*?)<\/div>`, 'gi');
-                    } else if (selector.startsWith('#')) {
-                        const idName = selector.substring(1);
-                        regexPattern = new RegExp(`<div[^>]*id=["']${idName}["'][^>]*>([\\s\\S]*?)<\/div>`, 'gi');
-                    } else {
-                         regexPattern = new RegExp(`<div[^>]*(?:id|class)=["']${selector}["'][^>]*>([\\s\\S]*?)<\/div>`, 'gi');
-                    }
-
-                    let containerMatch;
-                    while ((containerMatch = regexPattern.exec(html)) !== null) {
-                        const content = containerMatch[1];
+                    for (const selector of selectors) {
+                        let regexPattern;
                         
-                        // Look for all links in the container
-                        const linkMatches = content.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>/gi);
-                        for (const lm of linkMatches) {
-                             let url = lm[1];
-                             if (url.startsWith('/')) {
-                                 try {
-                                     const urlObj = new URL(source.url);
-                                     url = `${urlObj.protocol}//${urlObj.host}${url}`;
-                                 } catch (e) {}
-                             }
-                             highPriorityUrls.add(url);
-                             // console.log(`[DEBUG] Found High Priority URL via Dynamic Selector: ${url}`);
+                        if (selector.startsWith('.')) {
+                            const className = selector.substring(1);
+                            regexPattern = new RegExp(`<div[^>]*class=["'][^"']*${className}[^"']*["'][^>]*>([\\s\\S]*?)<\/div>`, 'gi');
+                        } else if (selector.startsWith('#')) {
+                            const idName = selector.substring(1);
+                            regexPattern = new RegExp(`<div[^>]*id=["']${idName}["'][^>]*>([\\s\\S]*?)<\/div>`, 'gi');
+                        } else {
+                             regexPattern = new RegExp(`<div[^>]*(?:id|class)=["']${selector}["'][^>]*>([\\s\\S]*?)<\/div>`, 'gi');
+                        }
+    
+                        let containerMatch;
+                        while ((containerMatch = regexPattern.exec(html)) !== null) {
+                            const content = containerMatch[1];
+                            
+                            // Look for all links in the container
+                            const linkMatches = content.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>/gi);
+                            for (const lm of linkMatches) {
+                                 let url = lm[1];
+                                 if (url.startsWith('/')) {
+                                     try {
+                                         const urlObj = new URL(source.url);
+                                         url = `${urlObj.protocol}//${urlObj.host}${url}`;
+                                     } catch (e) {}
+                                 }
+                                 highPriorityUrls.add(url);
+                                 // console.log(`[DEBUG] Found High Priority URL via Dynamic Selector (${selector}): ${url}`);
+                            }
                         }
                     }
                 } else {
@@ -380,8 +384,9 @@ app.post('/api/scrape', async (req, res) => {
                 const articlePromises = newsArticles.map(async (article, idx) => {
                     sendUpdate({ type: 'progress', message: `Extrayendo (${idx+1}/${newsArticles.length}): ${article.title.substring(0, 30)}...` });
                     try {
+                        // Use block_resources=false to ensure images are present for extraction
                         const articleResponse = await fetchWithTimeout(
-                            `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(article.url)}&render_js=true&wait=1000`,
+                            `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(article.url)}&render_js=true&block_ads=true&block_resources=false&wait=1000`,
                             {},
                             20000
                         );
@@ -392,7 +397,8 @@ app.post('/api/scrape', async (req, res) => {
                         }
 
                         const articleHtml = await articleResponse.text();
-                        const fullContent = extractContent(articleHtml, article.title, article.url, source);
+                        const { text: fullContentText, imageUrl: targetedImageUrl } = extractContent(articleHtml, article.title, article.url, source);
+                        let fullContent = fullContentText;
                         
                         // console.log(`[DEBUG] Extracted content length for ${article.url}: ${fullContent.length}`);
                         
@@ -421,19 +427,43 @@ app.post('/api/scrape', async (req, res) => {
                         }
 
                         if (fullContent.length < 100) {
-                             console.warn(`Skipping ${article.url} due to short content (${fullContent.length} chars)`);
-                             sendUpdate({ type: 'progress', message: `Omitido por contenido corto: ${article.title.substring(0, 20)}...` });
-                             return null;
+                             // Try to extract content from image if text is too short
+                             // Prioritize targeted image from selector if available, otherwise use extractImage fallback
+                             const imageUrl = targetedImageUrl || extractImage(articleHtml, article.url);
+                             
+                             if (imageUrl) {
+                                 console.log(`[INFO] Content short for ${article.url}, attempting to extract from image: ${imageUrl}`);
+                                 sendUpdate({ type: 'progress', message: `Intentando extraer texto de imagen para: ${article.title.substring(0, 20)}...` });
+                                 
+                                 try {
+                                     const imageText = await processImageWithGemini(imageUrl);
+                                     if (imageText && imageText.length > 100) {
+                                         fullContent = imageText + "\n\n[Nota: Contenido extraído automáticamente de la imagen principal]";
+                                         console.log(`[SUCCESS] Extracted ${fullContent.length} chars from image for ${article.url}`);
+                                     } else {
+                                         console.warn(`[WARN] Gemini could not extract sufficient text from image for ${article.url}`);
+                                     }
+                                 } catch (imgError) {
+                                     console.error(`[ERROR] Failed to extract text from image for ${article.url}:`, imgError);
+                                 }
+                             }
+                             
+                             if (fullContent.length < 100) {
+                                 console.warn(`Skipping ${article.url} due to short content (${fullContent.length} chars)`);
+                                 sendUpdate({ type: 'progress', message: `Omitido por contenido corto: ${article.title.substring(0, 20)}...` });
+                                 return null;
+                             }
                         }
 
-                        const imageUrl = extractImage(articleHtml, article.url);
+                        // Final image extraction for the news record (thumbnail)
+                        const finalImageUrl = targetedImageUrl || extractImage(articleHtml, article.url);
 
                         return {
                             title: article.title,
                             content: fullContent,
                             summary: fullContent.substring(0, 200) + (fullContent.length > 200 ? '...' : ''),
                             original_url: article.url,
-                            image_url: imageUrl,
+                            image_url: finalImageUrl,
                             published_at: new Date().toISOString(),
                             scraped_at: new Date().toISOString(),
                             is_processed: false,
@@ -538,6 +568,7 @@ function fallbackArticle(article, sourceId, errorMsg) {
 
 function extractContent(html, title, url, source) {
     let fullContent = '';
+    let targetedImageUrl = null;
     
     // Pattern 0: Dynamic Selector (High Priority)
     if (source && source.selector_content) {
@@ -548,31 +579,98 @@ function extractContent(html, title, url, source) {
         // Basic selector to regex conversion
         if (selector.startsWith('.')) {
             const className = selector.substring(1);
-            // Match div with this class
-            regexPattern = new RegExp(`<div[^>]*class=["'][^"']*${className}[^"']*["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
+            // Match generic tag with this class
+            regexPattern = new RegExp(`<[a-z0-9]+[^>]*class=["'][^"']*${className}[^"']*["'][^>]*>`, 'gi');
         } else if (selector.startsWith('#')) {
             const idName = selector.substring(1);
-            // Match div with this id
-            regexPattern = new RegExp(`<div[^>]*id=["']${idName}["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
+            // Match generic tag with this id
+            regexPattern = new RegExp(`<[a-z0-9]+[^>]*id=["']${idName}["'][^>]*>`, 'gi');
         } else {
              // Fallback: try to match as class or id if no prefix
-             regexPattern = new RegExp(`<div[^>]*(?:id|class)=["']${selector}["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
+             regexPattern = new RegExp(`<[a-z0-9]+[^>]*(?:id|class)=["']${selector}["'][^>]*>`, 'gi');
         }
         
-        const match = html.match(regexPattern);
+        // Find match
+        const match = regexPattern.exec(html);
         if (match) {
-             // console.log(`[DEBUG] Found content using dynamic selector`);
-             const chunk = match[0]; // The whole div
-             // Use existing extraction logic on this chunk
-             fullContent = extractParagraphs(chunk);
+             const tagOpen = match[0];
+             const tagName = tagOpen.match(/^<([a-z0-9]+)/i)[1].toLowerCase();
              
-             // If result is short, try extracting text from divs inside (handling justify etc like in SoyChile)
-             if (fullContent.length < 200) {
-                 const divRegex = /<div[^>]*>([\s\S]*?)<\/div>/gi;
-                 let divMatch;
-                 while ((divMatch = divRegex.exec(chunk)) !== null) {
-                     const text = divMatch[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-                     if (text.length > 20) fullContent += text + '\n\n';
+             // Check if it's an IMG tag
+             if (tagName === 'img') {
+                 const srcMatch = tagOpen.match(/src=["']([^"']+)["']/i);
+                 if (srcMatch) {
+                     targetedImageUrl = srcMatch[1];
+                     if (targetedImageUrl.startsWith('/')) {
+                        try {
+                            const urlObj = new URL(url);
+                            targetedImageUrl = `${urlObj.protocol}//${urlObj.host}${targetedImageUrl}`;
+                        } catch (e) {}
+                     }
+                     // console.log(`[DEBUG] Found targeted image URL: ${targetedImageUrl}`);
+                 }
+             } else {
+                 // It's a container (div, section, etc)
+                 // Need to extract the closing tag location to get the chunk
+                 // Regex for arbitrary nesting is impossible, but we can try to find the chunk 
+                 // assuming standard scraping bee rendered HTML
+                 
+                 // Simpler approach: find the opening tag index, then try to extract text from a reasonable chunk
+                 // OR use the previous logic restricted to DIV if we want to be safe, 
+                 // but let's try to be smart about extracting the chunk.
+                 
+                 // Reuse previous logic for DIVs if it's a div
+                 if (tagName === 'div') {
+                     // Re-run the specific div regex to capture content
+                     let divRegex;
+                     if (selector.startsWith('.')) {
+                        const className = selector.substring(1);
+                        divRegex = new RegExp(`<div[^>]*class=["'][^"']*${className}[^"']*["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
+                     } else if (selector.startsWith('#')) {
+                        const idName = selector.substring(1);
+                        divRegex = new RegExp(`<div[^>]*id=["']${idName}["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
+                     } else {
+                        divRegex = new RegExp(`<div[^>]*(?:id|class)=["']${selector}["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
+                     }
+                     
+                     const divMatch = html.match(divRegex);
+                     if (divMatch) {
+                         const chunk = divMatch[0];
+                         fullContent = extractParagraphs(chunk);
+                         
+                         // If text is short, look for image inside this container
+                         if (fullContent.length < 200) {
+                             const imgInDiv = chunk.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/i);
+                             if (imgInDiv) {
+                                  targetedImageUrl = imgInDiv[1];
+                                  if (targetedImageUrl.startsWith('/')) {
+                                     try {
+                                         const urlObj = new URL(url);
+                                         targetedImageUrl = `${urlObj.protocol}//${urlObj.host}${targetedImageUrl}`;
+                                     } catch (e) {}
+                                  }
+                             }
+                             
+                             // Also try to find text in divs if paragraphs failed
+                             if (fullContent.length < 200) {
+                                 const subDivRegex = /<div[^>]*>([\s\S]*?)<\/div>/gi;
+                                 let subDivMatch;
+                                 while ((subDivMatch = subDivRegex.exec(chunk)) !== null) {
+                                     const text = subDivMatch[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+                                     if (text.length > 20) fullContent += text + '\n\n';
+                                 }
+                             }
+                         }
+                     }
+                 } else {
+                     // For other tags (section, main, article), try to grab a chunk
+                     const startIndex = match.index;
+                     const chunk = html.substring(startIndex, startIndex + 50000); // arbitrary large chunk
+                     // Try to extract paragraphs from this chunk
+                     const extracted = extractParagraphs(chunk);
+                     if (extracted.length > 100) {
+                         fullContent = extracted;
+                     }
                  }
              }
         }
@@ -582,7 +680,7 @@ function extractContent(html, title, url, source) {
     
     // SoyChile: id="textoDetalle" OR class="textoDetalle"
     const soyMatch = html.match(/<div[^>]*(?:id|class)=["']textoDetalle["'][^>]*>/i);
-    if (soyMatch) {
+    if (soyMatch && !fullContent && !targetedImageUrl) {
         // console.log(`[DEBUG] Found SoyChile content container for ${url}`);
         const soyIndex = soyMatch.index;
         const tagLength = soyMatch[0].length;
@@ -648,7 +746,7 @@ function extractContent(html, title, url, source) {
     }
 
     // Emol: class="EmolText" (Specific per user request) or id="cuDetalle_cuTexto_textoNoticia"
-    if (!fullContent) {
+    if (!fullContent && !targetedImageUrl) {
         // Try specific class first as requested
         let emolIndex = html.search(/class=["']EmolText["']/i);
         if (emolIndex === -1) {
@@ -704,7 +802,7 @@ function extractContent(html, title, url, source) {
     }
 
     // Pattern 1: Article tag
-    if (!fullContent) {
+    if (!fullContent && !targetedImageUrl) {
         const articleTagMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
         if (articleTagMatch) {
             fullContent = extractParagraphs(articleTagMatch[1]);
@@ -712,7 +810,7 @@ function extractContent(html, title, url, source) {
     }
 
     // Pattern 2: Main content divs
-    if (!fullContent || fullContent.length < 100) {
+    if ((!fullContent || fullContent.length < 100) && !targetedImageUrl) {
         const contentPatterns = [
             /<div[^>]*class=["'][^"']*(?:article-content|post-content|entry-content|story-content|news-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
             /<div[^>]*id=["'][^"']*(?:article|content|post|entry)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
@@ -731,7 +829,7 @@ function extractContent(html, title, url, source) {
     }
 
     // Pattern 3: Loose paragraphs (Improved)
-    if (!fullContent || fullContent.length < 100) {
+    if ((!fullContent || fullContent.length < 100) && !targetedImageUrl) {
         // Match all p tags, non-greedy content
         const paragraphRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
         const paragraphs = [];
@@ -747,7 +845,7 @@ function extractContent(html, title, url, source) {
     }
 
     if (!fullContent || fullContent.length < 50) {
-        return `${title}\n\nNo se pudo extraer el contenido completo.`;
+        return { text: `${title}\n\nNo se pudo extraer el contenido completo.`, imageUrl: targetedImageUrl };
     }
 
     // CLEANING: Remove header menu garbage and modal text
@@ -792,7 +890,7 @@ function extractContent(html, title, url, source) {
         }
     }
 
-    return fullContent;
+    return { text: fullContent, imageUrl: targetedImageUrl };
 }
 
 function extractParagraphs(html) {
@@ -809,6 +907,36 @@ function extractParagraphs(html) {
 }
 
 function extractImage(html, url) {
+    // 1. Try Open Graph Image (Standard)
+    const ogImgRegex = /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["'][^>]*>/i;
+    const ogMatch = html.match(ogImgRegex);
+    if (ogMatch) {
+        let imageUrl = ogMatch[1];
+        // Ensure absolute URL
+        if (imageUrl.startsWith('/')) {
+            try {
+                const urlObj = new URL(url);
+                imageUrl = `${urlObj.protocol}//${urlObj.host}${imageUrl}`;
+            } catch (e) {}
+        }
+        return imageUrl;
+    }
+
+    // 2. Try Twitter Image
+    const twitterImgRegex = /<meta\s+(?:name|property)=["']twitter:image["']\s+content=["']([^"']+)["'][^>]*>/i;
+    const twitterMatch = html.match(twitterImgRegex);
+    if (twitterMatch) {
+        let imageUrl = twitterMatch[1];
+        if (imageUrl.startsWith('/')) {
+             try {
+                const urlObj = new URL(url);
+                imageUrl = `${urlObj.protocol}//${urlObj.host}${imageUrl}`;
+             } catch (e) {}
+        }
+        return imageUrl;
+    }
+
+    // 3. Fallback to first image tag (Original logic)
     const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/i;
     const imgMatch = html.match(imgRegex);
     if (imgMatch) {
@@ -820,6 +948,51 @@ function extractImage(html, url) {
         return imageUrl;
     }
     return null;
+}
+
+// Helper to process image with Gemini Vision
+async function processImageWithGemini(imageUrl) {
+    const geminiApiKey = process.env.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
+        console.warn("[WARN] Gemini API Key missing for image processing");
+        return null;
+    }
+
+    try {
+        // Fetch the image
+        const imgResponse = await fetchWithTimeout(imageUrl, {}, 15000);
+        if (!imgResponse.ok) throw new Error(`Failed to fetch image: ${imgResponse.statusText}`);
+        
+        const arrayBuffer = await imgResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const base64Image = buffer.toString('base64');
+        const mimeType = imgResponse.headers.get('content-type') || 'image/jpeg';
+
+        const genAI = new GoogleGenerativeAI(geminiApiKey);
+        // Use gemini-1.5-flash or gemini-pro-vision if available. 
+        // 1.5 Flash is multimodal and fast.
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const prompt = "Analiza esta imagen que corresponde a una noticia. Extrae el texto principal, titulares y cualquier información textual relevante. Si es una infografía o un comunicado, transcribe el contenido completo. Si es solo una foto decorativa, describe brevemente el contexto visual relevante para una noticia de radio. Devuelve un texto coherente en español.";
+
+        const result = await model.generateContent([
+            prompt,
+            {
+                inlineData: {
+                    data: base64Image,
+                    mimeType: mimeType
+                }
+            }
+        ]);
+
+        const response = await result.response;
+        const text = response.text();
+        return text;
+
+    } catch (error) {
+        console.error("[ERROR] processImageWithGemini failed:", error);
+        return null;
+    }
 }
 
 // TTS Endpoint
