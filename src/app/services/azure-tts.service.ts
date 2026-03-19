@@ -13,7 +13,7 @@ export class AzureTtsService {
 
   constructor(private http: HttpClient) {}
 
-  async generateSpeech(params: { text: string; voice: string; speed?: number; pitch?: number; temperature?: number; exaggeration?: number; cfgWeight?: number }, onProgress?: (percent: number) => void): Promise<string> {
+  async generateSpeech(params: { text: string; voice: string; speed?: number; pitch?: number; language?: string; temperature?: number; exaggeration?: number; cfgWeight?: number; repetitionPenalty?: number; minP?: number; topP?: number; seed?: number }, onProgress?: (percent: number) => void): Promise<string> {
     const AZURE_MAX_CHARS = 2400; // Safety margin below 2500
     const CHATTERBOX_MAX_CHARS = 800;
 
@@ -21,14 +21,17 @@ export class AzureTtsService {
       if (params.voice && params.voice.startsWith('chatterbox:')) {
         if (params.text.length <= CHATTERBOX_MAX_CHARS) {
           if (onProgress) onProgress(100);
-          return await this.callChatterboxApi(
-            params.text,
-            params.voice,
-            params.speed ?? 1.0,
-            params.exaggeration ?? params.pitch ?? 1.0,
-            params.temperature ?? 0.7,
-            params.cfgWeight ?? 0.5
-          );
+          return await this.callChatterboxApi(params.text, params.voice, {
+            speed: params.speed ?? 1.0,
+            exaggeration: params.exaggeration ?? params.pitch ?? 1.0,
+            temperature: params.temperature ?? 0.7,
+            cfgWeight: params.cfgWeight ?? 0.5,
+            repetitionPenalty: params.repetitionPenalty,
+            minP: params.minP,
+            topP: params.topP,
+            seed: params.seed,
+            language: params.language
+          });
         }
         const chunks = this.splitTextIntoChunks(params.text, CHATTERBOX_MAX_CHARS);
         
@@ -78,14 +81,17 @@ export class AzureTtsService {
       if (concurrency === 1) {
           for (let i = 0; i < chunks.length; i++) {
               try {
-                  const blobUrl = await this.callChatterboxApi(
-                    chunks[i],
-                    params.voice,
-                    params.speed ?? 1.0,
-                    params.exaggeration ?? params.pitch ?? 1.0,
-                    params.temperature ?? 0.7,
-                    params.cfgWeight ?? 0.5
-                  );
+                  const blobUrl = await this.callChatterboxApi(chunks[i], params.voice, {
+                    speed: params.speed ?? 1.0,
+                    exaggeration: params.exaggeration ?? params.pitch ?? 1.0,
+                    temperature: params.temperature ?? 0.7,
+                    cfgWeight: params.cfgWeight ?? 0.5,
+                    repetitionPenalty: params.repetitionPenalty,
+                    minP: params.minP,
+                    topP: params.topP,
+                    seed: params.seed,
+                    language: params.language
+                  });
                   
                   const response = await fetch(blobUrl);
                   const blob = await response.blob();
@@ -126,14 +132,17 @@ export class AzureTtsService {
 
       for (let i = 0; i < chunks.length; i++) {
           const p = (async () => {
-              const blobUrl = await this.callChatterboxApi(
-                chunks[i],
-                params.voice,
-                params.speed ?? 1.0,
-                params.exaggeration ?? params.pitch ?? 1.0,
-                params.temperature ?? 0.7,
-                params.cfgWeight ?? 0.5
-              );
+              const blobUrl = await this.callChatterboxApi(chunks[i], params.voice, {
+                speed: params.speed ?? 1.0,
+                exaggeration: params.exaggeration ?? params.pitch ?? 1.0,
+                temperature: params.temperature ?? 0.7,
+                cfgWeight: params.cfgWeight ?? 0.5,
+                repetitionPenalty: params.repetitionPenalty,
+                minP: params.minP,
+                topP: params.topP,
+                seed: params.seed,
+                language: params.language
+              });
               const response = await fetch(blobUrl);
               const blob = await response.blob();
               URL.revokeObjectURL(blobUrl);
@@ -253,8 +262,27 @@ export class AzureTtsService {
     return new Blob(mp3Data as BlobPart[], { type: 'audio/mpeg' });
   }
 
-  private async callChatterboxApi(text: string, voice: string, speed: number = 1.0, exaggeration: number = 1.0, temperature: number = 0.7, cfgWeight: number = 0.5): Promise<string> {
+  private async callChatterboxApi(
+    text: string,
+    voice: string,
+    options: {
+      speed?: number;
+      exaggeration?: number;
+      temperature?: number;
+      cfgWeight?: number;
+      repetitionPenalty?: number;
+      minP?: number;
+      topP?: number;
+      seed?: number;
+      language?: string;
+    } = {}
+  ): Promise<string> {
     try {
+      const speed = options.speed ?? 1.0;
+      const exaggeration = options.exaggeration ?? 1.0;
+      const temperature = options.temperature ?? 0.7;
+      const cfgWeight = options.cfgWeight ?? 0.5;
+
       const response = await firstValueFrom(
         this.http.post(`${config.apiUrl}/api/chatterbox-tts`, {
           text,
@@ -263,7 +291,15 @@ export class AzureTtsService {
           exaggeration,
           temperature,
           cfg_weight: cfgWeight,
-          cfgWeight
+          cfgWeight,
+          repetition_penalty: options.repetitionPenalty,
+          repetitionPenalty: options.repetitionPenalty,
+          min_p: options.minP,
+          minP: options.minP,
+          top_p: options.topP,
+          topP: options.topP,
+          seed: options.seed,
+          language: options.language
         }, {
           responseType: 'blob'
         })

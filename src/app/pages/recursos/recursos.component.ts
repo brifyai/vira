@@ -15,9 +15,14 @@ interface CustomVoice {
   provider?: string;
   voiceId?: string;
   speed?: number;
+  language?: string;
   temperature?: number;
   exaggeration?: number;
   cfgWeight?: number;
+  repetitionPenalty?: number;
+  minP?: number;
+  topP?: number;
+  seed?: number;
 }
 
 @Component({
@@ -57,10 +62,14 @@ export class RecursosComponent implements OnInit {
   chatterboxLastVoiceId: string | null = null;
   chatterboxSampleDownloading = false;
   chatterboxStep: 'idle' | 'uploading' | 'creating' = 'idle';
-  chatterboxTemperature = 0.7;
-  chatterboxExaggeration = 1.0;
-  chatterboxSpeed = 1.0;
-  chatterboxCfgWeight = 0.5;
+  chatterboxLanguage = 'es';
+  chatterboxExaggeration = 0.45;
+  chatterboxCfgWeight = 0.3;
+  chatterboxTemperature = 0.8;
+  chatterboxRepetitionPenalty = 2.0;
+  chatterboxMinP = 0.05;
+  chatterboxTopP = 1.0;
+  chatterboxSeed = 163260306;
 
   saving = false;
   creationMode: 'azure' | 'chatterbox' = 'chatterbox';
@@ -148,11 +157,18 @@ export class RecursosComponent implements OnInit {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           audioUrl: audioUrl,
+          language: this.chatterboxLanguage,
           temperature: this.chatterboxTemperature,
           exaggeration: this.chatterboxExaggeration,
-          speed: this.chatterboxSpeed,
           cfg_weight: this.chatterboxCfgWeight,
-          cfgWeight: this.chatterboxCfgWeight
+          cfgWeight: this.chatterboxCfgWeight,
+          repetition_penalty: this.chatterboxRepetitionPenalty,
+          repetitionPenalty: this.chatterboxRepetitionPenalty,
+          min_p: this.chatterboxMinP,
+          minP: this.chatterboxMinP,
+          top_p: this.chatterboxTopP,
+          topP: this.chatterboxTopP,
+          seed: this.chatterboxSeed
         }),
         signal: controller.signal
       }).finally(() => clearTimeout(timeoutId));
@@ -215,10 +231,14 @@ export class RecursosComponent implements OnInit {
       description: this.formData.description.trim() || undefined,
       provider: 'chatterbox-vira',
       voiceId: this.chatterboxLastVoiceId,
-      temperature: this.chatterboxTemperature,
       exaggeration: this.chatterboxExaggeration,
-      speed: this.chatterboxSpeed,
-      cfgWeight: this.chatterboxCfgWeight
+      cfgWeight: this.chatterboxCfgWeight,
+      temperature: this.chatterboxTemperature,
+      repetitionPenalty: this.chatterboxRepetitionPenalty,
+      minP: this.chatterboxMinP,
+      topP: this.chatterboxTopP,
+      seed: this.chatterboxSeed,
+      language: this.chatterboxLanguage
     };
     this.voices = [...this.voices, newVoice];
     return true;
@@ -242,10 +262,14 @@ export class RecursosComponent implements OnInit {
       const url = await this.azureTtsService.generateSpeech({
         text,
         voice: `chatterbox:${this.chatterboxLastVoiceId}`,
-        speed: this.chatterboxSpeed,
         exaggeration: this.chatterboxExaggeration,
         temperature: this.chatterboxTemperature,
-        cfgWeight: this.chatterboxCfgWeight
+        cfgWeight: this.chatterboxCfgWeight,
+        repetitionPenalty: this.chatterboxRepetitionPenalty,
+        minP: this.chatterboxMinP,
+        topP: this.chatterboxTopP,
+        seed: this.chatterboxSeed,
+        language: this.chatterboxLanguage
       });
       const response = await fetch(url);
       const blob = await response.blob();
@@ -284,6 +308,11 @@ export class RecursosComponent implements OnInit {
     }
   }
 
+  randomizeChatterboxSeed(): void {
+    this.chatterboxSeed = Math.floor(Math.random() * 2147483647);
+    this.onParamChange();
+  }
+
   private generateId(): string {
     return Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
   }
@@ -320,10 +349,14 @@ export class RecursosComponent implements OnInit {
     this.creationMode = 'chatterbox';
     
     this.chatterboxLastVoiceId = null;
-    this.chatterboxTemperature = 0.7;
-    this.chatterboxExaggeration = 1.0;
-    this.chatterboxSpeed = 1.0;
-    this.chatterboxCfgWeight = 0.5;
+    this.chatterboxLanguage = 'es';
+    this.chatterboxExaggeration = 0.45;
+    this.chatterboxCfgWeight = 0.3;
+    this.chatterboxTemperature = 0.8;
+    this.chatterboxRepetitionPenalty = 2.0;
+    this.chatterboxMinP = 0.05;
+    this.chatterboxTopP = 1.0;
+    this.chatterboxSeed = 163260306;
     this.chatterboxFile = null;
     this.chatterboxCreating = false;
     this.chatterboxSampleDownloading = false;
@@ -348,10 +381,14 @@ export class RecursosComponent implements OnInit {
       description: voice.description || ''
     };
     
-    this.chatterboxSpeed = voice.speed || 1.0;
+    this.chatterboxLanguage = voice.language || 'es';
     this.chatterboxTemperature = voice.temperature ?? 0.7;
     this.chatterboxExaggeration = voice.exaggeration ?? 1.0;
     this.chatterboxCfgWeight = voice.cfgWeight ?? 0.5;
+    this.chatterboxRepetitionPenalty = voice.repetitionPenalty ?? 2.0;
+    this.chatterboxMinP = voice.minP ?? 0.05;
+    this.chatterboxTopP = voice.topP ?? 1.0;
+    this.chatterboxSeed = voice.seed ?? 163260306;
     this.chatterboxLastVoiceId = voice.voiceId || null;
 
     this.creationMode = 'chatterbox';
@@ -391,10 +428,14 @@ export class RecursosComponent implements OnInit {
       const url = await this.azureTtsService.generateSpeech({
         text,
         voice: `chatterbox:${this.chatterboxLastVoiceId}`,
-        speed: this.chatterboxSpeed,
         temperature: this.chatterboxTemperature,
         exaggeration: this.chatterboxExaggeration,
-        cfgWeight: this.chatterboxCfgWeight
+        cfgWeight: this.chatterboxCfgWeight,
+        repetitionPenalty: this.chatterboxRepetitionPenalty,
+        minP: this.chatterboxMinP,
+        topP: this.chatterboxTopP,
+        seed: this.chatterboxSeed,
+        language: this.chatterboxLanguage
       });
 
       if (this.chatterboxPreviewAudio) {
@@ -458,10 +499,14 @@ export class RecursosComponent implements OnInit {
           description: this.formData.description.trim()
         };
         
-        updatedVoice.speed = this.chatterboxSpeed;
         updatedVoice.temperature = this.chatterboxTemperature;
         updatedVoice.exaggeration = this.chatterboxExaggeration;
         updatedVoice.cfgWeight = this.chatterboxCfgWeight;
+        updatedVoice.repetitionPenalty = this.chatterboxRepetitionPenalty;
+        updatedVoice.minP = this.chatterboxMinP;
+        updatedVoice.topP = this.chatterboxTopP;
+        updatedVoice.seed = this.chatterboxSeed;
+        updatedVoice.language = this.chatterboxLanguage;
         
         const updatedVoices = currentVoices.map(v => 
           v.id === this.selectedVoice?.id ? updatedVoice : v
@@ -489,10 +534,14 @@ export class RecursosComponent implements OnInit {
             description: this.formData.description.trim(),
             provider: 'chatterbox-vira',
             voiceId: this.chatterboxLastVoiceId,
-            speed: this.chatterboxSpeed,
             temperature: this.chatterboxTemperature,
             exaggeration: this.chatterboxExaggeration,
-            cfgWeight: this.chatterboxCfgWeight
+            cfgWeight: this.chatterboxCfgWeight,
+            repetitionPenalty: this.chatterboxRepetitionPenalty,
+            minP: this.chatterboxMinP,
+            topP: this.chatterboxTopP,
+            seed: this.chatterboxSeed,
+            language: this.chatterboxLanguage
         };
         
         const updatedVoices = [...currentVoices, newVoice];
@@ -630,9 +679,14 @@ export class RecursosComponent implements OnInit {
         text,
         voice: voiceName,
         speed: voice.speed || 1,
+        language: voice.language,
         temperature: voice.temperature,
         exaggeration: voice.exaggeration,
-        cfgWeight: voice.cfgWeight
+        cfgWeight: voice.cfgWeight,
+        repetitionPenalty: voice.repetitionPenalty,
+        minP: voice.minP,
+        topP: voice.topP,
+        seed: voice.seed
       });
       this.playingVoiceUrl = url;
     } catch (error) {

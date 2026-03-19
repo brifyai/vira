@@ -4,6 +4,17 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 
+function getEnvValue(name) {
+    const direct = process.env[name];
+    if (typeof direct === 'string' && direct.trim().length > 0) return direct.trim();
+
+    for (const [k, v] of Object.entries(process.env)) {
+        if (k.trim() === name && typeof v === 'string' && v.trim().length > 0) return v.trim();
+    }
+
+    return '';
+}
+
 // Initialize Express app
 const app = express();
 app.use(cors({
@@ -29,7 +40,7 @@ const googleCloudTtsApiKey =
   'YOUR_GOOGLE_CLOUD_TTS_API_KEY';
 const AZURE_API_KEY = process.env.AZURE_API_KEY || 'TU_API_KEY_AZURE'; // Configurar en Vercel Environment Variables
 const AZURE_REGION = process.env.AZURE_REGION || 'eastus'; // Configurar en Vercel Environment Variables
-const RUNPOD_API_KEY = process.env.RUNPOD || process.env.RUNPOD_API_KEY || '';
+const RUNPOD_API_KEY = getEnvValue('RUNPOD') || getEnvValue('RUNPOD_API_KEY');
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || 'YOUR_QWEN_API_KEY';
 
 // --- Debug Environment Variables (Safe Log) ---
@@ -66,9 +77,9 @@ const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
 
 const RUNPOD_ENDPOINT_NAME = 'Chatterbox-Vira';
 const RUNPOD_ENDPOINT_ID =
-    process.env.CHATTERBOX_RUNPOD_ENDPOINT_ID ||
-    process.env.RUNPOD_ENDPOINT_ID ||
-    process.env.RUNPOD_CHATTERBOX_ENDPOINT_ID ||
+    getEnvValue('CHATTERBOX_RUNPOD_ENDPOINT_ID') ||
+    getEnvValue('RUNPOD_ENDPOINT_ID') ||
+    getEnvValue('RUNPOD_CHATTERBOX_ENDPOINT_ID') ||
     '';
 let cachedRunpodEndpointId = null;
 let cachedRunpodEndpointFetchedAt = 0;
@@ -108,7 +119,7 @@ async function getRunpodEndpointIdByName(name) {
 
     const id = match?.id || null;
     if (!id) {
-        throw new Error(`No se encontró endpoint Runpod con nombre: ${name}`);
+        throw new Error(`No se encontró endpoint Runpod con nombre: ${name}. Configura CHATTERBOX_RUNPOD_ENDPOINT_ID (ej: 27ia91v5tb9k75) en producción.`);
     }
 
     cachedRunpodEndpointId = id;
@@ -1328,7 +1339,7 @@ app.post('/api/azure-tts', async (req, res) => {
 
 app.post('/api/chatterbox-voice-create', async (req, res) => {
     try {
-        const { audioUrl, audio_url, temperature, exaggeration, speed, cfg_weight, cfgWeight } = req.body || {};
+        const { audioUrl, audio_url, language, temperature, exaggeration, speed, cfg_weight, cfgWeight, repetition_penalty, repetitionPenalty, min_p, minP, top_p, topP, seed } = req.body || {};
 
         const refUrl = audioUrl || audio_url;
         if (!refUrl) {
@@ -1341,11 +1352,19 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
             action: 'clone_voice',
             audioUrl: refUrl,
             audio_url: refUrl,
+            language,
             temperature,
             exaggeration,
             speed,
             cfg_weight: cfg_weight ?? cfgWeight,
-            cfgWeight: cfgWeight ?? cfg_weight
+            cfgWeight: cfgWeight ?? cfg_weight,
+            repetition_penalty: repetition_penalty ?? repetitionPenalty,
+            repetitionPenalty: repetitionPenalty ?? repetition_penalty,
+            min_p: min_p ?? minP,
+            minP: minP ?? min_p,
+            top_p: top_p ?? topP,
+            topP: topP ?? top_p,
+            seed
         };
 
         const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
@@ -1368,7 +1387,7 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
 
 app.post('/api/chatterbox-tts', async (req, res) => {
     try {
-        const { text, voice, speed, exaggeration, temperature, cfg_weight, cfgWeight } = req.body || {};
+        const { text, voice, language, speed, exaggeration, temperature, cfg_weight, cfgWeight, repetition_penalty, repetitionPenalty, min_p, minP, top_p, topP, seed } = req.body || {};
 
         if (!text || String(text).trim().length === 0) {
             return res.status(400).json({ error: "El texto no puede estar vacío" });
@@ -1382,11 +1401,19 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             voice,
             voice_id: typeof voice === 'string' ? voice.replace(/^chatterbox:/, '') : voice,
             voiceId: typeof voice === 'string' ? voice.replace(/^chatterbox:/, '') : voice,
+            language,
             speed,
             exaggeration,
             temperature,
             cfg_weight: cfg_weight ?? cfgWeight,
-            cfgWeight: cfgWeight ?? cfg_weight
+            cfgWeight: cfgWeight ?? cfg_weight,
+            repetition_penalty: repetition_penalty ?? repetitionPenalty,
+            repetitionPenalty: repetitionPenalty ?? repetition_penalty,
+            min_p: min_p ?? minP,
+            minP: minP ?? min_p,
+            top_p: top_p ?? topP,
+            topP: topP ?? top_p,
+            seed
         };
 
         const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });

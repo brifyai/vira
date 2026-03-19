@@ -197,18 +197,60 @@
           <label>Audio de referencia</label>
           <input type="file" class="form-input" accept="audio/*" (change)="onChatterboxFileSelected($event)" />
         </div>
+        <div class="form-group">
+          <label>Language</label>
+          <select class="form-select" [(ngModel)]="chatterboxLanguage" (change)="onParamChange()">
+            <option value="es">Spanish (es)</option>
+          </select>
+        </div>
 
         <div class="tts-controls-grid" style="margin-top: 15px;">
           <div class="tts-control">
             <div class="tts-control-header">
-              <label>Temperatura</label>
-              <span class="tts-badge">{{ chatterboxTemperature.toFixed(1) }}</span>
+              <label>Exaggeration</label>
+              <span class="tts-badge">{{ chatterboxExaggeration.toFixed(2) }}</span>
+            </div>
+            <input
+              type="range"
+              min="0.0"
+              max="2.0"
+              step="0.05"
+              [(ngModel)]="chatterboxExaggeration"
+              (input)="onParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>0.0</span>
+              <span>2.0</span>
+            </div>
+          </div>
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>cfg_weight</label>
+              <span class="tts-badge">{{ chatterboxCfgWeight.toFixed(2) }}</span>
             </div>
             <input
               type="range"
               min="0.0"
               max="1.0"
-              step="0.1"
+              step="0.05"
+              [(ngModel)]="chatterboxCfgWeight"
+              (input)="onParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>0.0</span>
+              <span>1.0</span>
+            </div>
+          </div>
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>temperature</label>
+              <span class="tts-badge">{{ chatterboxTemperature.toFixed(2) }}</span>
+            </div>
+            <input
+              type="range"
+              min="0.0"
+              max="1.0"
+              step="0.05"
               [(ngModel)]="chatterboxTemperature"
               (input)="onParamChange()"
             />
@@ -219,56 +261,69 @@
           </div>
           <div class="tts-control">
             <div class="tts-control-header">
-              <label>Exageración</label>
-              <span class="tts-badge">{{ chatterboxExaggeration.toFixed(1) }}</span>
+              <label>repetition_penalty</label>
+              <span class="tts-badge">{{ chatterboxRepetitionPenalty.toFixed(1) }}</span>
             </div>
             <input
               type="range"
               min="0.5"
-              max="2.0"
+              max="3.0"
               step="0.1"
-              [(ngModel)]="chatterboxExaggeration"
+              [(ngModel)]="chatterboxRepetitionPenalty"
               (input)="onParamChange()"
             />
             <div class="tts-control-scale">
               <span>0.5</span>
-              <span>2.0</span>
+              <span>3.0</span>
             </div>
           </div>
           <div class="tts-control">
             <div class="tts-control-header">
-              <label>Velocidad</label>
-              <span class="tts-badge">{{ chatterboxSpeed.toFixed(1) }}x</span>
-            </div>
-            <input
-              type="range"
-              min="0.5"
-              max="2.0"
-              step="0.1"
-              [(ngModel)]="chatterboxSpeed"
-              (input)="onParamChange()"
-            />
-            <div class="tts-control-scale">
-              <span>0.5</span>
-              <span>2.0</span>
-            </div>
-          </div>
-          <div class="tts-control">
-            <div class="tts-control-header">
-              <label>CFG Weight</label>
-              <span class="tts-badge">{{ chatterboxCfgWeight.toFixed(1) }}</span>
+              <label>min_p</label>
+              <span class="tts-badge">{{ chatterboxMinP.toFixed(2) }}</span>
             </div>
             <input
               type="range"
               min="0.0"
               max="1.0"
-              step="0.1"
-              [(ngModel)]="chatterboxCfgWeight"
+              step="0.01"
+              [(ngModel)]="chatterboxMinP"
               (input)="onParamChange()"
             />
             <div class="tts-control-scale">
               <span>0.0</span>
               <span>1.0</span>
+            </div>
+          </div>
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>top_p</label>
+              <span class="tts-badge">{{ chatterboxTopP.toFixed(2) }}</span>
+            </div>
+            <input
+              type="range"
+              min="0.0"
+              max="1.0"
+              step="0.01"
+              [(ngModel)]="chatterboxTopP"
+              (input)="onParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>0.0</span>
+              <span>1.0</span>
+            </div>
+          </div>
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>seed</label>
+              <span class="tts-badge">{{ chatterboxSeed }}</span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="number" class="form-input" style="flex: 1;" [(ngModel)]="chatterboxSeed" (input)="onParamChange()" />
+              <button type="button" class="secondary-btn" (click)="randomizeChatterboxSeed()">Random</button>
+            </div>
+            <div class="tts-control-scale" style="visibility: hidden;">
+              <span>.</span>
             </div>
           </div>
           <div class="tts-control preview-control">

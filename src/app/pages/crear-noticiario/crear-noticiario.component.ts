@@ -719,7 +719,12 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     pitch: Number(item.selectedPitch) || 1.0,
                     temperature: voiceConfig?.temperature,
                     exaggeration: Number(item.selectedPitch) || voiceConfig?.exaggeration || 1.0,
-                    cfgWeight: voiceConfig?.cfgWeight
+                    cfgWeight: voiceConfig?.cfgWeight,
+                    repetitionPenalty: voiceConfig?.repetitionPenalty,
+                    minP: voiceConfig?.minP,
+                    topP: voiceConfig?.topP,
+                    seed: voiceConfig?.seed,
+                    language: voiceConfig?.language
                 }, (percent) => {
                     item.progress = percent;
                     this.cdr.detectChanges();
@@ -1423,7 +1428,12 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 pitch: Number(news.selectedPitch) || 1.0,
                 temperature: voiceConfig?.temperature,
                 exaggeration: Number(news.selectedPitch) || voiceConfig?.exaggeration || 1.0,
-                cfgWeight: voiceConfig?.cfgWeight
+                cfgWeight: voiceConfig?.cfgWeight,
+                repetitionPenalty: voiceConfig?.repetitionPenalty,
+                minP: voiceConfig?.minP,
+                topP: voiceConfig?.topP,
+                seed: voiceConfig?.seed,
+                language: voiceConfig?.language
             }, (percent) => {
                 news.progress = percent;
                 this.cdr.detectChanges();
@@ -1752,7 +1762,12 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         pitch: Number(news.selectedPitch) || 1.0,
                         temperature: voiceConfig?.temperature,
                         exaggeration: Number(news.selectedPitch) || voiceConfig?.exaggeration || 1.0,
-                        cfgWeight: voiceConfig?.cfgWeight
+                        cfgWeight: voiceConfig?.cfgWeight,
+                        repetitionPenalty: voiceConfig?.repetitionPenalty,
+                        minP: voiceConfig?.minP,
+                        topP: voiceConfig?.topP,
+                        seed: voiceConfig?.seed,
+                        language: voiceConfig?.language
                     }, (percent) => {
                         news.progress = percent;
                         this.cdr.detectChanges();
@@ -1831,7 +1846,12 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     pitch: Number(event.selectedPitch) || 1.0,
                     temperature: voiceConfig?.temperature,
                     exaggeration: Number(event.selectedPitch) || voiceConfig?.exaggeration || 1.0,
-                    cfgWeight: voiceConfig?.cfgWeight
+                    cfgWeight: voiceConfig?.cfgWeight,
+                    repetitionPenalty: voiceConfig?.repetitionPenalty,
+                    minP: voiceConfig?.minP,
+                    topP: voiceConfig?.topP,
+                    seed: voiceConfig?.seed,
+                    language: voiceConfig?.language
                 }, (percent) => {
                     event.progress = percent;
                     this.cdr.detectChanges();
