@@ -252,6 +252,21 @@ function extractRunpodOutput(json) {
     return null;
 }
 
+function detectAudioContentType(buffer, audioBase64) {
+    const header = buffer?.subarray?.(0, 16);
+    if (header && header.length >= 12) {
+        const ascii = header.toString('ascii', 0, 12);
+        if (ascii.startsWith('RIFF') && ascii.includes('WAVE')) return 'audio/wav';
+        if (ascii.startsWith('OggS')) return 'audio/ogg';
+        if (ascii.startsWith('fLaC')) return 'audio/flac';
+        if (ascii.startsWith('ID3')) return 'audio/mpeg';
+    }
+    const b64 = (audioBase64 || '').trim();
+    if (b64.startsWith('UklGR')) return 'audio/wav';
+    if (b64.startsWith('SUQz') || b64.startsWith('/+MY')) return 'audio/mpeg';
+    return 'application/octet-stream';
+}
+
 // Scrape endpoint
 app.post('/api/scrape', async (req, res) => {
     // console.log('Scrape request received:', req.body);
@@ -1440,7 +1455,8 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             if (!buffer || buffer.length === 0) {
                 return res.status(500).json({ error: 'El audio generado está vacío' });
             }
-            res.set('Content-Type', 'audio/mpeg');
+            const contentType = detectAudioContentType(buffer, b64);
+            res.set('Content-Type', contentType);
             return res.send(buffer);
         }
 
