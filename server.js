@@ -42,6 +42,7 @@ const AZURE_API_KEY = process.env.AZURE_API_KEY || 'TU_API_KEY_AZURE'; // Config
 const AZURE_REGION = process.env.AZURE_REGION || 'eastus'; // Configurar en Vercel Environment Variables
 const RUNPOD_API_KEY = getEnvValue('RUNPOD') || getEnvValue('RUNPOD_API_KEY');
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || 'YOUR_QWEN_API_KEY';
+const CHATTERBOX_DEBUG = ['1', 'true', 'yes', 'on'].includes(getEnvValue('CHATTERBOX_DEBUG').toLowerCase());
 
 // --- Debug Environment Variables (Safe Log) ---
 console.log('[Server] Starting...');
@@ -74,6 +75,41 @@ const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
         throw error;
     }
 };
+
+function safeUrlForLog(url) {
+    if (!url || typeof url !== 'string') return null;
+    const withoutQuery = url.split('?')[0];
+    return withoutQuery.length > 160 ? `${withoutQuery.slice(0, 160)}...` : withoutQuery;
+}
+
+async function preflightPublicUrl(url) {
+    if (!url || typeof url !== 'string') return { ok: false, reason: 'missing_url' };
+    if (!/^https?:\/\//i.test(url)) return { ok: false, reason: 'not_http_url' };
+
+    try {
+        const head = await fetchWithTimeout(url, { method: 'HEAD' }, 12000).catch(() => null);
+        if (head && head.ok) {
+            const contentType = head.headers.get('content-type') || null;
+            const contentLength = head.headers.get('content-length') || null;
+            return { ok: true, contentType, contentLength };
+        }
+    } catch (e) {}
+
+    try {
+        const get = await fetchWithTimeout(url, {
+            method: 'GET',
+            headers: { Range: 'bytes=0-0' }
+        }, 15000);
+        if (!get.ok) {
+            return { ok: false, reason: `http_${get.status}` };
+        }
+        const contentType = get.headers.get('content-type') || null;
+        const contentLength = get.headers.get('content-length') || null;
+        return { ok: true, contentType, contentLength };
+    } catch (e) {
+        return { ok: false, reason: 'fetch_failed' };
+    }
+}
 
 const RUNPOD_ENDPOINT_NAME = 'Chatterbox-Vira';
 const RUNPOD_ENDPOINT_ID =
@@ -1361,16 +1397,31 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
             return res.status(400).json({ error: 'Parámetros inválidos: audioUrl es requerido' });
         }
 
+        const preflight = await preflightPublicUrl(refUrl);
+        if (!preflight.ok) {
+            return res.status(400).json({
+                error: 'audioUrl no es accesible públicamente para Runpod',
+                details: { reason: preflight.reason, url: safeUrlForLog(refUrl) }
+            });
+        }
+
         const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME);
+        const languageId = (language_code ?? languageCode ?? lang) || undefined;
         const input = {
             task: 'clone_voice',
             action: 'clone_voice',
             audioUrl: refUrl,
             audio_url: refUrl,
+            audio_prompt_url: refUrl,
+            audioPromptUrl: refUrl,
+            audio_prompt_path: refUrl,
+            audio_prompt: refUrl,
             language,
             language_code: language_code ?? languageCode ?? lang,
             languageCode: languageCode ?? language_code ?? lang,
             lang: lang ?? languageCode ?? language_code,
+            language_id: languageId,
+            model_name: 'multilingual',
             temperature,
             exaggeration,
             speed,
@@ -1389,6 +1440,24 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
             keepModelLoaded: keepModelLoaded ?? keep_model_loaded
         };
 
+        if (CHATTERBOX_DEBUG) {
+            console.log('[CHATTERBOX] voice-create input', {
+                endpointId,
+                audioUrl: safeUrlForLog(refUrl),
+                language,
+                language_id: languageId,
+                cfg_weight: input.cfg_weight,
+                temperature,
+                exaggeration,
+                repetition_penalty: input.repetition_penalty,
+                min_p: input.min_p,
+                top_p: input.top_p,
+                seed,
+                use_cpu: input.use_cpu,
+                keep_model_loaded: input.keep_model_loaded
+            });
+        }
+
         const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
         const output = extractRunpodOutput(result) || result;
 
@@ -1398,6 +1467,11 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
 
         if (!voiceId) {
             return res.status(500).json({ error: 'Respuesta inválida: no se recibió voiceId', details: output });
+        }
+
+        if (CHATTERBOX_DEBUG) {
+            const outKeys = output && typeof output === 'object' ? Object.keys(output).slice(0, 60) : [];
+            console.log('[CHATTERBOX] voice-create output keys', outKeys);
         }
 
         res.json({ voiceId });
@@ -1417,6 +1491,17 @@ app.post('/api/chatterbox-tts', async (req, res) => {
 
         const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME);
         const promptUrl = audio_prompt_url || audioPromptUrl || audio_url || audioUrl;
+        if (promptUrl) {
+            const preflight = await preflightPublicUrl(promptUrl);
+            if (!preflight.ok) {
+                return res.status(400).json({
+                    error: 'audio_prompt_url no es accesible públicamente para Runpod',
+                    details: { reason: preflight.reason, url: safeUrlForLog(promptUrl) }
+                });
+            }
+        }
+
+        const languageId = (language_code ?? languageCode ?? lang) || undefined;
         const input = {
             task: 'tts',
             action: 'tts',
@@ -1428,11 +1513,14 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             language_code: language_code ?? languageCode ?? lang,
             languageCode: languageCode ?? language_code ?? lang,
             lang: lang ?? languageCode ?? language_code,
-            language_id: (language_code ?? languageCode ?? lang) || undefined,
+            language_id: languageId,
             audio_prompt_url: promptUrl,
             audioPromptUrl: promptUrl,
             audio_url: promptUrl,
             audioUrl: promptUrl,
+            audio_prompt_path: promptUrl,
+            audio_prompt: promptUrl,
+            model_name: 'multilingual',
             speed,
             exaggeration,
             temperature,
@@ -1447,6 +1535,25 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             seed
         };
 
+        if (CHATTERBOX_DEBUG) {
+            console.log('[CHATTERBOX] tts input', {
+                endpointId,
+                voice: typeof voice === 'string' ? voice : null,
+                voice_id: typeof input.voice_id === 'string' ? input.voice_id : null,
+                text_len: String(text || '').length,
+                language,
+                language_id: languageId,
+                audio_prompt_url: safeUrlForLog(promptUrl),
+                cfg_weight: input.cfg_weight,
+                temperature,
+                exaggeration,
+                repetition_penalty: input.repetition_penalty,
+                min_p: input.min_p,
+                top_p: input.top_p,
+                seed
+            });
+        }
+
         const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
         const output = extractRunpodOutput(result) || result;
 
@@ -1454,6 +1561,11 @@ app.post('/api/chatterbox-tts', async (req, res) => {
         const audioRemoteUrl =
             findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']) ||
             findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']);
+
+        if (CHATTERBOX_DEBUG) {
+            const outKeys = output && typeof output === 'object' ? Object.keys(output).slice(0, 60) : [];
+            console.log('[CHATTERBOX] tts output keys', outKeys);
+        }
 
         if (audioBase64) {
             const b64 = audioBase64.includes(',') ? audioBase64.split(',').pop() : audioBase64;
