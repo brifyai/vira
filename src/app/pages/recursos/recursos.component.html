@@ -190,64 +190,85 @@
 
       <div class="tts-preview-section">
         <div class="tts-section-header">
-          <h3>Clonar voz con Qwen3 (Alibaba Cloud)</h3>
+          <h3>Clonar voz con Chatterbox-Vira</h3>
           <p>Sube un audio de referencia (10–20s, mono, ≥24kHz) y crea una voz clonada.</p>
         </div>
         <div class="form-group">
           <label>Audio de referencia</label>
-          <input type="file" class="form-input" accept="audio/*" (change)="onQwenFileSelected($event)" />
-        </div>
-        <div class="form-group">
-          <label>Nombre interno Qwen (automático)</label>
-          <input
-            type="text"
-            class="form-input"
-            [value]="qwenPreferredName || 'Se generará automáticamente al crear la voz'"
-            readonly
-            disabled
-          />
-          <p class="help-text">Se genera automáticamente y se usa solo para la API de Qwen.</p>
-        </div>
-        <div class="form-group">
-          <label>Modelo objetivo</label>
-          <input type="text" class="form-input" [(ngModel)]="qwenTargetModel" />
+          <input type="file" class="form-input" accept="audio/*" (change)="onChatterboxFileSelected($event)" />
         </div>
 
         <div class="tts-controls-grid" style="margin-top: 15px;">
           <div class="tts-control">
             <div class="tts-control-header">
-              <label>Velocidad Predeterminada</label>
-              <span class="tts-badge">{{ qwenVoiceSpeed.toFixed(1) }}x</span>
+              <label>Temperatura</label>
+              <span class="tts-badge">{{ chatterboxTemperature.toFixed(1) }}</span>
             </div>
             <input
               type="range"
-              min="0.2"
-              max="10.0"
+              min="0.0"
+              max="1.0"
               step="0.1"
-              [(ngModel)]="qwenVoiceSpeed"
+              [(ngModel)]="chatterboxTemperature"
               (input)="onParamChange()"
             />
             <div class="tts-control-scale">
-              <span>Lento</span>
-              <span>Rápido</span>
+              <span>0.0</span>
+              <span>1.0</span>
             </div>
           </div>
           <div class="tts-control">
             <div class="tts-control-header">
-              <label>Tono Predeterminado</label>
-              <span class="tts-badge">{{ qwenVoiceTone.toFixed(1) }}</span>
+              <label>Exageración</label>
+              <span class="tts-badge">{{ chatterboxExaggeration.toFixed(1) }}</span>
             </div>
             <input
               type="range"
-              min="0.2"
-              max="10.0"
+              min="0.5"
+              max="2.0"
               step="0.1"
-              [(ngModel)]="qwenVoiceTone"
+              [(ngModel)]="chatterboxExaggeration"
               (input)="onParamChange()"
             />
             <div class="tts-control-scale">
-              <span>Grave</span>
-              <span>Agudo</span>
+              <span>0.5</span>
+              <span>2.0</span>
+            </div>
+          </div>
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>Velocidad</label>
+              <span class="tts-badge">{{ chatterboxSpeed.toFixed(1) }}x</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="2.0"
+              step="0.1"
+              [(ngModel)]="chatterboxSpeed"
+              (input)="onParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>0.5</span>
+              <span>2.0</span>
+            </div>
+          </div>
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>CFG Weight</label>
+              <span class="tts-badge">{{ chatterboxCfgWeight.toFixed(1) }}</span>
+            </div>
+            <input
+              type="range"
+              min="0.0"
+              max="1.0"
+              step="0.1"
+              [(ngModel)]="chatterboxCfgWeight"
+              (input)="onParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>0.0</span>
+              <span>1.0</span>
             </div>
           </div>
           <div class="tts-control preview-control">
@@ -258,17 +279,17 @@
               <button
                 type="button"
                 class="tts-preview-btn"
-                [disabled]="!qwenLastVoiceId || qwenPreviewLoading"
-                (click)="previewQwenParams()"
+                [disabled]="!chatterboxLastVoiceId || chatterboxPreviewLoading"
+                (click)="previewChatterboxParams()"
                 title="Escuchar prueba"
               >
-                <svg *ngIf="qwenPreviewLoading" viewBox="0 0 50 50" style="width: 20px; height: 20px; animation: spin 1s linear infinite;">
+                <svg *ngIf="chatterboxPreviewLoading" viewBox="0 0 50 50" style="width: 20px; height: 20px; animation: spin 1s linear infinite;">
                   <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="80" stroke-dashoffset="60"></circle>
                 </svg>
-                <svg *ngIf="!qwenPreviewLoading && !qwenPreviewPlaying" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <svg *ngIf="!chatterboxPreviewLoading && !chatterboxPreviewPlaying" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                   <path d="M8 5v14l11-7z"/>
                 </svg>
-                <svg *ngIf="!qwenPreviewLoading && qwenPreviewPlaying" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <svg *ngIf="!chatterboxPreviewLoading && chatterboxPreviewPlaying" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                   <path d="M6 6h12v12H6z"/>
                 </svg>
               </button>
@@ -282,21 +303,21 @@
           <button
             type="button"
             class="primary-btn"
-            [disabled]="qwenCreating || !qwenFile"
-            (click)="createQwenVoice()"
+            [disabled]="chatterboxCreating || !chatterboxFile"
+            (click)="createChatterboxVoice()"
           >
-            {{ qwenCreating ? 'Creando...' : 'Crear Voz Clonada' }}
+            {{ chatterboxCreating ? 'Creando...' : 'Crear Voz Clonada' }}
           </button>
-          <div class="help-text" *ngIf="qwenCreating">
-            {{ qwenStep === 'uploading' ? 'Subiendo audio...' : 'Creando voz en Qwen...' }}
+          <div class="help-text" *ngIf="chatterboxCreating">
+            {{ chatterboxStep === 'uploading' ? 'Subiendo audio...' : 'Creando voz...' }}
           </div>
           <button
             type="button"
             class="secondary-btn"
-            [disabled]="qwenSampleDownloading || !qwenLastVoiceId"
-            (click)="downloadQwenSample()"
+            [disabled]="chatterboxSampleDownloading || !chatterboxLastVoiceId"
+            (click)="downloadChatterboxSample()"
           >
-            {{ qwenSampleDownloading ? 'Descargando...' : 'Descargar MP3 Qwen' }}
+            {{ chatterboxSampleDownloading ? 'Descargando...' : 'Descargar MP3' }}
           </button>
         </div>
       </div>

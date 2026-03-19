@@ -72,19 +72,59 @@
                             {{ filter.label }}
                         </option>
                     </select>
-                    <select class="filter-select source-scrape-select" [(ngModel)]="selectedSourceId"
-                        [disabled]="loading || activeSources.length === 0">
-                        <option value="all">Todas las fuentes</option>
-                        <option *ngFor="let source of activeSources" [value]="source.id">{{ source.name }}</option>
-                    </select>
+                    <button class="filter-btn" type="button" (click)="toggleScrapeSelector()" [disabled]="loading">
+                        Radios/Fuentes ({{ selectedScrapeSourceIds.length || 0 }})
+                    </button>
                     <button class="scrape-btn" (click)="scrapeNews()"
-                        [disabled]="loading || activeSources.length === 0 || selectedSourceId === ''">
+                        [disabled]="loading || activeSources.length === 0 || selectedScrapeRadioIds.length === 0">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                             <polyline points="9 11 12 14 22 14"></polyline>
                         </svg>
                         Obtener Noticias
                     </button>
+                </div>
+            </div>
+
+            <div class="scrape-selector" *ngIf="showScrapeSelector">
+                <div class="scrape-columns">
+                    <div class="scrape-col">
+                        <div class="scrape-col-title">Radios</div>
+                        <div class="scrape-list">
+                            <div class="check-row" *ngFor="let radio of radios">
+                                <input type="checkbox" [id]="'scrape-radio-' + radio.id"
+                                    [checked]="isScrapeRadioSelected(radio.id)"
+                                    (change)="toggleScrapeRadio(radio.id, $event)" />
+                                <label [for]="'scrape-radio-' + radio.id">{{ radio.name }}</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="scrape-col">
+                        <div class="scrape-col-title">Fuentes</div>
+                        <div class="scrape-list" *ngIf="selectedScrapeRadioIds.length > 0; else selectRadioHint">
+                            <div class="radio-sources" *ngFor="let radio of selectedScrapeRadios">
+                                <div class="radio-sources-header">
+                                    <span class="radio-sources-title">{{ radio.name }}</span>
+                                    <button class="link-btn" type="button" (click)="selectAllSourcesForRadio(radio.id)">
+                                        Todas
+                                    </button>
+                                    <button class="link-btn" type="button" (click)="clearSourcesForRadio(radio.id)">
+                                        Ninguna
+                                    </button>
+                                </div>
+                                <div class="check-row" *ngFor="let source of getActiveSourcesByRadio(radio.id)">
+                                    <input type="checkbox" [id]="'scrape-source-' + source.id"
+                                        [checked]="isScrapeSourceSelected(source.id)"
+                                        (change)="toggleScrapeSource(source.id, $event)" />
+                                    <label [for]="'scrape-source-' + source.id">{{ source.name }}</label>
+                                </div>
+                            </div>
+                        </div>
+                        <ng-template #selectRadioHint>
+                            <div class="scrape-hint">Selecciona al menos una radio para ver sus fuentes.</div>
+                        </ng-template>
+                    </div>
                 </div>
             </div>
 

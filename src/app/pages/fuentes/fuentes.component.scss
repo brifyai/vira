@@ -59,6 +59,24 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 display: flex;
                 gap: 12px;
                 align-items: center;
+
+                .form-select {
+                    width: auto;
+                    min-width: 220px;
+                    padding: 10px 12px;
+                    background: $dark-bg;
+                    border: 1px solid $dark-border;
+                    border-radius: 8px;
+                    color: $text-primary;
+                    font-size: 14px;
+                    transition: $transition;
+
+                    &:focus {
+                        outline: none;
+                        border-color: $primary-color;
+                        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+                    }
+                }
             }
         }
 
@@ -406,6 +424,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
                 &:hover {
                     background: $primary-dark;
+                }
+
+                &:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
                 }
             }
         }

@@ -11,12 +11,19 @@ export interface Source {
     url: string;
     category: string;
     active: boolean;
+    radioId: string | null;
+    radioName?: string | null;
     lastScraped?: Date;
     createdAt: Date;
     selectorListContainer?: string;
     selectorLink?: string;
     selectorContent?: string;
     selectorIgnore?: string;
+}
+
+export interface RadioOption {
+    id: string;
+    name: string;
 }
 
 @Component({
@@ -28,13 +35,16 @@ export interface Source {
 })
 export class FuentesComponent implements OnInit {
     sources: Source[] = [];
+    radios: RadioOption[] = [];
     loading = false;
     showCreateModal = false;
     showEditModal = false;
     selectedSource: Source | null = null;
     selectedSourceId: string = 'all';
+    selectedRadioId: string = 'all';
 
     formData = {
+        radioId: '',
         name: '',
         url: '',
         category: 'general',
@@ -54,7 +64,20 @@ export class FuentesComponent implements OnInit {
     ) { }
 
     async ngOnInit(): Promise<void> {
-        await this.loadSources();
+        await Promise.all([this.loadRadios(), this.loadSources()]);
+    }
+
+    async loadRadios(): Promise<void> {
+        try {
+            const data = await this.supabaseService.getRadios();
+            this.radios = (data || []).map((r: any) => ({
+                id: r.id,
+                name: r.name
+            }));
+        } catch (error) {
+            console.error('Error loading radios:', error);
+            this.radios = [];
+        }
     }
 
     async loadSources(): Promise<void> {
@@ -63,7 +86,8 @@ export class FuentesComponent implements OnInit {
         this.cdr.detectChanges(); // Force update
         try {
             // console.log('Calling supabaseService.getNewsSources()...');
-            const data = await this.supabaseService.getNewsSources();
+            const radioIdFilter = this.selectedRadioId !== 'all' ? this.selectedRadioId : undefined;
+            const data = await this.supabaseService.getNewsSources({ radioId: radioIdFilter });
             // console.log('Data received:', data);
             // Map database fields to interface fields
             this.sources = (data || []).map(item => ({
@@ -72,6 +96,8 @@ export class FuentesComponent implements OnInit {
                 url: item.url,
                 category: item.category,
                 active: item.is_active,
+                radioId: item.radio_id ?? null,
+                radioName: item.radio?.name ?? null,
                 lastScraped: item.last_scraped || null,
                 createdAt: item.created_at,
                 selectorListContainer: item.selector_list_container,
@@ -93,6 +119,7 @@ export class FuentesComponent implements OnInit {
 
     openCreateModal(): void {
         this.formData = {
+            radioId: this.selectedRadioId !== 'all' ? this.selectedRadioId : '',
             name: '',
             url: '',
             category: 'general',
@@ -108,6 +135,7 @@ export class FuentesComponent implements OnInit {
     openEditModal(source: Source): void {
         this.selectedSource = source;
         this.formData = {
+            radioId: source.radioId || '',
             name: source.name,
             url: source.url,
             category: source.category,
@@ -132,7 +160,18 @@ export class FuentesComponent implements OnInit {
     async createSource(): Promise<void> {
         // console.log('Creating source...');
         try {
-            const newSource = await this.supabaseService.createNewsSource({
+            if (!this.formData.radioId) {
+                this.snackBar.open('Selecciona una radio', 'Cerrar', {
+                    duration: 3000,
+                    horizontalPosition: 'end',
+                    verticalPosition: 'top',
+                    panelClass: ['error-snackbar']
+                });
+                return;
+            }
+
+            await this.supabaseService.createNewsSource({
+                radio_id: this.formData.radioId,
                 name: this.formData.name,
                 url: this.formData.url,
                 category: this.formData.category,
@@ -142,7 +181,7 @@ export class FuentesComponent implements OnInit {
                 selector_content: this.formData.selectorContent,
                 selector_ignore: this.formData.selectorIgnore
             });
-            // console.log('Source created:', newSource);
+            // console.log('Source created');
             
             // Close modals first to improve UX
             this.closeModals();
@@ -171,7 +210,18 @@ export class FuentesComponent implements OnInit {
         if (!this.selectedSource) return;
 
         try {
+            if (!this.formData.radioId) {
+                this.snackBar.open('Selecciona una radio', 'Cerrar', {
+                    duration: 3000,
+                    horizontalPosition: 'end',
+                    verticalPosition: 'top',
+                    panelClass: ['error-snackbar']
+                });
+                return;
+            }
+
             await this.supabaseService.updateNewsSource(this.selectedSource.id, {
+                radio_id: this.formData.radioId,
                 name: this.formData.name,
                 url: this.formData.url,
                 category: this.formData.category,
@@ -276,6 +326,10 @@ export class FuentesComponent implements OnInit {
             hour: '2-digit',
             minute: '2-digit'
         });
+    }
+
+    async onRadioFilterChange(): Promise<void> {
+        await this.loadSources();
     }
 
     async scrapeSelectedSources(): Promise<void> {

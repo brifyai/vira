@@ -14,9 +14,10 @@ interface CustomVoice {
   description?: string;
   provider?: string;
   voiceId?: string;
-  targetModel?: string;
   speed?: number;
-  tone?: number;
+  temperature?: number;
+  exaggeration?: number;
+  cfgWeight?: number;
 }
 
 @Component({
@@ -51,30 +52,25 @@ export class RecursosComponent implements OnInit {
     radioId: null as string | null
   };
 
-  qwenFile: File | null = null;
-  qwenPreferredName = '';
-  // Para la API HTTP usamos el modelo no-realtime, que es el recomendado
-  // para speech synthesis y debe coincidir con target_model en el clonado.
-  qwenTargetModel = 'qwen3-tts-vc-2026-01-22';
-  qwenCreating = false;
-  qwenLastVoiceId: string | null = null;
-  qwenSampleDownloading = false;
-  qwenStep: 'idle' | 'uploading' | 'creating' = 'idle';
-  
-  // New properties for Qwen voice configuration
-  qwenVoiceSpeed = 1.0;
-  qwenVoiceTone = 1.0;
+  chatterboxFile: File | null = null;
+  chatterboxCreating = false;
+  chatterboxLastVoiceId: string | null = null;
+  chatterboxSampleDownloading = false;
+  chatterboxStep: 'idle' | 'uploading' | 'creating' = 'idle';
+  chatterboxTemperature = 0.7;
+  chatterboxExaggeration = 1.0;
+  chatterboxSpeed = 1.0;
+  chatterboxCfgWeight = 0.5;
 
   saving = false;
-  creationMode: 'azure' | 'qwen' = 'qwen';
+  creationMode: 'azure' | 'chatterbox' = 'chatterbox';
   playingVoiceId: string | null = null;
   playingVoiceUrl: string | null = null;
   playingVoiceLoadingId: string | null = null;
 
-  // Qwen Preview State
-  qwenPreviewPlaying: boolean = false;
-  qwenPreviewLoading: boolean = false;
-  qwenPreviewAudio: HTMLAudioElement | null = null;
+  chatterboxPreviewPlaying: boolean = false;
+  chatterboxPreviewLoading: boolean = false;
+  chatterboxPreviewAudio: HTMLAudioElement | null = null;
 
   constructor(
     private supabaseService: SupabaseService,
@@ -89,9 +85,9 @@ export class RecursosComponent implements OnInit {
   }
 
   ngOnDestroy(): void {
-    if (this.qwenPreviewAudio) {
-      this.qwenPreviewAudio.pause();
-      this.qwenPreviewAudio = null;
+    if (this.chatterboxPreviewAudio) {
+      this.chatterboxPreviewAudio.pause();
+      this.chatterboxPreviewAudio = null;
     }
   }
 
@@ -103,7 +99,7 @@ export class RecursosComponent implements OnInit {
     }
   }
 
-  onQwenFileSelected(event: any): void {
+  onChatterboxFileSelected(event: any): void {
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
@@ -112,69 +108,51 @@ export class RecursosComponent implements OnInit {
       });
       return;
     }
-    this.qwenFile = file;
+    this.chatterboxFile = file;
   }
 
-  async createQwenVoice(): Promise<void> {
-    if (!this.qwenFile) {
+  async createChatterboxVoice(): Promise<void> {
+    if (!this.chatterboxFile) {
       this.snackBar.open('Debes seleccionar un audio de referencia', 'Cerrar', {
         duration: 3000
       });
       return;
     }
-    const id = this.generateId();
-    const safeLabel =
-      this.formData.label.trim().replace(/[^a-zA-Z0-9_-]+/g, '_') || 'voz_clonada';
-    this.qwenCreating = true;
-    this.qwenStep = 'uploading';
+    this.chatterboxCreating = true;
+    this.chatterboxStep = 'uploading';
     this.cdr.detectChanges();
     try {
-      this.qwenStep = 'uploading';
+      this.chatterboxStep = 'uploading';
       this.cdr.detectChanges();
 
       // Subir archivo a Supabase Storage para obtener URL pública
       // Esto evita enviar el archivo en base64 al backend, lo que causa errores 413 Payload Too Large en Vercel
-      const filePath = `temp-voice-cloning/${Date.now()}_${this.qwenFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const filePath = `temp-voice-cloning/${Date.now()}_${this.chatterboxFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       let audioUrl: string;
       try {
-        audioUrl = await this.supabaseService.uploadAudioFile(this.qwenFile, filePath);
+        audioUrl = await this.supabaseService.uploadAudioFile(this.chatterboxFile, filePath);
       } catch (uploadError: any) {
         console.error('Error uploading file to Supabase:', uploadError);
         throw new Error('Error al subir el archivo de audio. Verifica tu conexión o permisos.');
       }
 
-      // preferred_name es requerido por DashScope. Aseguramos un valor válido con patrón estricto:
-      // ^[a-z][a-z0-9]{2,19}$  (inicia con letra, 3–20 chars, minúsculas, números, SIN guiones bajos)
-      const basePref = (this.formData.label || '').trim() || `voz${Date.now()}`;
-      let preferredName = basePref
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '') // Elimina todo lo que no sea a-z o 0-9
-        .trim();
-
-      if (!preferredName) preferredName = `voz${Date.now()}`;
-      if (!/^[a-z]/.test(preferredName)) preferredName = `v${preferredName}`;
-      
-      // Longitud entre 3 y 20 caracteres
-      preferredName = preferredName.slice(0, 20);
-      if (preferredName.length < 3) preferredName = preferredName.padEnd(3, 'x');
-
-      this.qwenPreferredName = preferredName;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for backend processing
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
       
-      this.qwenStep = 'creating';
+      this.chatterboxStep = 'creating';
       this.cdr.detectChanges();
       
-      // console.log('[QWEN] Calling backend /api/qwen-voice-create with audioUrl:', audioUrl);
-      
       const apiUrl = config.apiUrl || ''; // Fallback to empty string for relative path if not set
-      const resp = await fetch(`${apiUrl}/api/qwen-voice-create`, {
+      const resp = await fetch(`${apiUrl}/api/chatterbox-voice-create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          audioUrl: audioUrl, // Send URL instead of base64 data
-          preferred_name: preferredName,
-          target_model: this.qwenTargetModel
+          audioUrl: audioUrl,
+          temperature: this.chatterboxTemperature,
+          exaggeration: this.chatterboxExaggeration,
+          speed: this.chatterboxSpeed,
+          cfg_weight: this.chatterboxCfgWeight,
+          cfgWeight: this.chatterboxCfgWeight
         }),
         signal: controller.signal
       }).finally(() => clearTimeout(timeoutId));
@@ -186,33 +164,29 @@ export class RecursosComponent implements OnInit {
       }
       
       const data = await resp.json();
-      const voiceParam = data.voice;
-      this.qwenLastVoiceId = voiceParam;
+      const voiceParam = data.voiceId || data.voice;
+      this.chatterboxLastVoiceId = voiceParam;
       
       this.snackBar.open('Voz clonada creada correctamente. Ahora puedes guardarla.', 'Cerrar', {
         duration: 3000,
         panelClass: ['success-snackbar']
       });
       
-      // No limpiamos el archivo para permitir regenerar la voz si el usuario lo desea
-      // this.qwenFile = null; 
-      this.qwenPreferredName = '';
-      
     } catch (error: any) {
-      console.error('Error creating Qwen voice', error);
+      console.error('Error creating Chatterbox voice', error);
       const message =
         error?.name === 'AbortError'
-          ? 'Tiempo de espera agotado (45s) al crear la voz. Verifica conexión y backend.'
+          ? 'Tiempo de espera agotado al crear la voz. Verifica conexión y backend.'
           : error?.message || 'Error al crear voz clonada';
       this.snackBar.open(message, 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
     } finally {
-      this.qwenCreating = false;
-      this.qwenStep = 'idle';
+      this.chatterboxCreating = false;
+      this.chatterboxStep = 'idle';
       this.cdr.detectChanges();
     }
   }
 
-  private saveQwenVoice(label: string): boolean {
+  private saveChatterboxVoice(label: string): boolean {
     if (this.selectedVoice) {
       this.voices = this.voices.map(v =>
         v.id === this.selectedVoice?.id
@@ -226,8 +200,8 @@ export class RecursosComponent implements OnInit {
       return true;
     }
 
-    if (!this.qwenLastVoiceId) {
-      this.snackBar.open('Primero debes crear la voz clonada con Qwen', 'Cerrar', {
+    if (!this.chatterboxLastVoiceId) {
+      this.snackBar.open('Primero debes crear la voz clonada', 'Cerrar', {
         duration: 3000
       });
       return false;
@@ -235,27 +209,30 @@ export class RecursosComponent implements OnInit {
 
     const newVoice: CustomVoice = {
       id: this.generateId(),
-      name: `qwen:${this.qwenLastVoiceId}`,
+      name: `chatterbox:${this.chatterboxLastVoiceId}`,
       label,
       gender: 'Other',
       description: this.formData.description.trim() || undefined,
-      provider: 'qwen',
-      voiceId: this.qwenLastVoiceId,
-      targetModel: this.qwenTargetModel
+      provider: 'chatterbox-vira',
+      voiceId: this.chatterboxLastVoiceId,
+      temperature: this.chatterboxTemperature,
+      exaggeration: this.chatterboxExaggeration,
+      speed: this.chatterboxSpeed,
+      cfgWeight: this.chatterboxCfgWeight
     };
     this.voices = [...this.voices, newVoice];
     return true;
   }
 
-  async downloadQwenSample(): Promise<void> {
-    if (!this.qwenLastVoiceId) {
-      this.snackBar.open('Primero crea una voz clonada con Qwen', 'Cerrar', {
+  async downloadChatterboxSample(): Promise<void> {
+    if (!this.chatterboxLastVoiceId) {
+      this.snackBar.open('Primero crea una voz clonada', 'Cerrar', {
         duration: 3000
       });
       return;
     }
 
-    this.qwenSampleDownloading = true;
+    this.chatterboxSampleDownloading = true;
     this.cdr.detectChanges();
 
     try {
@@ -264,14 +241,16 @@ export class RecursosComponent implements OnInit {
       const text = 'Esta es una muestra de la voz clonada para el noticiero de radio.';
       const url = await this.azureTtsService.generateSpeech({
         text,
-        voice: `qwen:${this.qwenLastVoiceId}`,
-        speed: this.qwenVoiceSpeed,
-        pitch: this.qwenVoiceTone
+        voice: `chatterbox:${this.chatterboxLastVoiceId}`,
+        speed: this.chatterboxSpeed,
+        exaggeration: this.chatterboxExaggeration,
+        temperature: this.chatterboxTemperature,
+        cfgWeight: this.chatterboxCfgWeight
       });
       const response = await fetch(url);
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
-      const fileName = `qwen_preview_${safeLabel}.mp3`;
+      const fileName = `chatterbox_preview_${safeLabel}.mp3`;
 
       const link = document.createElement('a');
       link.href = objectUrl;
@@ -281,26 +260,26 @@ export class RecursosComponent implements OnInit {
       document.body.removeChild(link);
       URL.revokeObjectURL(objectUrl);
 
-      this.snackBar.open('Descarga de muestra Qwen iniciada', 'Cerrar', {
+      this.snackBar.open('Descarga de muestra iniciada', 'Cerrar', {
         duration: 2000
       });
     } catch (error) {
-      console.error('Error downloading Qwen sample audio', error);
-      this.snackBar.open('Error al descargar la muestra de voz Qwen', 'Cerrar', {
+      console.error('Error downloading Chatterbox sample audio', error);
+      this.snackBar.open('Error al descargar la muestra de voz', 'Cerrar', {
         duration: 4000,
         panelClass: ['error-snackbar']
       });
     } finally {
-      this.qwenSampleDownloading = false;
+      this.chatterboxSampleDownloading = false;
       this.cdr.detectChanges();
     }
   }
 
   onParamChange(): void {
-    if (this.qwenPreviewPlaying && this.qwenPreviewAudio) {
-      this.qwenPreviewAudio.pause();
-      this.qwenPreviewAudio = null;
-      this.qwenPreviewPlaying = false;
+    if (this.chatterboxPreviewPlaying && this.chatterboxPreviewAudio) {
+      this.chatterboxPreviewAudio.pause();
+      this.chatterboxPreviewAudio = null;
+      this.chatterboxPreviewPlaying = false;
       this.cdr.detectChanges();
     }
   }
@@ -338,24 +317,24 @@ export class RecursosComponent implements OnInit {
       description: ''
     };
     this.selectedVoice = null;
-    this.creationMode = 'qwen';
+    this.creationMode = 'chatterbox';
     
-    // Reset Qwen specific fields
-    this.qwenLastVoiceId = null;
-    this.qwenVoiceSpeed = 1.0;
-    this.qwenVoiceTone = 1.0;
-    this.qwenFile = null;
-    this.qwenPreferredName = '';
-    this.qwenCreating = false;
-    this.qwenSampleDownloading = false;
+    this.chatterboxLastVoiceId = null;
+    this.chatterboxTemperature = 0.7;
+    this.chatterboxExaggeration = 1.0;
+    this.chatterboxSpeed = 1.0;
+    this.chatterboxCfgWeight = 0.5;
+    this.chatterboxFile = null;
+    this.chatterboxCreating = false;
+    this.chatterboxSampleDownloading = false;
 
     // Reset preview state
-    if (this.qwenPreviewAudio) {
-      this.qwenPreviewAudio.pause();
-      this.qwenPreviewAudio = null;
+    if (this.chatterboxPreviewAudio) {
+      this.chatterboxPreviewAudio.pause();
+      this.chatterboxPreviewAudio = null;
     }
-    this.qwenPreviewPlaying = false;
-    this.qwenPreviewLoading = false;
+    this.chatterboxPreviewPlaying = false;
+    this.chatterboxPreviewLoading = false;
 
     this.showCreateModal = true;
   }
@@ -369,76 +348,75 @@ export class RecursosComponent implements OnInit {
       description: voice.description || ''
     };
     
-    // Load speed and tone if available, otherwise default
-    this.qwenVoiceSpeed = voice.speed || 1.0;
-    this.qwenVoiceTone = voice.tone || 1.0;
-    
-    // Load Qwen specific fields
-    this.qwenLastVoiceId = voice.voiceId || null;
-    this.qwenTargetModel = voice.targetModel || 'qwen3-tts-vc-2026-01-22';
+    this.chatterboxSpeed = voice.speed || 1.0;
+    this.chatterboxTemperature = voice.temperature ?? 0.7;
+    this.chatterboxExaggeration = voice.exaggeration ?? 1.0;
+    this.chatterboxCfgWeight = voice.cfgWeight ?? 0.5;
+    this.chatterboxLastVoiceId = voice.voiceId || null;
 
-    this.creationMode = 'qwen';
+    this.creationMode = 'chatterbox';
     this.showEditModal = true;
   }
 
   closeModals(): void {
     // Stop preview if playing
-    if (this.qwenPreviewAudio) {
-      this.qwenPreviewAudio.pause();
-      this.qwenPreviewAudio = null;
+    if (this.chatterboxPreviewAudio) {
+      this.chatterboxPreviewAudio.pause();
+      this.chatterboxPreviewAudio = null;
     }
-    this.qwenPreviewPlaying = false;
-    this.qwenPreviewLoading = false;
+    this.chatterboxPreviewPlaying = false;
+    this.chatterboxPreviewLoading = false;
 
     this.showCreateModal = false;
     this.showEditModal = false;
     this.selectedVoice = null;
   }
 
-  async previewQwenParams(): Promise<void> {
-    if (!this.qwenLastVoiceId) return;
+  async previewChatterboxParams(): Promise<void> {
+    if (!this.chatterboxLastVoiceId) return;
 
-    if (this.qwenPreviewPlaying && this.qwenPreviewAudio) {
-      this.qwenPreviewAudio.pause();
-      this.qwenPreviewAudio = null;
-      this.qwenPreviewPlaying = false;
+    if (this.chatterboxPreviewPlaying && this.chatterboxPreviewAudio) {
+      this.chatterboxPreviewAudio.pause();
+      this.chatterboxPreviewAudio = null;
+      this.chatterboxPreviewPlaying = false;
       this.cdr.detectChanges();
       return;
     }
 
-    this.qwenPreviewLoading = true;
+    this.chatterboxPreviewLoading = true;
     this.cdr.detectChanges();
 
     try {
       const text = 'Esta es una prueba de voz con los ajustes seleccionados.';
-      // Use AzureTtsService which handles Qwen if voice starts with qwen:
       const url = await this.azureTtsService.generateSpeech({
         text,
-        voice: `qwen:${this.qwenLastVoiceId}`,
-        speed: this.qwenVoiceSpeed,
-        pitch: this.qwenVoiceTone
+        voice: `chatterbox:${this.chatterboxLastVoiceId}`,
+        speed: this.chatterboxSpeed,
+        temperature: this.chatterboxTemperature,
+        exaggeration: this.chatterboxExaggeration,
+        cfgWeight: this.chatterboxCfgWeight
       });
 
-      if (this.qwenPreviewAudio) {
-        this.qwenPreviewAudio.pause();
+      if (this.chatterboxPreviewAudio) {
+        this.chatterboxPreviewAudio.pause();
       }
       
-      this.qwenPreviewAudio = new Audio(url);
-      this.qwenPreviewAudio.onended = () => {
-        this.qwenPreviewPlaying = false;
-        this.qwenPreviewAudio = null;
+      this.chatterboxPreviewAudio = new Audio(url);
+      this.chatterboxPreviewAudio.onended = () => {
+        this.chatterboxPreviewPlaying = false;
+        this.chatterboxPreviewAudio = null;
         this.cdr.detectChanges();
       };
       
-      this.qwenPreviewLoading = false;
-      this.qwenPreviewPlaying = true;
-      this.qwenPreviewAudio.play();
+      this.chatterboxPreviewLoading = false;
+      this.chatterboxPreviewPlaying = true;
+      this.chatterboxPreviewAudio.play();
       
     } catch (error) {
-      console.error('Error previewing Qwen voice:', error);
+      console.error('Error previewing Chatterbox voice:', error);
       this.snackBar.open('Error al generar la prueba de voz', 'Cerrar', { duration: 3000 });
-      this.qwenPreviewLoading = false;
-      this.qwenPreviewPlaying = false;
+      this.chatterboxPreviewLoading = false;
+      this.chatterboxPreviewPlaying = false;
     } finally {
       this.cdr.detectChanges();
     }
@@ -480,9 +458,10 @@ export class RecursosComponent implements OnInit {
           description: this.formData.description.trim()
         };
         
-        // Update speed/tone if it's a Qwen voice
-        updatedVoice.speed = this.qwenVoiceSpeed;
-        updatedVoice.tone = this.qwenVoiceTone;
+        updatedVoice.speed = this.chatterboxSpeed;
+        updatedVoice.temperature = this.chatterboxTemperature;
+        updatedVoice.exaggeration = this.chatterboxExaggeration;
+        updatedVoice.cfgWeight = this.chatterboxCfgWeight;
         
         const updatedVoices = currentVoices.map(v => 
           v.id === this.selectedVoice?.id ? updatedVoice : v
@@ -495,25 +474,25 @@ export class RecursosComponent implements OnInit {
           panelClass: ['success-snackbar']
         });
       } else {
-        // Create new Qwen voice
         let newVoice: CustomVoice;
 
-        if (!this.qwenLastVoiceId) {
+        if (!this.chatterboxLastVoiceId) {
             this.snackBar.open('Primero debes crear la voz clonada (botón Crear)', 'Cerrar', { duration: 3000 });
             this.saving = false;
             return;
         }
         newVoice = {
             id: this.generateId(),
-            name: `qwen:${this.qwenLastVoiceId}`, // Prefijo para identificar proveedor
+            name: `chatterbox:${this.chatterboxLastVoiceId}`,
             label: label,
             gender: this.formData.gender,
             description: this.formData.description.trim(),
-            provider: 'qwen',
-            voiceId: this.qwenLastVoiceId,
-            targetModel: this.qwenTargetModel,
-            speed: this.qwenVoiceSpeed,
-            tone: this.qwenVoiceTone
+            provider: 'chatterbox-vira',
+            voiceId: this.chatterboxLastVoiceId,
+            speed: this.chatterboxSpeed,
+            temperature: this.chatterboxTemperature,
+            exaggeration: this.chatterboxExaggeration,
+            cfgWeight: this.chatterboxCfgWeight
         };
         
         const updatedVoices = [...currentVoices, newVoice];
@@ -636,9 +615,9 @@ export class RecursosComponent implements OnInit {
   async playVoice(voice: CustomVoice): Promise<void> {
     const text =
       'Esta es una muestra corta de la voz que usarás en tus noticieros.';
-    const isQwen = voice.provider === 'qwen' || voice.name.startsWith('qwen:');
-    const voiceName = isQwen
-      ? `qwen:${voice.voiceId || voice.name.replace(/^qwen:/, '')}`
+    const isChatterbox = voice.provider === 'chatterbox-vira' || voice.name.startsWith('chatterbox:');
+    const voiceName = isChatterbox
+      ? `chatterbox:${voice.voiceId || voice.name.replace(/^chatterbox:/, '')}`
       : voice.name;
 
     this.playingVoiceLoadingId = voice.id;
@@ -650,7 +629,10 @@ export class RecursosComponent implements OnInit {
       const url = await this.azureTtsService.generateSpeech({
         text,
         voice: voiceName,
-        speed: 1 // Default speed for sample play
+        speed: voice.speed || 1,
+        temperature: voice.temperature,
+        exaggeration: voice.exaggeration,
+        cfgWeight: voice.cfgWeight
       });
       this.playingVoiceUrl = url;
     } catch (error) {

@@ -268,11 +268,17 @@ export class SupabaseService {
     // NEWS SOURCES METHODS
     // ============================================
 
-    async getNewsSources() {
-        const { data, error } = await this.supabase
+    async getNewsSources(options?: { radioId?: string }) {
+        let query = this.supabase
             .from('news_sources')
-            .select('*')
+            .select('*, radio:radios(name)')
             .order('created_at', { ascending: false });
+
+        if (options?.radioId) {
+            query = query.eq('radio_id', options.radioId);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
         return data;

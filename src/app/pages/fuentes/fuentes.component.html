@@ -7,6 +7,10 @@
             </div>
             <div class="header-actions">
                 <div class="source-selector">
+                    <select class="form-select" [(ngModel)]="selectedRadioId" (change)="onRadioFilterChange()">
+                        <option value="all">Todas las radios</option>
+                        <option *ngFor="let radio of radios" [value]="radio.id">{{ radio.name }}</option>
+                    </select>
                     <button class="create-btn" (click)="openCreateModal()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -57,6 +61,15 @@
                             </svg>
                             <span class="meta-label">Categoría:</span>
                             <span class="meta-value">{{ getCategoryText(source.category) }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 11a8 8 0 0 1 16 0"></path>
+                                <path d="M12 11v6"></path>
+                                <circle cx="12" cy="20" r="1"></circle>
+                            </svg>
+                            <span class="meta-label">Radio:</span>
+                            <span class="meta-value">{{ source.radioName || 'Sin radio' }}</span>
                         </div>
                         <div class="meta-item">
                             <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -125,6 +138,13 @@
                 </div>
                 <div class="modal-body">
                     <div class="form-group">
+                        <label>Radio</label>
+                        <select class="form-select" [(ngModel)]="formData.radioId">
+                            <option value="">Selecciona una radio...</option>
+                            <option *ngFor="let radio of radios" [value]="radio.id">{{ radio.name }}</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>Nombre</label>
                         <input type="text" class="form-input" [(ngModel)]="formData.name"
                             placeholder="Nombre de la fuente">
@@ -179,7 +199,8 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" (click)="closeModals()">Cancelar</button>
-                    <button class="btn btn-primary" (click)="showCreateModal ? createSource() : updateSource()">
+                    <button class="btn btn-primary" (click)="showCreateModal ? createSource() : updateSource()"
+                        [disabled]="!formData.radioId || !formData.name || !formData.url">
                         {{ showCreateModal ? 'Crear' : 'Actualizar' }}
                     </button>
                 </div>

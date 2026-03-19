@@ -85,6 +85,18 @@ export interface ScrapedNews {
     voiceDelay?: number; // Delay in seconds before audio starts (silence padding)
 }
 
+export interface NewsSource {
+    id: string;
+    name: string;
+    url: string;
+    category: string;
+    active: boolean;
+    radioId: string | null;
+    radioName?: string | null;
+    lastScraped?: Date | null;
+    createdAt: Date;
+}
+
 @Component({
     selector: 'app-crear-noticiario',
     standalone: true,
@@ -108,8 +120,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     sourceFilter = 'all';
     dateFilter = 'all';
 
-    // Source selection for scraping
-    selectedSourceId: string = 'all';
+    showScrapeSelector = false;
+    selectedScrapeRadioIds: string[] = [];
+    selectedScrapeSourceIds: string[] = [];
 
     // Loading states
     loading = false;
@@ -130,8 +143,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     categories = ['all', 'general', 'deportes', 'tecnología', 'economía', 'política', 'entretenimiento'];
 
     // Sources
-    sources: any[] = [];
-    activeSources: any[] = [];
+    sources: NewsSource[] = [];
+    activeSources: NewsSource[] = [];
     sourceNames: string[] = [];
 
     // Audio options
@@ -255,10 +268,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             const customVoices = Array.isArray(value) ? value : [];
             
             this.customVoices = customVoices.map((voice: any) => {
-                // Ensure Qwen voices have the correct name prefix for the service to recognize them
-                const isQwen = voice.provider?.toLowerCase() === 'qwen';
-                if (isQwen && !voice.name.startsWith('qwen:')) {
-                    return { ...voice, name: `qwen:${voice.voiceId || voice.id}` };
+                const isChatterbox = (voice.provider || '').toLowerCase() === 'chatterbox-vira';
+                if (isChatterbox && !String(voice.name || '').startsWith('chatterbox:')) {
+                    return { ...voice, name: `chatterbox:${voice.voiceId || voice.id}` };
                 }
                 return voice;
             });
@@ -278,6 +290,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 url: item.url,
                 category: item.category,
                 active: item.is_active,
+                radioId: item.radio_id ?? null,
+                radioName: item.radio?.name ?? null,
                 lastScraped: item.last_scraped || null,
                 createdAt: item.created_at
             }));
@@ -326,6 +340,10 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     async onRadioSelect(): Promise<void> {
         if (this.selectedRadioId) {
             this.loadMusicResources(this.selectedRadioId);
+            if (this.selectedScrapeRadioIds.length === 0) {
+                this.selectedScrapeRadioIds = [this.selectedRadioId];
+                this.selectedScrapeSourceIds = [];
+            }
         }
 
         if (!this.selectedRadioId || !this.scheduledTime) return;
@@ -368,7 +386,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     voiceSource: 'custom',
                     selectedVoice: this.customVoices.length > 0 ? this.customVoices[0].name : undefined,
                     selectedSpeed: this.customVoices.length > 0 ? (this.customVoices[0].speed || 1.0) : 1.0,
-                    selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].tone || 1.0) : 1.0
+                    selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].exaggeration || 1.0) : 1.0
                 };
                 
                 this.timelineEvents.unshift(newIntro);
@@ -400,9 +418,113 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             const sourceMatch = this.sourceFilter === 'all' || news.source_name === this.sourceFilter;
             const dateMatch = this.dateFilter === 'all' || (news.publishedAt && this.checkDateFilter(news.publishedAt));
             const notSelected = !this.selectedNews.find(n => n.id === news.id);
+            const hasValidContent = !this.isCssNoiseContent(news.content || '');
 
-            return sourceMatch && dateMatch && notSelected;
+            const allowedSourceIds = this.getAllowedSourceIdsForFilter();
+            const selectionMatch = !allowedSourceIds || allowedSourceIds.has(news.source_id);
+
+            return sourceMatch && dateMatch && notSelected && hasValidContent && selectionMatch;
         });
+    }
+
+    toggleScrapeSelector(): void {
+        this.showScrapeSelector = !this.showScrapeSelector;
+    }
+
+    isScrapeRadioSelected(radioId: string): boolean {
+        return this.selectedScrapeRadioIds.includes(radioId);
+    }
+
+    toggleScrapeRadio(radioId: string, event: Event): void {
+        const checked = (event.target as HTMLInputElement).checked;
+        if (checked) {
+            if (!this.selectedScrapeRadioIds.includes(radioId)) {
+                this.selectedScrapeRadioIds = [...this.selectedScrapeRadioIds, radioId];
+            }
+        } else {
+            this.selectedScrapeRadioIds = this.selectedScrapeRadioIds.filter(id => id !== radioId);
+        }
+
+        const allowedSourceIds = this.getAllowedSourceIdsForFilter();
+        if (!allowedSourceIds) {
+            this.selectedScrapeSourceIds = [];
+            return;
+        }
+        this.selectedScrapeSourceIds = this.selectedScrapeSourceIds.filter(id => allowedSourceIds.has(id));
+    }
+
+    isScrapeSourceSelected(sourceId: string): boolean {
+        return this.selectedScrapeSourceIds.includes(sourceId);
+    }
+
+    toggleScrapeSource(sourceId: string, event: Event): void {
+        const checked = (event.target as HTMLInputElement).checked;
+        if (checked) {
+            if (!this.selectedScrapeSourceIds.includes(sourceId)) {
+                this.selectedScrapeSourceIds = [...this.selectedScrapeSourceIds, sourceId];
+            }
+        } else {
+            this.selectedScrapeSourceIds = this.selectedScrapeSourceIds.filter(id => id !== sourceId);
+        }
+    }
+
+    get selectedScrapeRadios(): Radio[] {
+        return this.radios.filter(r => this.selectedScrapeRadioIds.includes(r.id));
+    }
+
+    getActiveSourcesByRadio(radioId: string): NewsSource[] {
+        return this.activeSources.filter(s => s.radioId === radioId);
+    }
+
+    selectAllSourcesForRadio(radioId: string): void {
+        const ids = this.getActiveSourcesByRadio(radioId).map(s => s.id);
+        const merged = new Set([...this.selectedScrapeSourceIds, ...ids]);
+        this.selectedScrapeSourceIds = Array.from(merged);
+    }
+
+    clearSourcesForRadio(radioId: string): void {
+        const ids = new Set(this.getActiveSourcesByRadio(radioId).map(s => s.id));
+        this.selectedScrapeSourceIds = this.selectedScrapeSourceIds.filter(id => !ids.has(id));
+    }
+
+    private getAllowedSourceIdsForFilter(): Set<string> | null {
+        if (this.selectedScrapeRadioIds.length === 0) return null;
+
+        if (this.selectedScrapeSourceIds.length > 0) {
+            return new Set(this.selectedScrapeSourceIds);
+        }
+
+        const ids = this.activeSources
+            .filter(s => s.radioId && this.selectedScrapeRadioIds.includes(s.radioId))
+            .map(s => s.id);
+        return new Set(ids);
+    }
+
+    private getSourceIdsForScrape(): string[] {
+        if (this.selectedScrapeRadioIds.length === 0) return [];
+
+        if (this.selectedScrapeSourceIds.length > 0) {
+            return Array.from(new Set(this.selectedScrapeSourceIds));
+        }
+
+        return this.activeSources
+            .filter(s => s.radioId && this.selectedScrapeRadioIds.includes(s.radioId))
+            .map(s => s.id);
+    }
+
+    private isCssNoiseContent(text: string): boolean {
+        const t = (text || '').trim();
+        if (t.length < 80) return false;
+
+        if (/(^|\s)[.#][a-z0-9_-]+\s*\{[^}]*\}/i.test(t)) return true;
+        if (t.startsWith('#') && t.includes('{') && t.includes('}') && t.includes(':')) return true;
+
+        const braces = (t.match(/[{}]/g) || []).length;
+        const semicolons = (t.match(/;/g) || []).length;
+        const colons = (t.match(/:/g) || []).length;
+        const ratio = (braces + semicolons + colons) / Math.max(t.length, 1);
+
+        return (braces >= 4 && semicolons >= 6 && colons >= 6) || ratio > 0.08;
     }
 
     checkDateFilter(date: Date): boolean {
@@ -436,7 +558,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 const defaultVoice = this.customVoices[0];
                 news.selectedVoice = defaultVoice.name;
                 news.selectedSpeed = defaultVoice.speed || 1.0;
-                news.selectedPitch = defaultVoice.tone || 1.0;
+                news.selectedPitch = defaultVoice.exaggeration || 1.0;
             }
         }
 
@@ -510,7 +632,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             voiceSource: 'custom',
             selectedVoice: this.customVoices.length > 0 ? this.customVoices[0].name : undefined,
             selectedSpeed: this.customVoices.length > 0 ? (this.customVoices[0].speed || 1.0) : 1.0,
-            selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].tone || 1.0) : 1.0,
+            selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].exaggeration || 1.0) : 1.0,
             showAudioPanel: this.hasHumanized, // Show panel immediately if already humanized phase
             voiceDelay: 0,
             musicVolume: 0.5
@@ -581,7 +703,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         // Update item with default if missing
                         item.selectedVoice = voice;
                         item.selectedSpeed = this.customVoices[0].speed || 1.0;
-                        item.selectedPitch = this.customVoices[0].tone || 1.0;
+                        item.selectedPitch = this.customVoices[0].exaggeration || 1.0;
                     } else {
                         throw new Error('No hay voces personalizadas disponibles. Por favor crea una en Recursos.');
                     }
@@ -589,11 +711,15 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
                 item.isGeneratingAudio = true;
                 item.progress = 0; // Reset progress
+                const voiceConfig = this.customVoices.find((v: any) => v.name === voice);
                 let audioUrl = await this.azureTtsService.generateSpeech({
                     text: textToSpeech,
                     voice: voice || '',
                     speed: Number(item.selectedSpeed) || 1.0,
-                    pitch: Number(item.selectedPitch) || 1.0
+                    pitch: Number(item.selectedPitch) || 1.0,
+                    temperature: voiceConfig?.temperature,
+                    exaggeration: Number(item.selectedPitch) || voiceConfig?.exaggeration || 1.0,
+                    cfgWeight: voiceConfig?.cfgWeight
                 }, (percent) => {
                     item.progress = percent;
                     this.cdr.detectChanges();
@@ -1143,19 +1269,32 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             return;
         }
 
+        if (this.selectedScrapeRadioIds.length === 0) {
+            this.snackBar.open('Selecciona al menos una radio para obtener noticias', 'Cerrar', {
+                duration: 3000,
+                horizontalPosition: 'end',
+                verticalPosition: 'top',
+                panelClass: ['error-snackbar']
+            });
+            return;
+        }
+
+        const sourceIds = this.getSourceIdsForScrape();
+        if (sourceIds.length === 0) {
+            this.snackBar.open('Selecciona al menos una fuente activa', 'Cerrar', {
+                duration: 3000,
+                horizontalPosition: 'end',
+                verticalPosition: 'top',
+                panelClass: ['error-snackbar']
+            });
+            return;
+        }
+
         this.loading = true;
         this.cdr.detectChanges();
 
         try {
             // console.log('Scraping news from selected sources...');
-
-            // Get source IDs based on selection
-            let sourceIds: string[];
-            if (this.selectedSourceId === 'all') {
-                sourceIds = this.activeSources.map(s => s.id);
-            } else {
-                sourceIds = [this.selectedSourceId];
-            }
 
             // console.log('Selected sources:', sourceIds);
 
@@ -1276,11 +1415,15 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             }
 
             news.progress = 0; // Reset progress
+            const voiceConfig = this.customVoices.find((v: any) => v.name === voice);
             const audioUrl = await this.azureTtsService.generateSpeech({
                 text: textToSpeech,
                 voice: voice || 'es-CL-LorenzoNeural',
                 speed: Number(news.selectedSpeed) || 1.0,
-                pitch: Number(news.selectedPitch) || 1.0
+                pitch: Number(news.selectedPitch) || 1.0,
+                temperature: voiceConfig?.temperature,
+                exaggeration: Number(news.selectedPitch) || voiceConfig?.exaggeration || 1.0,
+                cfgWeight: voiceConfig?.cfgWeight
             }, (percent) => {
                 news.progress = percent;
                 this.cdr.detectChanges();
@@ -1358,23 +1501,20 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         const selectedVoice = this.customVoices.find((v: any) => v.name === voiceName);
 
         if (selectedVoice) {
-            // Apply defaults if they exist in the voice configuration
-            // Note: 'tone' from DB maps to 'pitch' in audio generation
-            
             if (item.type === 'news' && item.originalItem) {
                 if (selectedVoice.speed) {
                     item.originalItem.selectedSpeed = selectedVoice.speed;
                 }
-                if (selectedVoice.tone) {
-                    item.originalItem.selectedPitch = selectedVoice.tone;
+                if (selectedVoice.exaggeration) {
+                    item.originalItem.selectedPitch = selectedVoice.exaggeration;
                 }
             } else {
                 // Regular item (intro, outro, text)
                 if (selectedVoice.speed) {
                     item.selectedSpeed = selectedVoice.speed;
                 }
-                if (selectedVoice.tone) {
-                    item.selectedPitch = selectedVoice.tone;
+                if (selectedVoice.exaggeration) {
+                    item.selectedPitch = selectedVoice.exaggeration;
                 }
             }
         }
@@ -1604,11 +1744,15 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     news.progress = 0; // Reset progress
                     this.cdr.detectChanges(); // Ensure UI reflects loading state
 
+                    const voiceConfig = this.customVoices.find((v: any) => v.name === voice);
                     let audioUrl = await this.azureTtsService.generateSpeech({
                         text: textToSpeech,
                         voice: voice || 'es-CL-LorenzoNeural',
                         speed: Number(news.selectedSpeed) || 1.0,
-                        pitch: Number(news.selectedPitch) || 1.0
+                        pitch: Number(news.selectedPitch) || 1.0,
+                        temperature: voiceConfig?.temperature,
+                        exaggeration: Number(news.selectedPitch) || voiceConfig?.exaggeration || 1.0,
+                        cfgWeight: voiceConfig?.cfgWeight
                     }, (percent) => {
                         news.progress = percent;
                         this.cdr.detectChanges();
@@ -1679,11 +1823,15 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 event.progress = 0; // Reset progress
                 this.cdr.detectChanges(); // Ensure UI reflects loading state
 
+                const voiceConfig = this.customVoices.find((v: any) => v.name === voice);
                 let audioUrl = await this.azureTtsService.generateSpeech({
                     text: textToSpeech,
                     voice: voice || 'es-CL-LorenzoNeural',
                     speed: Number(event.selectedSpeed) || 1.0,
-                    pitch: Number(event.selectedPitch) || 1.0
+                    pitch: Number(event.selectedPitch) || 1.0,
+                    temperature: voiceConfig?.temperature,
+                    exaggeration: Number(event.selectedPitch) || voiceConfig?.exaggeration || 1.0,
+                    cfgWeight: voiceConfig?.cfgWeight
                 }, (percent) => {
                     event.progress = percent;
                     this.cdr.detectChanges();

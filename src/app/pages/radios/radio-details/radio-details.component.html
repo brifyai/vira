@@ -20,7 +20,9 @@
         <div class="radio-title">
           <h1>{{ radio.name }}</h1>
           <span class="location">
-            <i class="fas fa-map-marker-alt"></i> {{ radio.comuna }}, {{ radio.region }}
+            <i class="fas fa-map-marker-alt"></i>
+            <ng-container *ngIf="radio.comuna; else onlyRegion">{{ radio.comuna }}, {{ radio.region }}</ng-container>
+            <ng-template #onlyRegion>{{ radio.region }}</ng-template>
           </span>
         </div>
       </div>

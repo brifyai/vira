@@ -13,19 +13,24 @@ export class AzureTtsService {
 
   constructor(private http: HttpClient) {}
 
-  async generateSpeech(params: { text: string; voice: string; speed?: number; pitch?: number }, onProgress?: (percent: number) => void): Promise<string> {
+  async generateSpeech(params: { text: string; voice: string; speed?: number; pitch?: number; temperature?: number; exaggeration?: number; cfgWeight?: number }, onProgress?: (percent: number) => void): Promise<string> {
     const AZURE_MAX_CHARS = 2400; // Safety margin below 2500
-    const QWEN_MAX_CHARS = 250;   // Reduced from 550 to 250 to avoid Vercel 10s timeout on generation
+    const CHATTERBOX_MAX_CHARS = 800;
 
     try {
-      if (params.voice && params.voice.startsWith('qwen:')) {
-        if (params.text.length <= QWEN_MAX_CHARS) {
+      if (params.voice && params.voice.startsWith('chatterbox:')) {
+        if (params.text.length <= CHATTERBOX_MAX_CHARS) {
           if (onProgress) onProgress(100);
-          return await this.callQwenApi(params.text, params.voice, params.speed ?? 1.0, params.pitch ?? 1.0);
+          return await this.callChatterboxApi(
+            params.text,
+            params.voice,
+            params.speed ?? 1.0,
+            params.exaggeration ?? params.pitch ?? 1.0,
+            params.temperature ?? 0.7,
+            params.cfgWeight ?? 0.5
+          );
         }
-        // Split text using Qwen specific limit
-        const chunks = this.splitTextIntoChunks(params.text, QWEN_MAX_CHARS);
-        // console.log(`[Qwen] Text too long (${params.text.length} chars). Split into ${chunks.length} chunks (Limit: ${QWEN_MAX_CHARS}).`);
+        const chunks = this.splitTextIntoChunks(params.text, CHATTERBOX_MAX_CHARS);
         
         return this.processChunksParallel(chunks, params, onProgress);
       }
@@ -68,29 +73,30 @@ export class AzureTtsService {
       const results: { index: number, blob: Blob }[] = [];
       let completed = 0;
       
-      // console.log(`[AzureTTS] Processing ${chunks.length} chunks sequentially...`);
-
       // If sequential (concurrency 1), we can just loop directly without Promise.race complexity
       // This is cleaner and allows for delays
       if (concurrency === 1) {
           for (let i = 0; i < chunks.length; i++) {
-              // console.log(`[AzureTTS] Processing chunk ${i + 1}/${chunks.length} (Length: ${chunks[i].length})`);
               try {
-                  const blobUrl = await this.callQwenApi(chunks[i], params.voice, params.speed ?? 1.0, params.pitch ?? 1.0);
-                  // console.log(`[AzureTTS] Chunk ${i + 1} generated. Fetching blob...`);
+                  const blobUrl = await this.callChatterboxApi(
+                    chunks[i],
+                    params.voice,
+                    params.speed ?? 1.0,
+                    params.exaggeration ?? params.pitch ?? 1.0,
+                    params.temperature ?? 0.7,
+                    params.cfgWeight ?? 0.5
+                  );
                   
                   const response = await fetch(blobUrl);
                   const blob = await response.blob();
                   URL.revokeObjectURL(blobUrl);
                   
-                  // console.log(`[AzureTTS] Chunk ${i + 1} blob received. Size: ${blob.size}`);
                   results.push({ index: i, blob });
                   completed++;
                   if (onProgress) onProgress(Math.round((completed / chunks.length) * 100));
 
                   // Add delay between chunks to avoid rate limits
                   if (i < chunks.length - 1) {
-                      // console.log(`[AzureTTS] Waiting 500ms before next chunk...`);
                       await new Promise(resolve => setTimeout(resolve, 500));
                   }
               } catch (err) {
@@ -99,15 +105,11 @@ export class AzureTtsService {
               }
           }
           
-          // console.log(`[AzureTTS] All chunks processed. Combining ${results.length} blobs...`);
-          
           // Re-encode all blobs into a single MP3 to fix duration/playback issues
           // Using lamejs as it's available in the project
           try {
-            // console.log(`[AzureTTS] Merging and re-encoding ${results.length} audio chunks...`);
             const finalBlob = await this.mergeAudioBlobs(results.map(r => r.blob));
             const finalUrl = URL.createObjectURL(finalBlob);
-            // console.log(`[AzureTTS] Final audio URL created: ${finalUrl}, Size: ${finalBlob.size}`);
             return finalUrl;
           } catch (mergeError) {
             console.error('[AzureTTS] Error merging audio blobs:', mergeError);
@@ -115,7 +117,6 @@ export class AzureTtsService {
             const blobs = results.map(r => r.blob);
             const finalBlob = new Blob(blobs, { type: 'audio/mpeg' });
             const finalUrl = URL.createObjectURL(finalBlob);
-            // console.log(`[AzureTTS] Fallback: Concatenated audio URL created: ${finalUrl}`);
             return finalUrl;
           }
       }
@@ -125,7 +126,14 @@ export class AzureTtsService {
 
       for (let i = 0; i < chunks.length; i++) {
           const p = (async () => {
-              const blobUrl = await this.callQwenApi(chunks[i], params.voice, params.speed ?? 1.0, params.pitch ?? 1.0);
+              const blobUrl = await this.callChatterboxApi(
+                chunks[i],
+                params.voice,
+                params.speed ?? 1.0,
+                params.exaggeration ?? params.pitch ?? 1.0,
+                params.temperature ?? 0.7,
+                params.cfgWeight ?? 0.5
+              );
               const response = await fetch(blobUrl);
               const blob = await response.blob();
               URL.revokeObjectURL(blobUrl);
@@ -245,15 +253,17 @@ export class AzureTtsService {
     return new Blob(mp3Data as BlobPart[], { type: 'audio/mpeg' });
   }
 
-  private async callQwenApi(text: string, voice: string, speed: number = 1.0, pitch: number = 1.0): Promise<string> {
-    // console.log(`[QwenAPI] Calling with text length: ${text.length}`);
+  private async callChatterboxApi(text: string, voice: string, speed: number = 1.0, exaggeration: number = 1.0, temperature: number = 0.7, cfgWeight: number = 0.5): Promise<string> {
     try {
       const response = await firstValueFrom(
-        this.http.post(`${config.apiUrl}/api/qwen-tts`, {
+        this.http.post(`${config.apiUrl}/api/chatterbox-tts`, {
           text,
           voice,
-          rate: speed, // Send 'rate' instead of 'speed'
-          pitch
+          speed,
+          exaggeration,
+          temperature,
+          cfg_weight: cfgWeight,
+          cfgWeight
         }, {
           responseType: 'blob'
         })
@@ -262,7 +272,6 @@ export class AzureTtsService {
         throw new Error('El audio generado está vacío');
       }
       const url = URL.createObjectURL(response);
-      // console.log(`[QwenAPI] Success. URL: ${url}, Size: ${response.size}`);
       return url;
     } catch (error: any) {
       if (error.error instanceof Blob) {
@@ -270,9 +279,9 @@ export class AzureTtsService {
         reader.onload = () => {
           try {
             const errorJson = JSON.parse(reader.result as string);
-            console.error('Error Qwen:', errorJson);
+            console.error('Error Chatterbox:', errorJson);
           } catch {
-            console.error('Error Qwen (texto):', reader.result);
+            console.error('Error Chatterbox (texto):', reader.result);
           }
         };
         reader.readAsText(error.error);

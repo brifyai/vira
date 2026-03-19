@@ -162,10 +162,9 @@ export class TimelineNoticiarioComponent implements OnInit {
             const customVoices = Array.isArray(value) ? value : [];
             
             this.availableVoices = customVoices.map((voice: any) => {
-                // Ensure Qwen voices have the correct name prefix for the service to recognize them
-                const isQwen = voice.provider?.toLowerCase() === 'qwen';
-                if (isQwen && !voice.name.startsWith('qwen:')) {
-                    return { ...voice, name: `qwen:${voice.voiceId || voice.id}` };
+                const isChatterbox = (voice.provider || '').toLowerCase() === 'chatterbox-vira';
+                if (isChatterbox && !String(voice.name || '').startsWith('chatterbox:')) {
+                    return { ...voice, name: `chatterbox:${voice.voiceId || voice.id}` };
                 }
                 return voice;
             });
@@ -332,7 +331,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             const firstVoice = this.availableVoices[0];
             defaultVoice = firstVoice.name;
             defaultSpeed = firstVoice.speed || 1.0;
-            defaultPitch = firstVoice.pitch || firstVoice.tone || 1.0;
+            defaultPitch = firstVoice.exaggeration || firstVoice.pitch || 1.0;
         }
         
         const newItem = {
@@ -594,18 +593,9 @@ export class TimelineNoticiarioComponent implements OnInit {
         const selectedVoice = this.availableVoices.find(v => v.name === event.voice);
         const updates: any = { voice_id: event.voice };
 
-        // If it's a custom voice (usually starts with qwen:), it might have default settings
-        // But for now, we just update the voice_id. 
-        // If we wanted to enforce defaults:
         if (selectedVoice) {
-             // Assuming custom voices have these properties stored in the JSON
-             // If not, we might need to check how they are stored.
-             // But for now, let's just update the voice.
-             // Actually, the user said "ya vienen configurados", so we SHOULD update speed/pitch.
-             // But I don't see speed/pitch in availableVoices map in loadCustomVoices.
-             // Let's assume they are part of the voice object if it's custom.
              if (selectedVoice.speed) updates.voice_speed = selectedVoice.speed;
-             if (selectedVoice.pitch || selectedVoice.tone) updates.voice_pitch = selectedVoice.pitch || selectedVoice.tone;
+             if (selectedVoice.exaggeration || selectedVoice.pitch) updates.voice_pitch = selectedVoice.exaggeration || selectedVoice.pitch;
         }
 
         try {

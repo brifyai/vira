@@ -10,7 +10,7 @@ export interface Radio {
     id: string;
     name: string;
     region: string;
-    comuna: string;
+    comuna?: string | null;
     frequency?: string;
     created_at: string;
 }
@@ -39,7 +39,8 @@ export class RadiosComponent implements OnInit {
     regions = [
         'Arica y Parinacota', 'Tarapacá', 'Antofagasta', 'Atacama', 'Coquimbo',
         'Valparaíso', 'Metropolitana', 'O\'Higgins', 'Maule', 'Ñuble',
-        'Biobío', 'La Araucanía', 'Los Ríos', 'Los Lagos', 'Aysén', 'Magallanes'
+        'Biobío', 'La Araucanía', 'Los Ríos', 'Los Lagos', 'Aysén', 'Magallanes',
+        'Chillán'
     ];
 
     constructor(
@@ -100,7 +101,7 @@ export class RadiosComponent implements OnInit {
         this.formData = {
             name: radio.name,
             region: radio.region,
-            comuna: radio.comuna,
+            comuna: radio.comuna || '',
             frequency: radio.frequency || ''
         };
         this.showEditModal = true;
@@ -113,7 +114,7 @@ export class RadiosComponent implements OnInit {
     }
 
     async createRadio(): Promise<void> {
-        if (!this.formData.name || !this.formData.region || !this.formData.comuna) {
+        if (!this.formData.name || !this.formData.region) {
             this.showSnackBar('Por favor completa todos los campos requeridos', 'error-snackbar');
             return;
         }
@@ -121,12 +122,10 @@ export class RadiosComponent implements OnInit {
         try {
             await this.supabaseService.createRadio({
                 name: this.formData.name,
-                region: this.formData.region,
-                comuna: this.formData.comuna,
-                frequency: this.formData.frequency
+                region: this.formData.region
             });
-            await this.loadRadios();
             this.closeModals();
+            await this.loadRadios();
             this.showSnackBar('Radio creada exitosamente');
         } catch (error) {
             console.error('Error creating radio:', error);

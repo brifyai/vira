@@ -44,7 +44,7 @@
                     <span class="label">Región:</span>
                     <span class="value">{{ radio.region }}</span>
                 </div>
-                <div class="info-row">
+                <div class="info-row" *ngIf="radio.comuna">
                     <span class="label">Comuna:</span>
                     <span class="value">{{ radio.comuna }}</span>
                 </div>
@@ -105,12 +105,12 @@
                 </select>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" *ngIf="showEditModal">
                 <label>Comuna</label>
                 <input type="text" [(ngModel)]="formData.comuna" placeholder="Ej: Santiago">
             </div>
 
-            <div class="form-group">
+            <div class="form-group" *ngIf="showEditModal">
                 <label>Frecuencia (Opcional)</label>
                 <input type="text" [(ngModel)]="formData.frequency" placeholder="Ej: 92.5 FM">
             </div>

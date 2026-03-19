@@ -123,9 +123,9 @@ export class UltimoMinutoComponent implements OnInit {
             const baseVoices = this.azureTtsService.getVoices();
             const merged = [...baseVoices];
             customVoices.forEach((voice: any) => {
-                // Ensure Qwen voices have the correct name prefix
-                if (voice.provider === 'qwen' && !voice.name.startsWith('qwen:')) {
-                    voice.name = `qwen:${voice.voiceId || voice.id}`;
+                const isChatterbox = (voice.provider || '').toLowerCase() === 'chatterbox-vira';
+                if (isChatterbox && !String(voice.name || '').startsWith('chatterbox:')) {
+                    voice.name = `chatterbox:${voice.voiceId || voice.id}`;
                 }
                 
                 if (!merged.find(v => v.name === voice.name && v.label === voice.label)) {

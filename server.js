@@ -29,16 +29,17 @@ const googleCloudTtsApiKey =
   'YOUR_GOOGLE_CLOUD_TTS_API_KEY';
 const AZURE_API_KEY = process.env.AZURE_API_KEY || 'TU_API_KEY_AZURE'; // Configurar en Vercel Environment Variables
 const AZURE_REGION = process.env.AZURE_REGION || 'eastus'; // Configurar en Vercel Environment Variables
+const RUNPOD_API_KEY = process.env.RUNPOD || process.env.RUNPOD_API_KEY || '';
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || 'YOUR_QWEN_API_KEY';
 
 // --- Debug Environment Variables (Safe Log) ---
 console.log('[Server] Starting...');
 console.log('[Server] Environment Check:');
 console.log(`- NODE_ENV: ${process.env.NODE_ENV}`);
-console.log(`- DASHSCOPE_API_KEY Present: ${!!process.env.DASHSCOPE_API_KEY && process.env.DASHSCOPE_API_KEY !== 'YOUR_QWEN_API_KEY'}`);
 console.log(`- AZURE_API_KEY Present: ${!!process.env.AZURE_API_KEY && process.env.AZURE_API_KEY !== 'TU_API_KEY_AZURE'}`);
 console.log(`- AZURE_REGION: ${AZURE_REGION}`);
 console.log(`- GEMINI_API_KEY Present: ${!!(process.env.GEMINI_API_KEY || process.env.geminiApiKey)}`);
+console.log(`- RUNPOD_API_KEY Present: ${!!RUNPOD_API_KEY}`);
 // ----------------------------------------------
 
 // Helper for escaping XML
@@ -62,6 +63,183 @@ const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
         throw error;
     }
 };
+
+const RUNPOD_ENDPOINT_NAME = 'Chatterbox-Vira';
+const RUNPOD_ENDPOINT_ID =
+    process.env.CHATTERBOX_RUNPOD_ENDPOINT_ID ||
+    process.env.RUNPOD_ENDPOINT_ID ||
+    process.env.RUNPOD_CHATTERBOX_ENDPOINT_ID ||
+    '';
+let cachedRunpodEndpointId = null;
+let cachedRunpodEndpointFetchedAt = 0;
+
+async function getRunpodEndpointIdByName(name) {
+    const now = Date.now();
+    if (cachedRunpodEndpointId && (now - cachedRunpodEndpointFetchedAt) < 5 * 60 * 1000) {
+        return cachedRunpodEndpointId;
+    }
+
+    if (RUNPOD_ENDPOINT_ID) {
+        cachedRunpodEndpointId = RUNPOD_ENDPOINT_ID;
+        cachedRunpodEndpointFetchedAt = now;
+        return RUNPOD_ENDPOINT_ID;
+    }
+
+    if (!RUNPOD_API_KEY) {
+        throw new Error('RUNPOD_API_KEY no configurada');
+    }
+
+    const resp = await fetchWithTimeout('https://rest.runpod.io/v1/endpoints', {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${RUNPOD_API_KEY}`
+        }
+    }, 20000);
+
+    if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        throw new Error(`Runpod endpoints list failed (${resp.status}): ${body}`);
+    }
+
+    const endpoints = await resp.json().catch(() => []);
+    const match = Array.isArray(endpoints)
+        ? endpoints.find(e => (e?.name || '').toLowerCase() === String(name).toLowerCase())
+        : null;
+
+    const id = match?.id || null;
+    if (!id) {
+        throw new Error(`No se encontró endpoint Runpod con nombre: ${name}`);
+    }
+
+    cachedRunpodEndpointId = id;
+    cachedRunpodEndpointFetchedAt = now;
+    return id;
+}
+
+async function runpodRunSync(endpointId, input, policy) {
+    const resp = await fetchWithTimeout(`https://api.runpod.ai/v2/${endpointId}/runsync`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${RUNPOD_API_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            input,
+            ...(policy ? { policy } : {})
+        })
+    }, 180000);
+
+    const bodyText = await resp.text().catch(() => '');
+    if (!resp.ok) {
+        const err = new Error(`Runpod runsync failed (${resp.status}): ${bodyText}`);
+        err.statusCode = resp.status;
+        err.bodyText = bodyText;
+        throw err;
+    }
+
+    try {
+        return JSON.parse(bodyText);
+    } catch (e) {
+        throw new Error('Respuesta inválida de Runpod (JSON parse error)');
+    }
+}
+
+async function runpodRun(endpointId, input, policy) {
+    const resp = await fetchWithTimeout(`https://api.runpod.ai/v2/${endpointId}/run`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${RUNPOD_API_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            input,
+            ...(policy ? { policy } : {})
+        })
+    }, 30000);
+
+    const bodyText = await resp.text().catch(() => '');
+    if (!resp.ok) {
+        const err = new Error(`Runpod run failed (${resp.status}): ${bodyText}`);
+        err.statusCode = resp.status;
+        err.bodyText = bodyText;
+        throw err;
+    }
+
+    try {
+        return JSON.parse(bodyText);
+    } catch (e) {
+        throw new Error('Respuesta inválida de Runpod (JSON parse error)');
+    }
+}
+
+async function runpodGetStatus(endpointId, requestId) {
+    const resp = await fetchWithTimeout(`https://api.runpod.ai/v2/${endpointId}/status/${requestId}`, {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${RUNPOD_API_KEY}`
+        }
+    }, 20000);
+
+    const bodyText = await resp.text().catch(() => '');
+    if (!resp.ok) {
+        const err = new Error(`Runpod status failed (${resp.status}): ${bodyText}`);
+        err.statusCode = resp.status;
+        err.bodyText = bodyText;
+        throw err;
+    }
+
+    try {
+        return JSON.parse(bodyText);
+    } catch (e) {
+        throw new Error('Respuesta inválida de Runpod (JSON parse error)');
+    }
+}
+
+async function runpodRunSmart(endpointId, input, policy) {
+    try {
+        return await runpodRunSync(endpointId, input, policy);
+    } catch (e) {
+        const status = e?.statusCode;
+        const bodyText = String(e?.bodyText || e?.message || '');
+        const looksUnsupported = status === 404 || status === 405 || /runsync/i.test(bodyText);
+        if (!looksUnsupported) throw e;
+    }
+
+    const started = await runpodRun(endpointId, input, policy);
+    const requestId = started?.id || started?.requestId || started?.request_id;
+    if (!requestId) {
+        throw new Error('Respuesta inválida de Runpod /run: falta id');
+    }
+
+    const deadlineMs = Date.now() + 180000;
+    while (Date.now() < deadlineMs) {
+        const statusJson = await runpodGetStatus(endpointId, requestId);
+        const s = String(statusJson?.status || '').toUpperCase();
+        if (s === 'COMPLETED' || s === 'COMPLETED_WITH_WARNINGS') return statusJson;
+        if (s === 'FAILED' || s === 'CANCELLED') {
+            throw new Error(`Runpod job ${s}: ${JSON.stringify(statusJson?.error || statusJson?.output || statusJson)}`);
+        }
+        await new Promise(r => setTimeout(r, 1200));
+    }
+
+    throw new Error('Timeout esperando respuesta de Runpod');
+}
+
+function findFirstValue(obj, candidates) {
+    for (const key of candidates) {
+        const value = obj?.[key];
+        if (typeof value === 'string' && value.length > 0) return value;
+    }
+    return null;
+}
+
+function extractRunpodOutput(json) {
+    if (!json) return null;
+    if (json.output) return json.output;
+    if (json.data?.output) return json.data.output;
+    if (json.result?.output) return json.result.output;
+    return null;
+}
 
 // Scrape endpoint
 app.post('/api/scrape', async (req, res) => {
@@ -401,6 +579,12 @@ app.post('/api/scrape', async (req, res) => {
                         let fullContent = fullContentText;
                         
                         // console.log(`[DEBUG] Extracted content length for ${article.url}: ${fullContent.length}`);
+
+                        if (isCssNoiseContent(fullContent)) {
+                            console.warn(`Skipping ${article.url} due to CSS noise content`);
+                            sendUpdate({ type: 'progress', message: `Omitido por CSS/estilos: ${article.title.substring(0, 20)}...` });
+                            return null;
+                        }
                         
                         // Validation: Check for invalid content phrases
                         const invalidPhrases = [
@@ -564,6 +748,21 @@ function fallbackArticle(article, sourceId, errorMsg) {
         is_selected: false,
         source_id: sourceId
     };
+}
+
+function isCssNoiseContent(text) {
+    const t = (text || '').trim();
+    if (t.length < 80) return false;
+
+    if (/(^|\s)[.#][a-z0-9_-]+\s*\{[^}]*\}/i.test(t)) return true;
+    if (t.startsWith('#') && t.includes('{') && t.includes('}') && t.includes(':')) return true;
+
+    const braces = (t.match(/[{}]/g) || []).length;
+    const semicolons = (t.match(/;/g) || []).length;
+    const colons = (t.match(/:/g) || []).length;
+    const ratio = (braces + semicolons + colons) / Math.max(t.length, 1);
+
+    return (braces >= 4 && semicolons >= 6 && colons >= 6) || ratio > 0.08;
 }
 
 function extractContent(html, title, url, source) {
@@ -1124,6 +1323,109 @@ app.post('/api/azure-tts', async (req, res) => {
     } catch (error) {
         console.error("Error al generar audio Azure:", error);
         res.status(500).json({ error: "Error interno del servidor", details: error.message });
+    }
+});
+
+app.post('/api/chatterbox-voice-create', async (req, res) => {
+    try {
+        const { audioUrl, audio_url, temperature, exaggeration, speed, cfg_weight, cfgWeight } = req.body || {};
+
+        const refUrl = audioUrl || audio_url;
+        if (!refUrl) {
+            return res.status(400).json({ error: 'Parámetros inválidos: audioUrl es requerido' });
+        }
+
+        const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME);
+        const input = {
+            task: 'clone_voice',
+            action: 'clone_voice',
+            audioUrl: refUrl,
+            audio_url: refUrl,
+            temperature,
+            exaggeration,
+            speed,
+            cfg_weight: cfg_weight ?? cfgWeight,
+            cfgWeight: cfgWeight ?? cfg_weight
+        };
+
+        const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
+        const output = extractRunpodOutput(result) || result;
+
+        const voiceId =
+            findFirstValue(output, ['voice_id', 'voiceId', 'voice', 'id']) ||
+            findFirstValue(result, ['voice_id', 'voiceId', 'voice', 'id']);
+
+        if (!voiceId) {
+            return res.status(500).json({ error: 'Respuesta inválida: no se recibió voiceId', details: output });
+        }
+
+        res.json({ voiceId });
+    } catch (error) {
+        console.error('Chatterbox Voice Create Error:', error);
+        res.status(500).json({ error: 'Error al crear voz', details: error.message });
+    }
+});
+
+app.post('/api/chatterbox-tts', async (req, res) => {
+    try {
+        const { text, voice, speed, exaggeration, temperature, cfg_weight, cfgWeight } = req.body || {};
+
+        if (!text || String(text).trim().length === 0) {
+            return res.status(400).json({ error: "El texto no puede estar vacío" });
+        }
+
+        const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME);
+        const input = {
+            task: 'tts',
+            action: 'tts',
+            text,
+            voice,
+            voice_id: typeof voice === 'string' ? voice.replace(/^chatterbox:/, '') : voice,
+            voiceId: typeof voice === 'string' ? voice.replace(/^chatterbox:/, '') : voice,
+            speed,
+            exaggeration,
+            temperature,
+            cfg_weight: cfg_weight ?? cfgWeight,
+            cfgWeight: cfgWeight ?? cfg_weight
+        };
+
+        const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
+        const output = extractRunpodOutput(result) || result;
+
+        const audioBase64 = findFirstValue(output, ['audio_base64', 'audioBase64', 'audio', 'mp3_base64', 'wav_base64']);
+        const audioUrl =
+            findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']) ||
+            findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']);
+
+        if (audioBase64) {
+            const b64 = audioBase64.includes(',') ? audioBase64.split(',').pop() : audioBase64;
+            const buffer = Buffer.from(b64, 'base64');
+            if (!buffer || buffer.length === 0) {
+                return res.status(500).json({ error: 'El audio generado está vacío' });
+            }
+            res.set('Content-Type', 'audio/mpeg');
+            return res.send(buffer);
+        }
+
+        if (audioUrl && /^https?:\/\//i.test(audioUrl)) {
+            const fetched = await fetchWithTimeout(audioUrl, { method: 'GET' }, 60000);
+            if (!fetched.ok) {
+                const body = await fetched.text().catch(() => '');
+                return res.status(502).json({ error: 'Error al descargar audio remoto', details: body });
+            }
+            const contentType = fetched.headers.get('content-type') || 'audio/mpeg';
+            const buf = Buffer.from(await fetched.arrayBuffer());
+            if (!buf || buf.length === 0) {
+                return res.status(500).json({ error: 'El audio generado está vacío' });
+            }
+            res.set('Content-Type', contentType);
+            return res.send(buf);
+        }
+
+        return res.status(500).json({ error: 'Respuesta inválida: no se recibió audio', details: output });
+    } catch (error) {
+        console.error('Chatterbox TTS Error:', error);
+        res.status(500).json({ error: 'Error al generar audio', details: error.message });
     }
 });
 

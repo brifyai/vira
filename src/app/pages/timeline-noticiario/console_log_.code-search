@@ -1,0 +1,475 @@
+# Query: console.log(
+# ContextLines: 1
+
+139 results - 17 files
+
+check-models-capabilities.js:
+   9    try {
+  10:     console.log('Fetching models supporting generateContent...');
+  11      const response = await client.models.list();
+
+  17          if (model.supportedActions && model.supportedActions.includes('generateContent')) {
+  18:             
+  22          }
+
+  24          if (model.name.includes('audio')) {
+  25:              console.log(`[AUDIO MODEL FOUND] ${model.name}`);
+  26:              console.log(`Supported Actions: ${model.supportedActions?.join(', ')}`);
+  27:              console.log('---');
+  28          }
+
+server.js:
+    53  app.post('/api/scrape', async (req, res) => {
+    54:     console.log('Scrape request received:', req.body);
+    55      const startTime = Date.now();
+
+    62          // Log updates to console instead of streaming to client
+    63:         console.log('[UPDATE]', JSON.stringify(data));
+    64      };
+
+    88  
+    89:         console.log(`Processing ${sourcesData.length} sources`);
+    90          sendUpdate({ type: 'start', total: sourcesData.length, message: `Iniciando análisis de ${sourcesData.length} fuentes...` });
+
+   100              // ... (existing scraping logic)
+   101:             console.log(`[START] Scraping source: ${source.name} (${source.url})`);
+   102              sendUpdate({ type: 'progress', message: `Contactando ScrapingBee para: ${source.name}...` });
+
+   112                  const remainingCredits = response.headers.get('Spb-Remaining-Credits');
+   113:                 if (usedCredits) console.log(`[INFO] ScrapingBee Credits - Used: ${usedCredits}, Remaining: ${remainingCredits}`);
+   114  
+
+   128                  const html = await response.text();
+   129:                 console.log(`[INFO] HTML content length for ${source.name}: ${html.length}`);
+   130                  
+
+   162                  if (source.selector_list_container) {
+   163:                     console.log(`[DEBUG] Using dynamic selector_list_container: ${source.selector_list_container}`);
+   164                      
+
+   192                               highPriorityUrls.add(url);
+   193:                              console.log(`[DEBUG] Found High Priority URL via Dynamic Selector: ${url}`);
+   194                          }
+
+   198                      if (source.url.includes('soychile.cl')) {
+   199:                         console.log(`[DEBUG] Scanning SoyChile specific structure: destacadas-wrapper -> media-desc -> a`);
+   200                          const wrapperRegex = /<div[^>]*class=["'][^"']*destacadas-wrapper[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi;
+
+   215                                  highPriorityUrls.add(url);
+   216:                                 console.log(`[DEBUG] Found High Priority SoyChile URL: ${url}`);
+   217                              }
+
+   221                      if (source.url.includes('emol.com')) {
+   222:                         console.log(`[DEBUG] Scanning Emol specific structure: ucHomePage_cuNoticiasCentral`);
+   223                          // Patterns: 
+
+   243                                  highPriorityUrls.add(url);
+   244:                                 console.log(`[DEBUG] Found High Priority Emol URL: ${url}`);
+   245                              }
+
+   289                      if (foundLinksCount <= 5) {
+   290:                         console.log(`[DEBUG] Analyzing link: ${fullUrl} | Text: "${linkText}"`);
+   291                      }
+
+   338                              score += 50; // Massive boost for structurally verified links
+   339:                             console.log(`[DEBUG] Boosted score for structural match: ${fullUrl}`);
+   340                          }
+
+   355                  
+   356:                 console.log(`[INFO] Found ${foundLinksCount} total links. Valid candidates: ${validLinksCount}. Selected top ${newsArticles.length} to process.`);
+   357                  sendUpdate({ type: 'progress', message: `Encontrados ${newsArticles.length} artículos nuevos en ${source.name}. Procesando...` });
+
+   382                          
+   383:                         console.log(`[DEBUG] Extracted content length for ${article.url}: ${fullContent.length}`);
+   384:                         if (fullContent.length < 200) console.log(`[DEBUG] Content preview: ${fullContent}`);
+   385  
+
+   494          const duration = (Date.now() - startTime) / 1000;
+   495:         console.log(`[COMPLETE] Scraped ${scrapedNews.length} news in ${duration}s`);
+   496          
+
+   530      if (source && source.selector_content) {
+   531:         console.log(`[DEBUG] Using dynamic selector_content: ${source.selector_content} for ${url}`);
+   532          let selector = source.selector_content;
+
+   550          if (match) {
+   551:              console.log(`[DEBUG] Found content using dynamic selector`);
+   552               const chunk = match[0]; // The whole div
+
+   572      if (soyMatch) {
+   573:         console.log(`[DEBUG] Found SoyChile content container for ${url}`);
+   574          const soyIndex = soyMatch.index;
+
+   589              if (initialText.length > 20) {
+   590:                 console.log(`[DEBUG] Found initial text in SoyChile: "${initialText.substring(0, 50)}..."`);
+   591                  fullContent += initialText + '\n\n';
+
+   630                 ) {
+   631:                  console.log(`[DEBUG] Found loose text node: "${text.substring(0, 30)}..."`);
+   632                   fullContent += text + '\n\n';
+
+   645          if (emolIndex !== -1) {
+   646:              console.log(`[DEBUG] Found Emol content container for ${url}`);
+   647               const chunk = html.substring(emolIndex, emolIndex + 25000);
+
+   753          if (fullContent.includes(marker)) {
+   754:              console.log(`[DEBUG] Removing SoyChile header menu (marker: ${marker})`);
+   755               // Try to find the end of the menu (usually 'soychiloé' is the last one, or 'soyosorno' etc)
+
+   776          if (idx !== -1) {
+   777:              console.log(`[DEBUG] Truncating content at modal phrase: "${phrase}"`);
+   778               fullContent = fullContent.substring(0, idx).trim();
+
+   907          const azureUrl = `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
+   908:         console.log(`Sending request to Azure TTS: ${azureUrl}`);
+   909  
+
+   948  
+   949:         console.log('[QWEN] /api/qwen-voice-create called');
+   950:         console.log('[QWEN] Env DASHSCOPE_API_KEY set:', !!(process.env.DASHSCOPE_API_KEY && process.env.DASHSCOPE_API_KEY !== 'YOUR_QWEN_API_KEY'));
+   951  
+
+  1049  
+  1050:         console.log('[QWEN] /api/qwen-tts called', { voice, speed, rate, pitch });
+  1051  
+
+  1124  
+  1125:         console.log('[QWEN] Payload:', JSON.stringify(payload));
+  1126  
+
+  1457      app.listen(PORT, () => {
+  1458:         console.log(`Server running on port ${PORT}`);
+  1459:         console.log(`Health check: http://localhost:${PORT}/api/health`);
+  1460:         console.log(`Scrape endpoint: http://localhost:${PORT}/api/scrape`);
+  1461      });
+
+scripts\set-envs.js:
+  64  writeFileSync(path.join(targetDir, 'env.js'), getEnvFileContent());
+  65: console.log('Generated public/env.js');
+  66  
+
+src\worker-azure.js:
+   89        const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'><voice name='${voice}'><prosody rate="${finalRate}" pitch="0%" volume="+3%">${processedText}</prosody></voice></speak>`;
+   90:       console.log("=== DEBUG INFO ===");
+   91:       console.log("Voice:", voice);
+   92:       console.log("Language:", lang);
+   93:       console.log("User speed:", speechRate);
+   94:       console.log("Final rate:", finalRate);
+   95:       console.log("Text length:", text.length);
+   96:       console.log("SSML length:", ssml.length);
+   97:       console.log("Azure URL:", `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`);
+   98:       console.log("API Key length:", AZURE_API_KEY ? AZURE_API_KEY.length : 0);
+   99        const azureUrl = `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
+  100:       console.log("Intentando con endpoint:", azureUrl);
+  101        const azureResponse = await fetch(azureUrl, {
+
+src\app\antiguo\worker.txt:
+   89        const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'><voice name='${voice}'><prosody rate="${finalRate}" pitch="0%" volume="+3%">${processedText}</prosody></voice></speak>`;
+   90:       console.log("=== DEBUG INFO ===");
+   91:       console.log("Voice:", voice);
+   92:       console.log("Language:", lang);
+   93:       console.log("User speed:", speechRate);
+   94:       console.log("Final rate:", finalRate);
+   95:       console.log("Text length:", text.length);
+   96:       console.log("SSML length:", ssml.length);
+   97:       console.log("Azure URL:", `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`);
+   98:       console.log("API Key length:", AZURE_API_KEY ? AZURE_API_KEY.length : 0);
+   99        const azureUrl = `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
+  100:       console.log("Intentando con endpoint:", azureUrl);
+  101        const azureResponse = await fetch(azureUrl, {
+
+src\app\guards\auth.guard.ts:
+  10  
+  11:     console.log('AuthGuard: Checking access for', state.url);
+  12  
+
+  15              const loggedIn = authService.isLoggedIn();
+  16:             console.log('AuthGuard: Auth ready. User logged in?', loggedIn);
+  17              
+
+src\app\pages\automatizacion-activos\automatizacion-activos.component.ts:
+  302          automation.isActive = !automation.isActive;
+  303:         console.log('Toggling automation:', automation);
+  304      }
+
+  306      runNow(automation: any) {
+  307:         console.log('Running automation now:', automation);
+  308          alert(`Ejecutando: ${automation.name}`);
+
+  346      createAutomation() {
+  347:         console.log('Creating automation:', this.formData);
+  348          alert('Automatización creada exitosamente');
+
+  352      updateAutomation() {
+  353:         console.log('Updating automation:', this.formData);
+  354          alert('Automatización actualizada exitosamente');
+
+  359          if (confirm(`¿Estás seguro de eliminar "${automation.name}"?`)) {
+  360:             console.log('Deleting automation:', automation);
+  361              alert('Automatización eliminada');
+
+src\app\pages\crear-noticiario\crear-noticiario.component.ts:
+   238  
+   239:             console.log('Available news mapped:', this.availableNews);
+   240          } catch (error) {
+
+   298              this.sourceNames = ['all', ...this.activeSources.map(s => s.name)];
+   299:             console.log('Sources loaded:', this.sources);
+   300          } catch (error) {
+
+  1150          try {
+  1151:             console.log('Scraping news from selected sources...');
+  1152  
+
+  1160  
+  1161:             console.log('Selected sources:', sourceIds);
+  1162  
+
+  1180              const data = await response.json();
+  1181:             console.log('Scraping response:', data);
+  1182  
+
+  1261                  news.selectedSpeed = Number(calculatedSpeed.toFixed(2));
+  1262:                 console.log(`Auto-adjusting speed to ${news.selectedSpeed} for target ${news.targetDuration}s (Est: ${estimatedBaseDuration}s)`);
+  1263              }
+
+  1305                  if (audio.duration && audio.duration !== Infinity) {
+  1306:                     console.log(`Actual audio duration: ${audio.duration}s (Target: ${news.targetDuration}s)`);
+  1307                      news.readingTime = Math.round(audio.duration);
+
+  1474              // We need to know the REAL duration of what we currently have
+  1475:             console.log('Starting Smart Audio Generation - Pass 1');
+  1476              // Assume 50% progress for first pass, will jump to 100% if no adjustment needed
+
+  1483              const diff = Math.abs(currentTotalSeconds - targetTotalSeconds);
+  1484:             console.log(`Duration check: Target ${targetTotalSeconds}s, Actual ${currentTotalSeconds}s, Diff ${diff}s`);
+  1485  
+
+  1492                  const ratio = targetTotalSeconds / currentTotalSeconds;
+  1493:                 console.log(`Adjustment needed. Ratio: ${ratio}`);
+  1494  
+
+  1511  
+  1512:                         console.log(`Adjusting News ${news.id}: Current ${news.readingTime}s (${currentWords} words) -> Target ${targetItemTime.toFixed(1)}s (${targetItemWords} words)`);
+  1513  
+
+  1538                  // 4. Regenerate Audio (Pass 2)
+  1539:                 console.log('Regenerating Audios after adjustment...');
+  1540                  // Pass 2: 60% -> 100%
+
+src\app\pages\fuentes\fuentes.component.ts:
+   60      async loadSources(): Promise<void> {
+   61:         console.log('Starting to load sources...');
+   62          this.loading = true;
+
+   64          try {
+   65:             console.log('Calling supabaseService.getNewsSources()...');
+   66              const data = await this.supabaseService.getNewsSources();
+   67:             console.log('Data received:', data);
+   68              // Map database fields to interface fields
+
+   81              }));
+   82:             console.log('Sources mapped:', this.sources);
+   83:             console.log('Sources length:', this.sources.length);
+   84          } catch (error) {
+
+   87          } finally {
+   88:             console.log('Loading finished, setting loading to false');
+   89              this.loading = false;
+
+  123      closeModals(): void {
+  124:         console.log('Closing modals...');
+  125          this.showCreateModal = false;
+
+  128          this.cdr.detectChanges();
+  129:         console.log('Modals closed, showCreateModal:', this.showCreateModal, 'showEditModal:', this.showEditModal);
+  130      }
+
+  132      async createSource(): Promise<void> {
+  133:         console.log('Creating source...');
+  134          try {
+
+  144              });
+  145:             console.log('Source created:', newSource);
+  146:             console.log('Loading sources...');
+  147              await this.loadSources();
+  148:             console.log('Sources loaded, closing modals...');
+  149              this.closeModals();
+  150:             console.log('Modals closed, showing snackbar...');
+  151              this.snackBar.open('Fuente creada exitosamente', 'Cerrar', {
+
+  155              });
+  156:             console.log('Snackbar shown');
+  157          } catch (error) {
+
+  181              });
+  182:             console.log('Source updated:', this.selectedSource);
+  183              await this.loadSources();
+
+  205              await this.supabaseService.deleteNewsSource(source.id);
+  206:             console.log('Source deleted:', source);
+  207              await this.loadSources();
+
+  229              source.active = !source.active;
+  230:             console.log('Source status toggled:', source);
+  231              this.snackBar.open(
+
+  294  
+  295:         console.log('Sources to scrape:', sourcesToScrape);
+  296  
+
+  300          try {
+  301:             console.log('Scraping news from selected sources...');
+  302  
+  303              // Call scraping API endpoint
+  304:             console.log('Sending scrape request to:', `${config.apiUrl}/api/scrape`);
+  305              const response = await fetch(`${config.apiUrl}/api/scrape`, {
+
+  321              const result = await response.json();
+  322:             console.log('Scraping result:', result);
+  323  
+
+  365          try {
+  366:             console.log('Scraping news from all sources...');
+  367  
+
+  371  
+  372:             console.log('Active sources:', sourceIds);
+  373  
+  374              // Call scraping API endpoint
+  375:             console.log('Sending scrape request to:', `${config.apiUrl}/api/scrape`);
+  376              const response = await fetch(`${config.apiUrl}/api/scrape`, {
+
+  392              const result = await response.json();
+  393:             console.log('Scraping result:', result);
+  394  
+
+src\app\pages\login\login.component.ts:
+  35              if (user && !this.loading) { // Only redirect if not currently logging in manually (handled in onSubmit)
+  36:                 console.log('LoginComponent: User authenticated via subscription, redirecting to dashboard');
+  37                  this.ngZone.run(() => {
+
+  56          this.errorMessage = '';
+  57:         console.log('LoginComponent: Submitting login form...');
+  58  
+
+  60              next: async (user: User) => {
+  61:                 console.log('LoginComponent: Login successful');
+  62                  // Explicit navigation for manual login
+
+  64                      try {
+  65:                         console.log('LoginComponent: Attempting navigation to /dashboard');
+  66                          const success = await this.router.navigate(['/dashboard']);
+  67:                         console.log('LoginComponent: Navigation result:', success);
+  68                          
+
+  70                              // Retry with replaceUrl if standard navigation fails
+  71:                             console.log('LoginComponent: Retrying navigation with replaceUrl');
+  72                              const retrySuccess = await this.router.navigate(['/dashboard'], { replaceUrl: true });
+  73:                             console.log('LoginComponent: Retry navigation result:', retrySuccess);
+  74                              
+
+  93              complete: () => {
+  94:                 console.log('LoginComponent: Login observable completed');
+  95                  this.ngZone.run(() => {
+
+src\app\pages\recursos\recursos.component.ts:
+  165        this.cdr.detectChanges();
+  166:       console.log('[QWEN] Calling backend /api/qwen-voice-create...');
+  167        const resp = await fetch(`/api/qwen-voice-create`, {
+
+src\app\pages\ultimo-minuto\ultimo-minuto.component.ts:
+  260  
+  261:             console.log('Scraping sources:', sourceIds);
+  262              
+
+src\app\services\auth.service.ts:
+  102      login(email: string, password: string): Observable<User> {
+  103:         console.log('AuthService: Login attempt for', email);
+  104          
+
+  125                  
+  126:                 console.log('AuthService: Login successful, emitting initial user immediately...');
+  127                  
+
+src\app\services\azure-tts.service.ts:
+   27          const chunks = this.splitTextIntoChunks(params.text, QWEN_MAX_CHARS);
+   28:         console.log(`[Qwen] Text too long (${params.text.length} chars). Split into ${chunks.length} chunks (Limit: ${QWEN_MAX_CHARS}).`);
+   29          
+
+   39        const chunks = this.splitTextIntoChunks(params.text, AZURE_MAX_CHARS);
+   40:       console.log(`[Azure] Text too long (${params.text.length} chars). Split into ${chunks.length} chunks.`);
+   41  
+
+   70        
+   71:       console.log(`[AzureTTS] Processing ${chunks.length} chunks sequentially...`);
+   72  
+
+   76            for (let i = 0; i < chunks.length; i++) {
+   77:               console.log(`[AzureTTS] Processing chunk ${i + 1}/${chunks.length} (Length: ${chunks[i].length})`);
+   78                try {
+   79                    const blobUrl = await this.callQwenApi(chunks[i], params.voice, params.speed ?? 1.0, params.pitch ?? 1.0);
+   80:                   console.log(`[AzureTTS] Chunk ${i + 1} generated. Fetching blob...`);
+   81                    
+
+   85                    
+   86:                   console.log(`[AzureTTS] Chunk ${i + 1} blob received. Size: ${blob.size}`);
+   87                    results.push({ index: i, blob });
+
+   92                    if (i < chunks.length - 1) {
+   93:                       console.log(`[AzureTTS] Waiting 500ms before next chunk...`);
+   94                        await new Promise(resolve => setTimeout(resolve, 500));
+
+  101            
+  102:           console.log(`[AzureTTS] All chunks processed. Combining ${results.length} blobs...`);
+  103            
+
+  106            try {
+  107:             console.log(`[AzureTTS] Merging and re-encoding ${results.length} audio chunks...`);
+  108              const finalBlob = await this.mergeAudioBlobs(results.map(r => r.blob));
+  109              const finalUrl = URL.createObjectURL(finalBlob);
+  110:             console.log(`[AzureTTS] Final audio URL created: ${finalUrl}, Size: ${finalBlob.size}`);
+  111              return finalUrl;
+
+  117              const finalUrl = URL.createObjectURL(finalBlob);
+  118:             console.log(`[AzureTTS] Fallback: Concatenated audio URL created: ${finalUrl}`);
+  119              return finalUrl;
+
+  248    private async callQwenApi(text: string, voice: string, speed: number = 1.0, pitch: number = 1.0): Promise<string> {
+  249:     console.log(`[QwenAPI] Calling with text length: ${text.length}`);
+  250      try {
+
+  264        const url = URL.createObjectURL(response);
+  265:       console.log(`[QwenAPI] Success. URL: ${url}, Size: ${response.size}`);
+  266        return url;
+
+src\app\services\gemini-tts.service.ts:
+  24      if (cleanText.length > 300) {
+  25:       console.log('Texto largo detectado, usando chunking...');
+  26        return this.processLongText(cleanText, params.voiceName, params.speed, params.pitch);
+
+  61      const chunks = this.splitTextIntoChunks(text, 300);
+  62:     console.log(`Texto dividido en ${chunks.length} chunks. Procesando con concurrencia...`);
+  63  
+
+src\app\services\weather.service.ts:
+  36  
+  37:       console.log('WeatherService: Searching location with strategies:', searchStrategies);
+  38  
+
+  43              const geoUrl = `${this.GEOCODING_API}?name=${encodeURIComponent(term)}&count=1&language=es&format=json`;
+  44:             console.log(`WeatherService: Trying geocoding url: ${geoUrl}`);
+  45              const geoData: any = await firstValueFrom(this.http.get(geoUrl));
+
+  49                  longitude = geoData.results[0].longitude;
+  50:                 console.log(`WeatherService: Found coordinates for "${term}":`, { latitude, longitude });
+  51                  break; // Found coordinates, stop searching
+
+supabase\functions\scrape\index.ts:
+  58              try {
+  59:                 console.log(`Scraping source: ${source.name} (${source.url})`);
+  60  
+
+  89                  scrapedNews.push(newsItem);
+  90:                 console.log(`Successfully scraped ${source.name}`);
+  91              } catch (error) {
