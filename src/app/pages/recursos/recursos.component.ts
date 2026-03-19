@@ -699,7 +699,13 @@ export class RecursosComponent implements OnInit {
     this.cdr.detectChanges();
 
     try {
-      const url = await this.azureTtsService.generateSpeech({
+      const timeoutMs = 120000;
+      const timeoutPromise = new Promise<string>((_, reject) => {
+        window.setTimeout(() => reject(new Error('Tiempo de espera agotado al generar audio')), timeoutMs);
+      });
+
+      const url = await Promise.race([
+        this.azureTtsService.generateSpeech({
         text,
         voice: voiceName,
         speed: voice.speed || 1,
@@ -712,7 +718,9 @@ export class RecursosComponent implements OnInit {
         topP: voice.topP,
         seed: voice.seed,
         audioPromptUrl: voice.audioPromptUrl
-      });
+        }),
+        timeoutPromise
+      ]);
       this.playingVoiceUrl = url;
     } catch (error) {
       console.error('Error reproduciendo voz', error);

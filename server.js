@@ -327,6 +327,54 @@ function detectAudioContentType(buffer, audioBase64) {
     return 'application/octet-stream';
 }
 
+function deepFindFirstString(obj, candidates, maxDepth = 6) {
+    const visited = new Set();
+    const queue = [{ value: obj, depth: 0 }];
+
+    while (queue.length) {
+        const { value, depth } = queue.shift();
+        if (!value || typeof value !== 'object') continue;
+        if (visited.has(value)) continue;
+        visited.add(value);
+
+        for (const key of candidates) {
+            const v = value?.[key];
+            if (typeof v === 'string' && v.length > 0) return v;
+        }
+
+        if (depth >= maxDepth) continue;
+        if (Array.isArray(value)) {
+            for (const item of value) queue.push({ value: item, depth: depth + 1 });
+        } else {
+            for (const v of Object.values(value)) queue.push({ value: v, depth: depth + 1 });
+        }
+    }
+
+    return null;
+}
+
+function sanitizeForError(value, maxLen = 600) {
+    if (typeof value === 'string') return value.length > maxLen ? `${value.slice(0, maxLen)}...` : value;
+    if (!value || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.slice(0, 20).map(v => sanitizeForError(v, maxLen));
+
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+        if (typeof v === 'string') out[k] = sanitizeForError(v, maxLen);
+        else if (v && typeof v === 'object') out[k] = '[object]';
+        else out[k] = v;
+    }
+    return out;
+}
+
+function extractAudioFromOutput(output) {
+    const audioBase64 = deepFindFirstString(output, ['audio_base64', 'audioBase64', 'wav_base64', 'mp3_base64', 'audio', 'wav', 'mp3']);
+    const audioUrl =
+        deepFindFirstString(output, ['audio_url', 'audioUrl', 'url', 'wav_url', 'mp3_url']) ||
+        deepFindFirstString(output, ['audioURL', 'audioURI']);
+    return { audioBase64, audioUrl };
+}
+
 // Scrape endpoint
 app.post('/api/scrape', async (req, res) => {
     // console.log('Scrape request received:', req.body);
@@ -1646,21 +1694,14 @@ app.post('/api/chatterbox-tts', async (req, res) => {
         }
         let output = extractRunpodOutput(result) || result;
 
-        const audioBase64 = findFirstValue(output, ['audio_base64', 'audioBase64', 'audio', 'mp3_base64', 'wav_base64']);
-        const audioRemoteUrl =
-            findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']) ||
-            findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']);
-
-        if ((!audioBase64 && !audioRemoteUrl) && output && typeof output === 'object') {
-            const altAudio = findFirstValue(output, ['audio_base64', 'audioBase64', 'wav', 'wav_base64', 'mp3', 'mp3_base64']);
-            const altUrl = findFirstValue(output, ['audio_url', 'url']);
-            if (!altAudio && !altUrl) {
-                try {
-                    if (CHATTERBOX_DEBUG) console.log('[CHATTERBOX] tts no audio in output, retrying alt prompt schema');
-                    result = await runpodRunSmart(endpointId, altInput, { executionTimeout: 900000 });
-                    output = extractRunpodOutput(result) || result;
-                } catch (e) {}
-            }
+        let { audioBase64, audioUrl: audioRemoteUrl } = extractAudioFromOutput(output);
+        if (!audioBase64 && !audioRemoteUrl) {
+            try {
+                if (CHATTERBOX_DEBUG) console.log('[CHATTERBOX] tts no audio in output, retrying alt prompt schema');
+                result = await runpodRunSmart(endpointId, altInput, { executionTimeout: 900000 });
+                output = extractRunpodOutput(result) || result;
+                ({ audioBase64, audioUrl: audioRemoteUrl } = extractAudioFromOutput(output));
+            } catch (e) {}
         }
 
         if (CHATTERBOX_DEBUG) {
@@ -1694,7 +1735,7 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             return res.send(buf);
         }
 
-        return res.status(500).json({ error: 'Respuesta inválida: no se recibió audio', details: output });
+        return res.status(500).json({ error: 'Respuesta inválida: no se recibió audio', details: sanitizeForError(output) });
     } catch (error) {
         console.error('Chatterbox TTS Error:', error);
         res.status(500).json({ error: 'Error al generar audio', details: error.message });
