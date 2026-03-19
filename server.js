@@ -1409,13 +1409,14 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
 
 app.post('/api/chatterbox-tts', async (req, res) => {
     try {
-        const { text, voice, language, language_code, languageCode, lang, speed, exaggeration, temperature, cfg_weight, cfgWeight, repetition_penalty, repetitionPenalty, min_p, minP, top_p, topP, seed } = req.body || {};
+        const { text, voice, language, language_code, languageCode, lang, audio_prompt_url, audioPromptUrl, audio_url, audioUrl, speed, exaggeration, temperature, cfg_weight, cfgWeight, repetition_penalty, repetitionPenalty, min_p, minP, top_p, topP, seed } = req.body || {};
 
         if (!text || String(text).trim().length === 0) {
             return res.status(400).json({ error: "El texto no puede estar vacío" });
         }
 
         const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME);
+        const promptUrl = audio_prompt_url || audioPromptUrl || audio_url || audioUrl;
         const input = {
             task: 'tts',
             action: 'tts',
@@ -1427,6 +1428,11 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             language_code: language_code ?? languageCode ?? lang,
             languageCode: languageCode ?? language_code ?? lang,
             lang: lang ?? languageCode ?? language_code,
+            language_id: (language_code ?? languageCode ?? lang) || undefined,
+            audio_prompt_url: promptUrl,
+            audioPromptUrl: promptUrl,
+            audio_url: promptUrl,
+            audioUrl: promptUrl,
             speed,
             exaggeration,
             temperature,
@@ -1445,7 +1451,7 @@ app.post('/api/chatterbox-tts', async (req, res) => {
         const output = extractRunpodOutput(result) || result;
 
         const audioBase64 = findFirstValue(output, ['audio_base64', 'audioBase64', 'audio', 'mp3_base64', 'wav_base64']);
-        const audioUrl =
+        const audioRemoteUrl =
             findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']) ||
             findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']);
 
@@ -1460,8 +1466,8 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             return res.send(buffer);
         }
 
-        if (audioUrl && /^https?:\/\//i.test(audioUrl)) {
-            const fetched = await fetchWithTimeout(audioUrl, { method: 'GET' }, 60000);
+        if (audioRemoteUrl && /^https?:\/\//i.test(audioRemoteUrl)) {
+            const fetched = await fetchWithTimeout(audioRemoteUrl, { method: 'GET' }, 60000);
             if (!fetched.ok) {
                 const body = await fetched.text().catch(() => '');
                 return res.status(502).json({ error: 'Error al descargar audio remoto', details: body });

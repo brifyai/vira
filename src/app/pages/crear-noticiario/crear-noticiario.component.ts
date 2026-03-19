@@ -724,7 +724,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     minP: voiceConfig?.minP,
                     topP: voiceConfig?.topP,
                     seed: voiceConfig?.seed,
-                    language: voiceConfig?.language
+                    language: voiceConfig?.language,
+                    audioPromptUrl: voiceConfig?.audioPromptUrl
                 }, (percent) => {
                     item.progress = percent;
                     this.cdr.detectChanges();
@@ -1433,7 +1434,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 minP: voiceConfig?.minP,
                 topP: voiceConfig?.topP,
                 seed: voiceConfig?.seed,
-                language: voiceConfig?.language
+                language: voiceConfig?.language,
+                audioPromptUrl: voiceConfig?.audioPromptUrl
             }, (percent) => {
                 news.progress = percent;
                 this.cdr.detectChanges();
@@ -1767,7 +1769,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         minP: voiceConfig?.minP,
                         topP: voiceConfig?.topP,
                         seed: voiceConfig?.seed,
-                        language: voiceConfig?.language
+                        language: voiceConfig?.language,
+                        audioPromptUrl: voiceConfig?.audioPromptUrl
                     }, (percent) => {
                         news.progress = percent;
                         this.cdr.detectChanges();
@@ -1851,7 +1854,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     minP: voiceConfig?.minP,
                     topP: voiceConfig?.topP,
                     seed: voiceConfig?.seed,
-                    language: voiceConfig?.language
+                    language: voiceConfig?.language,
+                    audioPromptUrl: voiceConfig?.audioPromptUrl
                 }, (percent) => {
                     event.progress = percent;
                     this.cdr.detectChanges();

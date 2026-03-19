@@ -24,7 +24,7 @@ export class AzureTtsService {
     return { label, code: normalizedCode };
   }
 
-  async generateSpeech(params: { text: string; voice: string; speed?: number; pitch?: number; language?: string; temperature?: number; exaggeration?: number; cfgWeight?: number; repetitionPenalty?: number; minP?: number; topP?: number; seed?: number }, onProgress?: (percent: number) => void): Promise<string> {
+  async generateSpeech(params: { text: string; voice: string; speed?: number; pitch?: number; language?: string; temperature?: number; exaggeration?: number; cfgWeight?: number; repetitionPenalty?: number; minP?: number; topP?: number; seed?: number; audioPromptUrl?: string }, onProgress?: (percent: number) => void): Promise<string> {
     const AZURE_MAX_CHARS = 2400; // Safety margin below 2500
     const CHATTERBOX_MAX_CHARS = 800;
 
@@ -42,6 +42,7 @@ export class AzureTtsService {
             minP: params.minP,
             topP: params.topP,
             seed: params.seed,
+            audioPromptUrl: params.audioPromptUrl,
             language: lang.label,
             languageCode: lang.code
           });
@@ -104,6 +105,7 @@ export class AzureTtsService {
                     minP: params.minP,
                     topP: params.topP,
                     seed: params.seed,
+                    audioPromptUrl: params.audioPromptUrl,
                     language: lang.label,
                     languageCode: lang.code
                   });
@@ -157,6 +159,7 @@ export class AzureTtsService {
                 minP: params.minP,
                 topP: params.topP,
                 seed: params.seed,
+                audioPromptUrl: params.audioPromptUrl,
                 language: lang.label,
                 languageCode: lang.code
               });
@@ -293,6 +296,7 @@ export class AzureTtsService {
       seed?: number;
       language?: string;
       languageCode?: string;
+      audioPromptUrl?: string;
     } = {}
   ): Promise<string> {
     try {
@@ -320,7 +324,11 @@ export class AzureTtsService {
           top_p: options.topP,
           topP: options.topP,
           seed: options.seed,
-          lang: options.languageCode
+          lang: options.languageCode,
+          audio_prompt_url: options.audioPromptUrl,
+          audioPromptUrl: options.audioPromptUrl,
+          audio_url: options.audioPromptUrl,
+          audioUrl: options.audioPromptUrl
         }, {
           responseType: 'blob'
         })

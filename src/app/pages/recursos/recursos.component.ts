@@ -14,6 +14,7 @@ interface CustomVoice {
   description?: string;
   provider?: string;
   voiceId?: string;
+  audioPromptUrl?: string;
   speed?: number;
   language?: string;
   temperature?: number;
@@ -60,6 +61,7 @@ export class RecursosComponent implements OnInit {
   chatterboxFile: File | null = null;
   chatterboxCreating = false;
   chatterboxLastVoiceId: string | null = null;
+  chatterboxLastAudioUrl: string | null = null;
   chatterboxSampleDownloading = false;
   chatterboxStep: 'idle' | 'uploading' | 'creating' = 'idle';
   chatterboxLanguage = 'Spanish (es)';
@@ -188,6 +190,7 @@ export class RecursosComponent implements OnInit {
       const data = await resp.json();
       const voiceParam = data.voiceId || data.voice;
       this.chatterboxLastVoiceId = voiceParam;
+      this.chatterboxLastAudioUrl = audioUrl;
       
       this.snackBar.open('Voz clonada creada correctamente. Ahora puedes guardarla.', 'Cerrar', {
         duration: 3000,
@@ -237,6 +240,7 @@ export class RecursosComponent implements OnInit {
       description: this.formData.description.trim() || undefined,
       provider: 'chatterbox-vira',
       voiceId: this.chatterboxLastVoiceId,
+      audioPromptUrl: this.chatterboxLastAudioUrl || undefined,
       exaggeration: this.chatterboxExaggeration,
       cfgWeight: this.chatterboxCfgWeight,
       temperature: this.chatterboxTemperature,
@@ -355,6 +359,7 @@ export class RecursosComponent implements OnInit {
     this.creationMode = 'chatterbox';
     
     this.chatterboxLastVoiceId = null;
+    this.chatterboxLastAudioUrl = null;
     this.chatterboxLanguage = 'Spanish (es)';
     this.chatterboxExaggeration = 0.45;
     this.chatterboxCfgWeight = 0.3;
@@ -398,6 +403,7 @@ export class RecursosComponent implements OnInit {
     this.chatterboxTopP = voice.topP ?? 1.0;
     this.chatterboxSeed = voice.seed ?? 163260306;
     this.chatterboxLastVoiceId = voice.voiceId || null;
+    this.chatterboxLastAudioUrl = voice.audioPromptUrl || null;
 
     this.creationMode = 'chatterbox';
     this.showEditModal = true;
@@ -515,6 +521,7 @@ export class RecursosComponent implements OnInit {
         updatedVoice.topP = this.chatterboxTopP;
         updatedVoice.seed = this.chatterboxSeed;
         updatedVoice.language = this.chatterboxLanguage;
+        updatedVoice.audioPromptUrl = this.chatterboxLastAudioUrl || updatedVoice.audioPromptUrl;
         
         const updatedVoices = currentVoices.map(v => 
           v.id === this.selectedVoice?.id ? updatedVoice : v
@@ -549,7 +556,8 @@ export class RecursosComponent implements OnInit {
             minP: this.chatterboxMinP,
             topP: this.chatterboxTopP,
             seed: this.chatterboxSeed,
-            language: this.chatterboxLanguage
+            language: this.chatterboxLanguage,
+            audioPromptUrl: this.chatterboxLastAudioUrl || undefined
         };
         
         const updatedVoices = [...currentVoices, newVoice];
