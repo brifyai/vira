@@ -13,6 +13,17 @@ export class AzureTtsService {
 
   constructor(private http: HttpClient) {}
 
+  private normalizeLanguage(language?: string): { label?: string; code?: string } {
+    const raw = (language || '').trim();
+    if (!raw) return {};
+
+    const m = raw.match(/\(([^)]+)\)\s*$/);
+    const code = m?.[1]?.trim() || (raw.length <= 5 ? raw : undefined);
+    const label = raw === 'es' ? 'Spanish (es)' : raw;
+    const normalizedCode = code === 'es' ? 'es' : code;
+    return { label, code: normalizedCode };
+  }
+
   async generateSpeech(params: { text: string; voice: string; speed?: number; pitch?: number; language?: string; temperature?: number; exaggeration?: number; cfgWeight?: number; repetitionPenalty?: number; minP?: number; topP?: number; seed?: number }, onProgress?: (percent: number) => void): Promise<string> {
     const AZURE_MAX_CHARS = 2400; // Safety margin below 2500
     const CHATTERBOX_MAX_CHARS = 800;
@@ -21,6 +32,7 @@ export class AzureTtsService {
       if (params.voice && params.voice.startsWith('chatterbox:')) {
         if (params.text.length <= CHATTERBOX_MAX_CHARS) {
           if (onProgress) onProgress(100);
+          const lang = this.normalizeLanguage(params.language);
           return await this.callChatterboxApi(params.text, params.voice, {
             speed: params.speed ?? 1.0,
             exaggeration: params.exaggeration ?? params.pitch ?? 1.0,
@@ -30,7 +42,8 @@ export class AzureTtsService {
             minP: params.minP,
             topP: params.topP,
             seed: params.seed,
-            language: params.language
+            language: lang.label,
+            languageCode: lang.code
           });
         }
         const chunks = this.splitTextIntoChunks(params.text, CHATTERBOX_MAX_CHARS);
@@ -81,6 +94,7 @@ export class AzureTtsService {
       if (concurrency === 1) {
           for (let i = 0; i < chunks.length; i++) {
               try {
+                  const lang = this.normalizeLanguage(params.language);
                   const blobUrl = await this.callChatterboxApi(chunks[i], params.voice, {
                     speed: params.speed ?? 1.0,
                     exaggeration: params.exaggeration ?? params.pitch ?? 1.0,
@@ -90,7 +104,8 @@ export class AzureTtsService {
                     minP: params.minP,
                     topP: params.topP,
                     seed: params.seed,
-                    language: params.language
+                    language: lang.label,
+                    languageCode: lang.code
                   });
                   
                   const response = await fetch(blobUrl);
@@ -132,6 +147,7 @@ export class AzureTtsService {
 
       for (let i = 0; i < chunks.length; i++) {
           const p = (async () => {
+              const lang = this.normalizeLanguage(params.language);
               const blobUrl = await this.callChatterboxApi(chunks[i], params.voice, {
                 speed: params.speed ?? 1.0,
                 exaggeration: params.exaggeration ?? params.pitch ?? 1.0,
@@ -141,7 +157,8 @@ export class AzureTtsService {
                 minP: params.minP,
                 topP: params.topP,
                 seed: params.seed,
-                language: params.language
+                language: lang.label,
+                languageCode: lang.code
               });
               const response = await fetch(blobUrl);
               const blob = await response.blob();
@@ -275,6 +292,7 @@ export class AzureTtsService {
       topP?: number;
       seed?: number;
       language?: string;
+      languageCode?: string;
     } = {}
   ): Promise<string> {
     try {
@@ -292,6 +310,9 @@ export class AzureTtsService {
           temperature,
           cfg_weight: cfgWeight,
           cfgWeight,
+          language: options.language,
+          language_code: options.languageCode,
+          languageCode: options.languageCode,
           repetition_penalty: options.repetitionPenalty,
           repetitionPenalty: options.repetitionPenalty,
           min_p: options.minP,
@@ -299,7 +320,7 @@ export class AzureTtsService {
           top_p: options.topP,
           topP: options.topP,
           seed: options.seed,
-          language: options.language
+          lang: options.languageCode
         }, {
           responseType: 'blob'
         })

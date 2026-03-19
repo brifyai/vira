@@ -62,7 +62,7 @@ export class RecursosComponent implements OnInit {
   chatterboxLastVoiceId: string | null = null;
   chatterboxSampleDownloading = false;
   chatterboxStep: 'idle' | 'uploading' | 'creating' = 'idle';
-  chatterboxLanguage = 'es';
+  chatterboxLanguage = 'Spanish (es)';
   chatterboxExaggeration = 0.45;
   chatterboxCfgWeight = 0.3;
   chatterboxTemperature = 0.8;
@@ -70,6 +70,8 @@ export class RecursosComponent implements OnInit {
   chatterboxMinP = 0.05;
   chatterboxTopP = 1.0;
   chatterboxSeed = 163260306;
+  chatterboxUseCpu = false;
+  chatterboxKeepModelLoaded = false;
 
   saving = false;
   creationMode: 'azure' | 'chatterbox' = 'chatterbox';
@@ -168,7 +170,11 @@ export class RecursosComponent implements OnInit {
           minP: this.chatterboxMinP,
           top_p: this.chatterboxTopP,
           topP: this.chatterboxTopP,
-          seed: this.chatterboxSeed
+          seed: this.chatterboxSeed,
+          use_cpu: this.chatterboxUseCpu,
+          useCpu: this.chatterboxUseCpu,
+          keep_model_loaded: this.chatterboxKeepModelLoaded,
+          keepModelLoaded: this.chatterboxKeepModelLoaded
         }),
         signal: controller.signal
       }).finally(() => clearTimeout(timeoutId));
@@ -349,7 +355,7 @@ export class RecursosComponent implements OnInit {
     this.creationMode = 'chatterbox';
     
     this.chatterboxLastVoiceId = null;
-    this.chatterboxLanguage = 'es';
+    this.chatterboxLanguage = 'Spanish (es)';
     this.chatterboxExaggeration = 0.45;
     this.chatterboxCfgWeight = 0.3;
     this.chatterboxTemperature = 0.8;
@@ -357,6 +363,8 @@ export class RecursosComponent implements OnInit {
     this.chatterboxMinP = 0.05;
     this.chatterboxTopP = 1.0;
     this.chatterboxSeed = 163260306;
+    this.chatterboxUseCpu = false;
+    this.chatterboxKeepModelLoaded = false;
     this.chatterboxFile = null;
     this.chatterboxCreating = false;
     this.chatterboxSampleDownloading = false;
@@ -381,7 +389,7 @@ export class RecursosComponent implements OnInit {
       description: voice.description || ''
     };
     
-    this.chatterboxLanguage = voice.language || 'es';
+    this.chatterboxLanguage = voice.language || 'Spanish (es)';
     this.chatterboxTemperature = voice.temperature ?? 0.7;
     this.chatterboxExaggeration = voice.exaggeration ?? 1.0;
     this.chatterboxCfgWeight = voice.cfgWeight ?? 0.5;

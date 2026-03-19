@@ -1339,7 +1339,7 @@ app.post('/api/azure-tts', async (req, res) => {
 
 app.post('/api/chatterbox-voice-create', async (req, res) => {
     try {
-        const { audioUrl, audio_url, language, temperature, exaggeration, speed, cfg_weight, cfgWeight, repetition_penalty, repetitionPenalty, min_p, minP, top_p, topP, seed } = req.body || {};
+        const { audioUrl, audio_url, language, language_code, languageCode, lang, temperature, exaggeration, speed, cfg_weight, cfgWeight, repetition_penalty, repetitionPenalty, min_p, minP, top_p, topP, seed, use_cpu, useCpu, keep_model_loaded, keepModelLoaded } = req.body || {};
 
         const refUrl = audioUrl || audio_url;
         if (!refUrl) {
@@ -1353,6 +1353,9 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
             audioUrl: refUrl,
             audio_url: refUrl,
             language,
+            language_code: language_code ?? languageCode ?? lang,
+            languageCode: languageCode ?? language_code ?? lang,
+            lang: lang ?? languageCode ?? language_code,
             temperature,
             exaggeration,
             speed,
@@ -1364,7 +1367,11 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
             minP: minP ?? min_p,
             top_p: top_p ?? topP,
             topP: topP ?? top_p,
-            seed
+            seed,
+            use_cpu: use_cpu ?? useCpu,
+            useCpu: useCpu ?? use_cpu,
+            keep_model_loaded: keep_model_loaded ?? keepModelLoaded,
+            keepModelLoaded: keepModelLoaded ?? keep_model_loaded
         };
 
         const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
@@ -1387,7 +1394,7 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
 
 app.post('/api/chatterbox-tts', async (req, res) => {
     try {
-        const { text, voice, language, speed, exaggeration, temperature, cfg_weight, cfgWeight, repetition_penalty, repetitionPenalty, min_p, minP, top_p, topP, seed } = req.body || {};
+        const { text, voice, language, language_code, languageCode, lang, speed, exaggeration, temperature, cfg_weight, cfgWeight, repetition_penalty, repetitionPenalty, min_p, minP, top_p, topP, seed } = req.body || {};
 
         if (!text || String(text).trim().length === 0) {
             return res.status(400).json({ error: "El texto no puede estar vacío" });
@@ -1402,6 +1409,9 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             voice_id: typeof voice === 'string' ? voice.replace(/^chatterbox:/, '') : voice,
             voiceId: typeof voice === 'string' ? voice.replace(/^chatterbox:/, '') : voice,
             language,
+            language_code: language_code ?? languageCode ?? lang,
+            languageCode: languageCode ?? language_code ?? lang,
+            lang: lang ?? languageCode ?? language_code,
             speed,
             exaggeration,
             temperature,

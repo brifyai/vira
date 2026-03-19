@@ -200,8 +200,18 @@
         <div class="form-group">
           <label>Language</label>
           <select class="form-select" [(ngModel)]="chatterboxLanguage" (change)="onParamChange()">
-            <option value="es">Spanish (es)</option>
+            <option value="Spanish (es)">Spanish (es)</option>
           </select>
+        </div>
+        <div class="form-group" style="display: flex; gap: 14px; flex-wrap: wrap;">
+          <label style="display: flex; gap: 8px; align-items: center; margin: 0;">
+            <input type="checkbox" [(ngModel)]="chatterboxUseCpu" (change)="onParamChange()" />
+            use_cpu
+          </label>
+          <label style="display: flex; gap: 8px; align-items: center; margin: 0;">
+            <input type="checkbox" [(ngModel)]="chatterboxKeepModelLoaded" (change)="onParamChange()" />
+            keep_model_loaded
+          </label>
         </div>
 
         <div class="tts-controls-grid" style="margin-top: 15px;">
