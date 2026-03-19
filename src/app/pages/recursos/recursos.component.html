@@ -69,9 +69,21 @@
             class="action-btn play-btn"
             (click)="playVoice(voice)"
             [disabled]="playingVoiceLoadingId === voice.id"
+            [class.play-loading]="playingVoiceLoadingId === voice.id"
+            [class.play-error]="lastPlayErrorVoiceId === voice.id"
+            [attr.aria-label]="playingVoiceLoadingId === voice.id ? 'Generando audio' : (lastPlayErrorVoiceId === voice.id ? 'Error al reproducir, reintentar' : 'Reproducir')"
+            [attr.title]="playingVoiceLoadingId === voice.id ? 'Generando audio...' : (lastPlayErrorVoiceId === voice.id ? 'Error al reproducir. Reintentar' : 'Reproducir')"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg *ngIf="playingVoiceLoadingId !== voice.id && lastPlayErrorVoiceId !== voice.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="8 5 19 12 8 19 8 5"></polygon>
+            </svg>
+            <svg *ngIf="playingVoiceLoadingId === voice.id" class="btn-spinner" viewBox="0 0 50 50">
+              <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="80" stroke-dashoffset="60"></circle>
+            </svg>
+            <svg *ngIf="lastPlayErrorVoiceId === voice.id && playingVoiceLoadingId !== voice.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
             </svg>
           </button>
           <button class="action-btn edit-btn" (click)="openEditModal(voice)">
@@ -87,6 +99,8 @@
             </svg>
           </button>
         </div>
+        <div class="voice-status loading" *ngIf="playingVoiceLoadingId === voice.id">Generando audio...</div>
+        <div class="voice-status error" *ngIf="lastPlayErrorVoiceId === voice.id && playingVoiceLoadingId !== voice.id">Error al generar audio. Reintenta.</div>
         <div class="card-audio" *ngIf="playingVoiceId === voice.id && playingVoiceUrl">
           <audio [src]="playingVoiceUrl" controls></audio>
         </div>

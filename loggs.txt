@@ -1,0 +1,12 @@
+c6a6p5vy360yzf[info]/usr/local/lib/python3.11/dist-packages/transformers/utils/generic.py:1014: UserWarning: `output_attentions=True` is not supported with `attn_implementation` other than ['eager', 'eager_paged', 'flex_attention']. Please use `model.set_attn_implementation('eager')` to enable capturing attention outputs.\n
+c6a6p5vy360yzf[info]  self.gen = func(*args, **kwds)\n
+c6a6p5vy360yzf[info]/usr/lib/python3.11/contextlib.py:105: FutureWarning: `torch.backends.cuda.sdp_kernel()` is deprecated. In the future, this context manager will be removed. Please see `torch.nn.attention.sdpa_kernel()` for the new context manager, with updated signature.\n
+c6a6p5vy360yzf[info][Handler] Emotion: None, Temp: 0.7, Speed: 1\n
+c6a6p5vy360yzf[info][Handler] Generating speech for: Esta es una prueba de voz con los ajustes seleccio...\n
+c6a6p5vy360yzf[info]Started.
+c6a6p5vy360yzf[info]Jobs in progress: 1
+c6a6p5vy360yzf[info]Jobs in queue: 1
+c6a6p5vy360yzf[info]--- Starting Serverless Worker |  Version 1.8.1 ---\n
+c6a6p5vy360yzf[info][Handler] Model loaded successfully\n
+c6a6p5vy360yzf[info]loaded PerthNet (Implicit) at step 250,000\n
+c6a6p5vy360yzf[info]  return torch.load(ckpts[-1], map_location="cpu")\n

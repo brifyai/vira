@@ -80,6 +80,8 @@ export class RecursosComponent implements OnInit {
   playingVoiceId: string | null = null;
   playingVoiceUrl: string | null = null;
   playingVoiceLoadingId: string | null = null;
+  lastPlayErrorVoiceId: string | null = null;
+  private lastPlayErrorResetTimer: number | null = null;
 
   chatterboxPreviewPlaying: boolean = false;
   chatterboxPreviewLoading: boolean = false;
@@ -685,6 +687,12 @@ export class RecursosComponent implements OnInit {
       ? `chatterbox:${voice.voiceId || voice.name.replace(/^chatterbox:/, '')}`
       : voice.name;
 
+    if (this.lastPlayErrorResetTimer) {
+      window.clearTimeout(this.lastPlayErrorResetTimer);
+      this.lastPlayErrorResetTimer = null;
+    }
+
+    this.lastPlayErrorVoiceId = null;
     this.playingVoiceLoadingId = voice.id;
     this.playingVoiceId = voice.id;
     this.playingVoiceUrl = null;
@@ -702,7 +710,8 @@ export class RecursosComponent implements OnInit {
         repetitionPenalty: voice.repetitionPenalty,
         minP: voice.minP,
         topP: voice.topP,
-        seed: voice.seed
+        seed: voice.seed,
+        audioPromptUrl: voice.audioPromptUrl
       });
       this.playingVoiceUrl = url;
     } catch (error) {
@@ -711,6 +720,13 @@ export class RecursosComponent implements OnInit {
         duration: 4000,
         panelClass: ['error-snackbar']
       });
+      this.lastPlayErrorVoiceId = voice.id;
+      this.lastPlayErrorResetTimer = window.setTimeout(() => {
+        if (this.lastPlayErrorVoiceId === voice.id) {
+          this.lastPlayErrorVoiceId = null;
+          this.cdr.detectChanges();
+        }
+      }, 6000);
       this.playingVoiceId = null;
       this.playingVoiceUrl = null;
     } finally {

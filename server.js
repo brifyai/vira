@@ -117,18 +117,43 @@ const RUNPOD_ENDPOINT_ID =
     getEnvValue('RUNPOD_ENDPOINT_ID') ||
     getEnvValue('RUNPOD_CHATTERBOX_ENDPOINT_ID') ||
     '';
-let cachedRunpodEndpointId = null;
-let cachedRunpodEndpointFetchedAt = 0;
+const RUNPOD_TTS_ENDPOINT_ID =
+    getEnvValue('CHATTERBOX_TTS_RUNPOD_ENDPOINT_ID') ||
+    getEnvValue('RUNPOD_CHATTERBOX_TTS_ENDPOINT_ID') ||
+    '';
+const RUNPOD_VOICE_ENDPOINT_ID =
+    getEnvValue('CHATTERBOX_VOICE_RUNPOD_ENDPOINT_ID') ||
+    getEnvValue('RUNPOD_CHATTERBOX_VOICE_ENDPOINT_ID') ||
+    '';
 
-async function getRunpodEndpointIdByName(name) {
+const runpodEndpointCache = new Map();
+
+function getCachedEndpoint(cacheKey) {
+    const cached = runpodEndpointCache.get(cacheKey);
+    if (!cached) return null;
+    if ((Date.now() - cached.fetchedAt) > 5 * 60 * 1000) return null;
+    return cached.id || null;
+}
+
+function setCachedEndpoint(cacheKey, id) {
+    runpodEndpointCache.set(cacheKey, { id, fetchedAt: Date.now() });
+}
+
+async function getRunpodEndpointIdByName(name, options = {}) {
+    const { cacheKey = 'default', preferredId = '' } = options || {};
     const now = Date.now();
-    if (cachedRunpodEndpointId && (now - cachedRunpodEndpointFetchedAt) < 5 * 60 * 1000) {
-        return cachedRunpodEndpointId;
+
+    const cachedId = getCachedEndpoint(cacheKey);
+    if (cachedId) return cachedId;
+
+    const directPreferred = String(preferredId || '').trim();
+    if (directPreferred) {
+        setCachedEndpoint(cacheKey, directPreferred);
+        return directPreferred;
     }
 
     if (RUNPOD_ENDPOINT_ID) {
-        cachedRunpodEndpointId = RUNPOD_ENDPOINT_ID;
-        cachedRunpodEndpointFetchedAt = now;
+        setCachedEndpoint(cacheKey, RUNPOD_ENDPOINT_ID);
         return RUNPOD_ENDPOINT_ID;
     }
 
@@ -158,8 +183,7 @@ async function getRunpodEndpointIdByName(name) {
         throw new Error(`No se encontró endpoint Runpod con nombre: ${name}. Configura CHATTERBOX_RUNPOD_ENDPOINT_ID (ej: 27ia91v5tb9k75) en producción.`);
     }
 
-    cachedRunpodEndpointId = id;
-    cachedRunpodEndpointFetchedAt = now;
+    setCachedEndpoint(cacheKey, id);
     return id;
 }
 
@@ -1405,7 +1429,10 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
             });
         }
 
-        const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME);
+        const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME, {
+            cacheKey: 'voice',
+            preferredId: RUNPOD_VOICE_ENDPOINT_ID
+        });
         const languageId = (language_code ?? languageCode ?? lang) || undefined;
         const input = {
             task: 'clone_voice',
@@ -1440,6 +1467,31 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
             keepModelLoaded: keepModelLoaded ?? keep_model_loaded
         };
 
+        const altInput = {
+            prompt: 'clone_voice',
+            action: 'clone_voice',
+            task: 'clone_voice',
+            audioUrl: refUrl,
+            audio_url: refUrl,
+            audio_prompt_url: refUrl,
+            audioPromptUrl: refUrl,
+            audio_prompt_path: refUrl,
+            audio_prompt: refUrl,
+            language,
+            language_id: languageId,
+            language_code: languageId,
+            cfg_weight: cfg_weight ?? cfgWeight,
+            temperature,
+            exaggeration,
+            repetition_penalty: repetition_penalty ?? repetitionPenalty,
+            min_p: min_p ?? minP,
+            top_p: top_p ?? topP,
+            seed,
+            use_cpu: use_cpu ?? useCpu,
+            keep_model_loaded: keep_model_loaded ?? keepModelLoaded,
+            model_name: 'multilingual'
+        };
+
         if (CHATTERBOX_DEBUG) {
             console.log('[CHATTERBOX] voice-create input', {
                 endpointId,
@@ -1458,7 +1510,13 @@ app.post('/api/chatterbox-voice-create', async (req, res) => {
             });
         }
 
-        const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
+        let result;
+        try {
+            result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
+        } catch (e) {
+            if (CHATTERBOX_DEBUG) console.log('[CHATTERBOX] voice-create primary failed, trying alt prompt schema');
+            result = await runpodRunSmart(endpointId, altInput, { executionTimeout: 900000 });
+        }
         const output = extractRunpodOutput(result) || result;
 
         const voiceId =
@@ -1489,7 +1547,10 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             return res.status(400).json({ error: "El texto no puede estar vacío" });
         }
 
-        const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME);
+        const endpointId = await getRunpodEndpointIdByName(RUNPOD_ENDPOINT_NAME, {
+            cacheKey: 'tts',
+            preferredId: RUNPOD_TTS_ENDPOINT_ID
+        });
         const promptUrl = audio_prompt_url || audioPromptUrl || audio_url || audioUrl;
         if (promptUrl) {
             const preflight = await preflightPublicUrl(promptUrl);
@@ -1535,6 +1596,28 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             seed
         };
 
+        const altInput = {
+            prompt: text,
+            text,
+            input: text,
+            voice,
+            voice_id: typeof voice === 'string' ? voice.replace(/^chatterbox:/, '') : voice,
+            language,
+            language_id: languageId,
+            language_code: languageId,
+            audio_prompt_url: promptUrl,
+            audio_prompt_path: promptUrl,
+            audio_url: promptUrl,
+            cfg_weight: cfg_weight ?? cfgWeight,
+            temperature,
+            exaggeration,
+            repetition_penalty: repetition_penalty ?? repetitionPenalty,
+            min_p: min_p ?? minP,
+            top_p: top_p ?? topP,
+            seed,
+            model_name: 'multilingual'
+        };
+
         if (CHATTERBOX_DEBUG) {
             console.log('[CHATTERBOX] tts input', {
                 endpointId,
@@ -1554,13 +1637,31 @@ app.post('/api/chatterbox-tts', async (req, res) => {
             });
         }
 
-        const result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
-        const output = extractRunpodOutput(result) || result;
+        let result;
+        try {
+            result = await runpodRunSmart(endpointId, input, { executionTimeout: 900000 });
+        } catch (e) {
+            if (CHATTERBOX_DEBUG) console.log('[CHATTERBOX] tts primary failed, trying alt prompt schema');
+            result = await runpodRunSmart(endpointId, altInput, { executionTimeout: 900000 });
+        }
+        let output = extractRunpodOutput(result) || result;
 
         const audioBase64 = findFirstValue(output, ['audio_base64', 'audioBase64', 'audio', 'mp3_base64', 'wav_base64']);
         const audioRemoteUrl =
             findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']) ||
             findFirstValue(output, ['audio_url', 'audioUrl', 'url', 'mp3_url', 'wav_url']);
+
+        if ((!audioBase64 && !audioRemoteUrl) && output && typeof output === 'object') {
+            const altAudio = findFirstValue(output, ['audio_base64', 'audioBase64', 'wav', 'wav_base64', 'mp3', 'mp3_base64']);
+            const altUrl = findFirstValue(output, ['audio_url', 'url']);
+            if (!altAudio && !altUrl) {
+                try {
+                    if (CHATTERBOX_DEBUG) console.log('[CHATTERBOX] tts no audio in output, retrying alt prompt schema');
+                    result = await runpodRunSmart(endpointId, altInput, { executionTimeout: 900000 });
+                    output = extractRunpodOutput(result) || result;
+                } catch (e) {}
+            }
+        }
 
         if (CHATTERBOX_DEBUG) {
             const outKeys = output && typeof output === 'object' ? Object.keys(output).slice(0, 60) : [];
