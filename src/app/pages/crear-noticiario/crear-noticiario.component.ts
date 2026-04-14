@@ -787,39 +787,53 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         }
     }
 
-    removeTimelineItem(index: number) {
+    removeTimelineItem(item: TimelineEvent, event?: Event) {
+        event?.preventDefault();
+        event?.stopPropagation();
+
+        const scrollY = window.scrollY;
+
         Swal.fire({
-            title: '¿Estás seguro?',
-            text: "No podrás revertir esto",
+            title: '¿Eliminar?',
+            text: 'Esta acción no se puede revertir.',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Sí, eliminar',
-            cancelButtonText: 'Cancelar'
+            confirmButtonColor: '#8833ff',
+            cancelButtonColor: '#2a2d44',
+            confirmButtonText: 'Eliminar',
+            cancelButtonText: 'Cancelar',
+            background: '#141628',
+            color: '#e8e8ff',
+            heightAuto: false,
+            returnFocus: false,
+            focusConfirm: false
         }).then((result) => {
-            if (result.isConfirmed) {
-                const item = this.timelineEvents[index];
-                
-                // Revoke audio URL for non-news items (news are handled in removeNews)
-                if (item.type !== 'news' && item.audioUrl) {
-                    URL.revokeObjectURL(item.audioUrl);
-                }
+            window.scrollTo({ top: scrollY });
+            if (!result.isConfirmed) return;
 
-                if (item.type === 'news' && item.originalItem) {
-                    // If it's a news item, remove from selectedNews as well
-                    this.removeNews(item.originalItem);
-                } else {
-                    this.timelineEvents.splice(index, 1);
-                    this.timelineEvents.forEach((e, i) => e.order = i);
-                    this.calculateTimelineTimes();
-                }
-                Swal.fire(
-                    'Eliminado!',
-                    'El bloque ha sido eliminado.',
-                    'success'
-                );
+            const idx = this.timelineEvents.findIndex(e => e.id === item.id);
+            if (idx === -1) return;
+            const current = this.timelineEvents[idx];
+
+            if (current.type !== 'news' && current.audioUrl) {
+                URL.revokeObjectURL(current.audioUrl);
             }
+
+            if (current.type === 'news' && current.originalItem) {
+                this.removeNews(current.originalItem);
+            } else {
+                this.timelineEvents.splice(idx, 1);
+                this.timelineEvents.forEach((e, i) => e.order = i);
+                this.calculateTimelineTimes();
+            }
+
+            this.snackBar.open('Elemento eliminado', 'Cerrar', {
+                duration: 2200,
+                panelClass: ['success-snackbar'],
+                horizontalPosition: 'end',
+                verticalPosition: 'top'
+            });
+            this.cdr.detectChanges();
         });
     }
 

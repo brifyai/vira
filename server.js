@@ -1330,8 +1330,15 @@ app.get('/api/admin/scraping/run', async (req, res) => {
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
     let closed = false;
+    let currentRunId = null;
     req.on('close', () => {
         closed = true;
+        if (!currentRunId) return;
+        supabase.from('automation_runs').update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+            error_message: 'client_disconnected'
+        }).eq('id', currentRunId).eq('status', 'running');
     });
 
     const send = (data) => {
@@ -1371,15 +1378,39 @@ app.get('/api/admin/scraping/run', async (req, res) => {
             .select()
             .single();
         if (runError) throw runError;
+        currentRunId = run.id;
 
         send({ type: 'progress', percent: 0, message: 'Iniciando...' });
+
+        let lastProgressWriteAt = 0;
+        const persistProgress = async (u) => {
+            if (!currentRunId) return;
+            const now = Date.now();
+            if (now - lastProgressWriteAt < 2000) return;
+            lastProgressWriteAt = now;
+            try {
+                await supabase.from('automation_runs').update({
+                    result: {
+                        progress: {
+                            type: u?.type || 'progress',
+                            percent: u?.percent ?? null,
+                            message: u?.message ?? null,
+                            at: new Date().toISOString()
+                        }
+                    }
+                }).eq('id', currentRunId).eq('status', 'running');
+            } catch (e) {}
+        };
 
         const result = await runScrapeWithHandler(ids, {
             runId: run.id,
             concurrency: cfg.concurrency ?? 4,
             articlesPerSource: cfg.articlesPerSource ?? 4,
             dedupGlobalLimit: cfg.dedupGlobalLimit ?? 5000,
-            onUpdate: (u) => send(u)
+            onUpdate: (u) => {
+                send(u);
+                if (u && (u.type === 'progress' || u.type === 'saving')) persistProgress(u);
+            }
         });
 
         if (result.statusCode >= 400) {
@@ -1435,6 +1466,13 @@ app.get('/api/admin/scraping/status', async (req, res) => {
     if (!profile) return;
     try {
         const asset = await ensureScrapingAsset();
+        const cutoff = new Date(Date.now() - 45 * 60 * 1000).toISOString();
+        await supabase.from('automation_runs').update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+            error_message: 'timeout_or_interrupted'
+        }).eq('asset_id', asset.id).eq('status', 'running').lt('started_at', cutoff);
+
         const { data: runs } = await supabase
             .from('automation_runs')
             .select('*')
@@ -1449,6 +1487,30 @@ app.get('/api/admin/scraping/status', async (req, res) => {
         });
     } catch (error) {
         console.error('Admin scraping status error:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+});
+
+app.post('/api/admin/scraping/runs/:id/fail', async (req, res) => {
+    const profile = await requireSuperAdmin(req, res);
+    if (!profile) return;
+    try {
+        const id = req.params?.id;
+        if (!id) return res.status(400).json({ error: 'run_id_required' });
+        const { data, error } = await supabase
+            .from('automation_runs')
+            .update({
+                status: 'failed',
+                completed_at: new Date().toISOString(),
+                error_message: 'marked_failed_by_admin'
+            })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        res.json({ success: true, run: data });
+    } catch (error) {
+        console.error('Admin scraping run fail error:', error);
         res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
 });
@@ -1588,6 +1650,39 @@ function isCssNoiseContent(text) {
     return (braces >= 4 && semicolons >= 6 && colons >= 6) || ratio > 0.08;
 }
 
+function extractBalancedTagChunk(html, startIndex, tagName, maxScan = 250000) {
+    if (!html || startIndex < 0 || startIndex >= html.length) return null;
+    if (!tagName) return null;
+    const tn = String(tagName).toLowerCase();
+    const openTagRe = new RegExp(`^<${tn}\\b[^>]*>`, 'i');
+    const slice = html.slice(startIndex);
+    const openMatch = slice.match(openTagRe);
+    if (!openMatch) return null;
+    const openTag = openMatch[0];
+    if (openTag.endsWith('/>')) return openTag;
+
+    const openEnd = startIndex + openTag.length;
+    const limit = Math.min(html.length, startIndex + Math.max(10000, maxScan));
+    const scan = html.slice(startIndex, limit);
+
+    const tagRe = new RegExp(`<\\/?${tn}\\b[^>]*>`, 'ig');
+    tagRe.lastIndex = openTag.length;
+    let depth = 1;
+    let m;
+    while ((m = tagRe.exec(scan)) !== null) {
+        const t = m[0];
+        const isClose = t.startsWith('</');
+        const isSelfClose = t.endsWith('/>');
+        if (!isClose && isSelfClose) continue;
+        if (isClose) depth -= 1;
+        else depth += 1;
+        if (depth === 0) {
+            return scan.slice(0, tagRe.lastIndex);
+        }
+    }
+    return scan;
+}
+
 function extractContent(html, title, url, source) {
     let fullContent = '';
     let targetedImageUrl = null;
@@ -1632,66 +1727,30 @@ function extractContent(html, title, url, source) {
                      // console.log(`[DEBUG] Found targeted image URL: ${targetedImageUrl}`);
                  }
              } else {
-                 // It's a container (div, section, etc)
-                 // Need to extract the closing tag location to get the chunk
-                 // Regex for arbitrary nesting is impossible, but we can try to find the chunk 
-                 // assuming standard scraping bee rendered HTML
-                 
-                 // Simpler approach: find the opening tag index, then try to extract text from a reasonable chunk
-                 // OR use the previous logic restricted to DIV if we want to be safe, 
-                 // but let's try to be smart about extracting the chunk.
-                 
-                 // Reuse previous logic for DIVs if it's a div
-                 if (tagName === 'div') {
-                     // Re-run the specific div regex to capture content
-                     let divRegex;
-                     if (selector.startsWith('.')) {
-                        const className = selector.substring(1);
-                        divRegex = new RegExp(`<div[^>]*class=["'][^"']*${className}[^"']*["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
-                     } else if (selector.startsWith('#')) {
-                        const idName = selector.substring(1);
-                        divRegex = new RegExp(`<div[^>]*id=["']${idName}["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
-                     } else {
-                        divRegex = new RegExp(`<div[^>]*(?:id|class)=["']${selector}["'][^>]*>([\\s\\S]*?)<\/div>`, 'i');
-                     }
-                     
-                     const divMatch = html.match(divRegex);
-                     if (divMatch) {
-                         const chunk = divMatch[0];
-                         fullContent = extractParagraphs(chunk);
-                         
-                         // If text is short, look for image inside this container
-                         if (fullContent.length < 200) {
-                             const imgInDiv = chunk.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/i);
-                             if (imgInDiv) {
-                                  targetedImageUrl = imgInDiv[1];
-                                  if (targetedImageUrl.startsWith('/')) {
-                                     try {
-                                         const urlObj = new URL(url);
-                                         targetedImageUrl = `${urlObj.protocol}//${urlObj.host}${targetedImageUrl}`;
-                                     } catch (e) {}
-                                  }
-                             }
-                             
-                             // Also try to find text in divs if paragraphs failed
-                             if (fullContent.length < 200) {
-                                 const subDivRegex = /<div[^>]*>([\s\S]*?)<\/div>/gi;
-                                 let subDivMatch;
-                                 while ((subDivMatch = subDivRegex.exec(chunk)) !== null) {
-                                     const text = subDivMatch[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-                                     if (text.length > 20) fullContent += text + '\n\n';
-                                 }
-                             }
+                 const startIndex = match.index;
+                 const chunk = extractBalancedTagChunk(html, startIndex, tagName, 300000) || html.substring(startIndex, startIndex + 50000);
+                 fullContent = extractParagraphs(chunk);
+
+                 if (fullContent.length < 200) {
+                     const imgInContainer = chunk.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/i);
+                     if (imgInContainer) {
+                         targetedImageUrl = imgInContainer[1];
+                         if (targetedImageUrl.startsWith('/')) {
+                             try {
+                                 const urlObj = new URL(url);
+                                 targetedImageUrl = `${urlObj.protocol}//${urlObj.host}${targetedImageUrl}`;
+                             } catch (e) {}
                          }
                      }
-                 } else {
-                     // For other tags (section, main, article), try to grab a chunk
-                     const startIndex = match.index;
-                     const chunk = html.substring(startIndex, startIndex + 50000); // arbitrary large chunk
-                     // Try to extract paragraphs from this chunk
-                     const extracted = extractParagraphs(chunk);
-                     if (extracted.length > 100) {
-                         fullContent = extracted;
+
+                     const cleanChunk = chunk.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+                     const textNodeRegex = />([^<]{30,})</g;
+                     let textNodeMatch;
+                     while ((textNodeMatch = textNodeRegex.exec(cleanChunk)) !== null) {
+                         const text = textNodeMatch[1].replace(/\s+/g, ' ').trim();
+                         if (text.length > 30 && !fullContent.includes(text)) {
+                             fullContent += (fullContent ? '\n\n' : '') + text;
+                         }
                      }
                  }
              }
@@ -1770,14 +1829,15 @@ function extractContent(html, title, url, source) {
     // Emol: class="EmolText" (Specific per user request) or id="cuDetalle_cuTexto_textoNoticia"
     if (!fullContent && !targetedImageUrl) {
         // Try specific class first as requested
-        let emolIndex = html.search(/class=["']EmolText["']/i);
-        if (emolIndex === -1) {
-             emolIndex = html.search(/id=["']cuDetalle_cuTexto_textoNoticia["']/i);
+        let emolMatch = html.match(/<[a-z0-9]+[^>]*class=["'][^"']*EmolText[^"']*["'][^>]*>/i);
+        if (!emolMatch) {
+            emolMatch = html.match(/<[a-z0-9]+[^>]*id=["']cuDetalle_cuTexto_textoNoticia["'][^>]*>/i);
         }
 
-        if (emolIndex !== -1) {
-             // console.log(`[DEBUG] Found Emol content container for ${url}`);
-             const chunk = html.substring(emolIndex, emolIndex + 25000);
+        if (emolMatch && typeof emolMatch.index === 'number') {
+             const tagOpen = emolMatch[0];
+             const tagName = tagOpen.match(/^<([a-z0-9]+)/i)[1].toLowerCase();
+             const chunk = extractBalancedTagChunk(html, emolMatch.index, tagName, 350000) || html.substring(emolMatch.index, emolMatch.index + 25000);
              
              // Emol uses <div> for paragraphs often, not just <p>
              // Capture text inside <div>...</div> that are not just <br>
@@ -1801,6 +1861,8 @@ function extractContent(html, title, url, source) {
                      openTag.includes('relacionadas')) {
                      continue; // Skip related news and floaters
                  }
+
+                 if (innerContent.includes('<div')) continue;
 
                  const text = innerContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
                  

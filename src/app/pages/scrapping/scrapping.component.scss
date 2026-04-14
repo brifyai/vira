@@ -335,6 +335,16 @@
   }
 }
 
+.secondary-btn.danger {
+  background: rgba(220, 66, 88, 0.12);
+  border-color: rgba(220, 66, 88, 0.35);
+
+  &:hover:not(:disabled) {
+    background: rgba(220, 66, 88, 0.22);
+    border-color: rgba(220, 66, 88, 0.55);
+  }
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;

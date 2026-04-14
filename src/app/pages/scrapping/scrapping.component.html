@@ -84,6 +84,9 @@
               <div class="run-line"><strong>Inicio:</strong> {{ formatDate(run.started_at) }}</div>
               <div class="run-line"><strong>Fin:</strong> {{ formatDate(run.completed_at || null) }}</div>
               <div class="run-line"><strong>Resumen:</strong> {{ runSummary(run) }}</div>
+              <div class="run-line" *ngIf="run.status === 'running' && runProgress(run)?.message">
+                <strong>Progreso:</strong> {{ runProgress(run)?.percent ?? 0 }}% · {{ runProgress(run)?.message }}
+              </div>
               <div class="run-line" *ngIf="run.error_message"><strong>Error:</strong> {{ run.error_message }}</div>
             </div>
           </div>
@@ -91,6 +94,7 @@
           <div class="run-actions">
             <button class="secondary-btn" type="button" (click)="openReport(run)" [disabled]="!hasReport(run)">Ver reporte</button>
             <button class="secondary-btn" type="button" (click)="exportReportCsv(run)" [disabled]="!hasReport(run)">Exportar CSV</button>
+            <button class="secondary-btn danger" type="button" *ngIf="run.status === 'running'" (click)="markRunFailed(run)">Cerrar</button>
           </div>
         </div>
       </div>

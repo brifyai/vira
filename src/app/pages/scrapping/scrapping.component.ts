@@ -32,6 +32,12 @@ type SourceRunReport = {
   duration_ms?: number;
 };
 
+type RunProgress = {
+  percent?: number | null;
+  message?: string | null;
+  at?: string | null;
+};
+
 @Component({
   selector: 'app-scrapping',
   standalone: true,
@@ -217,6 +223,27 @@ export class ScrappingComponent implements OnInit {
     if (count !== null) parts.push(`${count} noticias`);
     if (failed !== null) parts.push(`${failed} fallidas`);
     return parts.length ? parts.join(' · ') : '-';
+  }
+
+  runProgress(run: AutomationRun): RunProgress | null {
+    const p = run?.result?.progress;
+    if (!p || typeof p !== 'object') return null;
+    return p as RunProgress;
+  }
+
+  async markRunFailed(run: AutomationRun): Promise<void> {
+    if (!run?.id) return;
+    try {
+      const resp = await this.authedFetch(`/api/admin/scraping/runs/${run.id}/fail`, { method: 'POST' });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        throw new Error(text || 'No se pudo marcar como fallida');
+      }
+      this.snackBar.open('Ejecución marcada como fallida', 'Cerrar', { duration: 2500 });
+      await this.loadStatus();
+    } catch (e: any) {
+      this.snackBar.open(e?.message || 'Error al marcar ejecución', 'Cerrar', { duration: 4000, panelClass: ['error-snackbar'] });
+    }
   }
 
   hasReport(run: AutomationRun): boolean {
