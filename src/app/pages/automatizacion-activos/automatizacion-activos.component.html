@@ -1,0 +1,284 @@
+<div class="automatizacion-activos-container">
+    <div class="page-header">
+        <div class="header-content">
+            <div class="header-left">
+                <h1 class="page-title">Automatización Activos</h1>
+                <p class="page-subtitle">Gestiona y monitorea las automatizaciones del sistema</p>
+            </div>
+            <button class="create-btn" (click)="openCreateModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Nueva Automatización
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+        <div class="filter-group">
+            <label class="filter-label">Tipo:</label>
+            <select class="filter-select" [(ngModel)]="typeFilter">
+                <option *ngFor="let type of typeOptions" [value]="type">
+                    {{ type === 'all' ? 'Todos' : getTypeText(type) }}
+                </option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Estado:</label>
+            <select class="filter-select" [(ngModel)]="statusFilter">
+                <option *ngFor="let status of statusOptions" [value]="status">
+                    {{ status === 'all' ? 'Todos' : getStatusText(status) }}
+                </option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Cargando automatizaciones...</p>
+    </div>
+
+    <!-- Automations Grid -->
+    <div class="automations-grid" *ngIf="!loading">
+        <div class="automation-card" *ngFor="let automation of filteredAutomations">
+            <div class="card-header">
+                <div class="automation-info">
+                    <div class="automation-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path
+                                d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
+                            </path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="automation-name">{{ automation.name }}</h3>
+                        <span class="automation-type">{{ getTypeText(automation.type) }}</span>
+                    </div>
+                </div>
+                <div class="automation-status" [class]="getStatusClass(automation.isActive ? 'active' : 'paused')">
+                    {{ getStatusText(automation.isActive ? 'active' : 'paused') }}
+                </div>
+            </div>
+
+            <div class="card-body">
+                <div class="automation-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Ejecuciones:</span>
+                        <span class="stat-value">{{ automation.runCount }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Tasa éxito:</span>
+                        <span class="stat-value">{{ automation.successRate }}%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Última ejecución:</span>
+                        <span class="stat-value">{{ formatDate(automation.lastRun) }}</span>
+                    </div>
+                </div>
+
+                <div class="automation-schedule">
+                    <div class="schedule-item">
+                        <svg class="schedule-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span class="schedule-label">Próxima ejecución:</span>
+                        <span class="schedule-value" *ngIf="automation.nextRun">
+                            {{ formatDate(automation.nextRun) }}
+                        </span>
+                        <span class="schedule-value" *ngIf="!automation.nextRun">No programada</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer">
+                <button class="action-btn toggle-btn" (click)="toggleAutomation(automation)">
+                    <svg *ngIf="automation.isActive" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <rect x="6" y="4" width="4" height="16"></rect>
+                        <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                    <svg *ngIf="!automation.isActive" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                </button>
+                <button class="action-btn run-btn" (click)="runNow(automation)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Ejecutar
+                </button>
+                <button class="action-btn edit-btn" (click)="openEditModal(automation)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+                <button class="action-btn history-btn" (click)="openHistoryModal(automation)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                </button>
+                <button class="action-btn delete-btn" (click)="deleteAutomation(automation)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" *ngIf="filteredAutomations.length === 0">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                    d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
+                </path>
+            </svg>
+            <p>No hay automatizaciones disponibles</p>
+            <p class="empty-hint">Crea tu primera automatización para comenzar</p>
+        </div>
+    </div>
+
+    <!-- Recent Runs -->
+    <div class="recent-runs-section" *ngIf="!loading">
+        <h2 class="section-title">Ejecuciones Recientes</h2>
+        <div class="runs-list">
+            <div class="run-item" *ngFor="let run of automationRuns" [class]="getStatusClass(run.status)">
+                <div class="run-icon">
+                    <svg *ngIf="run.status === 'completed'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <svg *ngIf="run.status === 'failed'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    <svg *ngIf="run.status === 'running'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <line x1="12" y1="2" x2="12" y2="6"></line>
+                        <line x1="12" y1="18" x2="12" y2="22"></line>
+                        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                        <line x1="2" y1="12" x2="6" y2="12"></line>
+                        <line x1="18" y1="12" x2="22" y2="12"></line>
+                        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                    </svg>
+                </div>
+                <div class="run-content">
+                    <h3 class="run-name">{{ run.automationName }}</h3>
+                    <div class="run-meta">
+                        <span class="run-time">{{ formatDate(run.startedAt) }}</span>
+                        <span class="run-duration" *ngIf="run.duration">
+                            Duración: {{ formatDuration(run.duration) }}
+                        </span>
+                    </div>
+                    <p class="run-error" *ngIf="run.errorMessage">{{ run.errorMessage }}</p>
+                </div>
+                <div class="run-status">
+                    {{ getStatusText(run.status) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div class="modal-overlay" *ngIf="showCreateModal || showEditModal" (click)="closeModals()">
+        <div class="modal" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    {{ showCreateModal ? 'Nueva Automatización' : 'Editar Automatización' }}
+                </h2>
+                <button class="close-btn" (click)="closeModals()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Nombre</label>
+                    <input type="text" class="form-input" [(ngModel)]="formData.name"
+                        placeholder="Nombre de la automatización">
+                </div>
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select class="form-select" [(ngModel)]="formData.type">
+                        <option value="scraper">Scraper</option>
+                        <option value="humanizer">Humanizador</option>
+                        <option value="tts">TTS</option>
+                        <option value="scheduler">Programador</option>
+                        <option value="monitor">Monitor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Programación (Cron)</label>
+                    <input type="text" class="form-input" [(ngModel)]="formData.schedule" placeholder="Ej: 0 8 * * *">
+                </div>
+                <div class="form-group">
+                    <label>Configuración (JSON)</label>
+                    <textarea class="form-textarea" [(ngModel)]="formData.config" rows="6"
+                        placeholder='{"key": "value"}'></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="formData.isActive">
+                        <span>Activar automatización</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" (click)="closeModals()">Cancelar</button>
+                <button class="btn btn-primary" (click)="showCreateModal ? createAutomation() : updateAutomation()">
+                    {{ showCreateModal ? 'Crear' : 'Actualizar' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal-overlay" *ngIf="showHistoryModal" (click)="closeModals()">
+        <div class="modal modal-large" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h2 class="modal-title">Historial de Ejecuciones</h2>
+                <button class="close-btn" (click)="closeModals()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="history-info">
+                    <h3>{{ selectedAutomation?.name }}</h3>
+                    <p>Total de ejecuciones: {{ selectedAutomation?.runCount }}</p>
+                    <p>Tasa de éxito: {{ selectedAutomation?.successRate }}%</p>
+                </div>
+                <div class="history-list">
+                    <div class="history-item" *ngFor="let run of filteredAutomationRuns">
+                        <div class="history-status" [class]="getStatusClass(run.status)">
+                            {{ getStatusText(run.status) }}
+                        </div>
+                        <div class="history-content">
+                            <span class="history-time">{{ formatDate(run.startedAt) }}</span>
+                            <span class="history-duration" *ngIf="run.duration">
+                                {{ formatDuration(run.duration) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

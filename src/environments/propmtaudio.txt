@@ -1,0 +1,132 @@
+# 🎙️ Consejos para Audio Más Natural
+
+## Mejoras Implementadas
+
+### 1. Pausas Automáticas (Optimizadas)
+El sistema agrega pausas mínimas y naturales:
+- *Comas (,)*: 100ms (mínima)
+- *Puntos (.)*: 200ms (breve)
+- *Punto y coma (;)*: 120ms (mínima)
+- *Dos puntos (:)*: 100ms (mínima)
+- *Preguntas (?)*: 250ms (breve)
+- *Exclamaciones (!)*: 250ms (breve)
+
+### 2. Ajustes de Voz (Optimizados)
+- *Velocidad base*: 95% (más natural)
+- *Tono*: 0% (neutro, sin modificación)
+- *Volumen*: +3% (presencia sutil)
+- *Calidad*: 48kHz / 192kbps (máxima calidad)
+
+### 3. Voces Seleccionadas (8 Voces Premium)
+
+*Voces Masculinas:*
+- 👨 *Jorge (México)* - Formal/Profesional - Ideal para noticias, presentaciones corporativas
+- 👨 *Alonso (Latino)* - Alegre/Cálido - Ideal para contenido amigable, tutoriales
+- 👨 *Tomás (Argentina)* - Juvenil/Dinámico - Ideal para contenido joven, redes sociales
+- 👨 *Lorenzo (Chile)* - Jovial/Cercano - Ideal para podcasts, contenido casual
+
+*Voces Femeninas:*
+- 👩 *Elena (Argentina)* - Formal/Profesional - Ideal para corporativo, institucional
+- 👩 *Dalia (México)* - Alegre/Expresiva - Ideal para contenido dinámico, publicidad
+- 👩 *Paloma (Latino)* - Juvenil/Fresca - Ideal para contenido joven, lifestyle
+- 👩 *Catalina (Chile)* - Jovial/Amigable - Ideal para vlogs, contenido cercano
+
+## Cómo Escribir para Mejor Audio
+
+### ✅ HACER:
+
+1. *Usa puntuación correcta*
+   
+   Buenos días. Hoy hablaremos sobre tecnología, innovación y futuro.
+   
+
+2. *Separa ideas con comas*
+   
+   La inteligencia artificial, según expertos, cambiará el mundo.
+   
+
+3. *Usa frases cortas y claras*
+   
+   El clima está mejorando. Las temperaturas subirán. Habrá sol.
+   
+
+4. *Escribe números como texto*
+   
+   ✅ "veinte mil pesos"
+   ❌ "20.000 pesos"
+   
+
+5. *Deletrea siglas la primera vez*
+   
+   ✅ "La Organización de Naciones Unidas, ONU, anunció..."
+   ❌ "La ONU anunció..."
+   
+
+### ❌ EVITAR:
+
+1. *Frases muy largas sin pausas*
+   
+   ❌ "La tecnología avanza rápidamente y cada día surgen nuevas innovaciones que transforman nuestra vida cotidiana de maneras que nunca imaginamos"
+   
+   ✅ "La tecnología avanza rápidamente. Cada día surgen nuevas innovaciones. Estas transforman nuestra vida cotidiana de maneras inesperadas."
+   
+
+2. *Abreviaturas sin contexto*
+   
+   ❌ "Dr. Pérez dijo q..."
+   ✅ "El doctor Pérez dijo que..."
+   
+
+3. *Símbolos especiales*
+   
+   ❌ "Cuesta $50 & incluye envío"
+   ✅ "Cuesta cincuenta dólares e incluye envío"
+   
+
+4. *URLs o emails*
+   
+   ❌ "Visita www.ejemplo.com"
+   ✅ "Visita nuestro sitio web"
+   
+
+## Ejemplos de Textos Optimizados
+
+### Ejemplo 1: Noticia
+
+Buenos días. Les traemos las noticias más importantes del día.
+
+En economía, el dólar cerró a setecientos pesos. 
+Esto representa un aumento del dos por ciento.
+
+En deportes, Chile clasificó al mundial. 
+La selección ganó dos a uno contra Argentina.
+
+Eso es todo por ahora. Gracias por su atención.
+
+
+### Ejemplo 2: Anuncio
+
+Atención, estimados clientes.
+
+Tenemos una oferta especial para ustedes.
+Todos los productos tienen un treinta por ciento de descuento.
+
+La promoción es válida hasta el viernes.
+No pierdan esta oportunidad única.
+
+Los esperamos en nuestras tiendas.
+
+
+### Ejemplo 3: Instrucciones
+
+Bienvenido al tutorial de instalación.
+
+Primero, descarga el archivo desde nuestro sitio.
+Segundo, ejecuta el instalador.
+Tercero, sigue las instrucciones en pantalla.
+
+El proceso toma aproximadamente cinco minutos.
+Si tienes problemas, contacta a soporte técnico.
+
+Gracias por usar nuestro producto.
+

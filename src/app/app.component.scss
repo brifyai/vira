@@ -1,0 +1,447 @@
+// ============================================
+// VIRA App - Main Component Styles
+// ============================================
+
+// Variables
+$primary-color: #6366f1;
+$primary-dark: #4f46e5;
+$primary-light: #818cf8;
+$secondary-color: #8b5cf6;
+$success-color: #10b981;
+$warning-color: #f59e0b;
+$danger-color: #ef4444;
+$dark-bg: #0f172a;
+$dark-surface: #1e293b;
+$dark-border: #334155;
+$light-bg: #f8fafc;
+$light-surface: #ffffff;
+$light-border: #e2e8f0;
+$text-primary: #f8fafc;
+$text-secondary: #94a3b8;
+$text-muted: #64748b;
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+$transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+// Reset & Base
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+.app-container {
+    min-height: 100vh;
+    width: 100%;
+    background: linear-gradient(135deg, $dark-bg 0%, #1a1a2e 100%);
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+// Header Styles
+.app-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 70px;
+    background: rgba(30, 41, 59, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid $dark-border;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 1000;
+    box-shadow: $shadow-lg;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.menu-toggle {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: $transition;
+
+    &:hover {
+        background: rgba(99, 102, 241, 0.1);
+    }
+
+    @media (max-width: 1024px) {
+        display: flex;
+    }
+
+    .menu-icon {
+        position: relative;
+        width: 24px;
+        height: 2px;
+        background: $text-primary;
+
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 2px;
+            background: $text-primary;
+            transition: $transition;
+        }
+
+        &::before {
+            top: -8px;
+        }
+
+        &::after {
+            top: 8px;
+        }
+    }
+
+    &:hover .menu-icon {
+        background: $primary-light;
+
+        &::before,
+        &::after {
+            background: $primary-light;
+        }
+    }
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .logo-img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+    }
+
+    .logo-text {
+        font-size: 28px;
+        font-weight: 700;
+        background: linear-gradient(135deg, $primary-color 0%, $secondary-color 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: 2px;
+    }
+}
+
+// Navigation
+.main-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.5);
+    padding: 8px 16px;
+    border-radius: 12px;
+    border: 1px solid $dark-border;
+
+    @media (max-width: 1024px) {
+        position: fixed;
+        top: 70px;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        background: $dark-surface;
+        padding: 16px;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid $dark-border;
+        transform: translateY(-100%);
+        opacity: 0;
+        transition: $transition;
+        z-index: 999;
+
+        &.open {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        color: $text-secondary;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 14px;
+        transition: $transition;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+
+        @media (max-width: 1024px) {
+            padding: 14px 20px;
+            font-size: 16px;
+        }
+
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, $primary-color 0%, $secondary-color 100%);
+            opacity: 0;
+            transition: $transition;
+            z-index: -1;
+        }
+
+        &:hover {
+            color: $text-primary;
+            background: rgba(99, 102, 241, 0.1);
+
+            .nav-icon {
+                color: $primary-light;
+            }
+        }
+
+        &.active {
+            color: $text-primary;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+
+            .nav-icon {
+                color: $primary-light;
+            }
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            color: $text-secondary;
+            transition: $transition;
+
+            @media (max-width: 1024px) {
+                width: 24px;
+                height: 24px;
+            }
+        }
+
+        .nav-label {
+            position: relative;
+            z-index: 1;
+        }
+    }
+}
+
+// Header Right - User Info
+.header-right {
+    display: flex;
+    align-items: center;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 12px;
+    border: 1px solid $dark-border;
+    transition: $transition;
+
+    &:hover {
+        background: rgba(15, 23, 42, 0.8);
+        border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    @media (max-width: 640px) {
+        padding: 6px 12px;
+        gap: 8px;
+    }
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid $primary-color;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+
+    @media (max-width: 640px) {
+        width: 36px;
+        height: 36px;
+    }
+
+    .avatar-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    @media (max-width: 640px) {
+        display: none;
+    }
+
+    .user-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: $text-primary;
+    }
+
+    .user-email {
+        font-size: 12px;
+        color: $text-secondary;
+    }
+}
+
+.logout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: $text-secondary;
+    transition: $transition;
+
+    &:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: $danger-color;
+    }
+
+    .logout-icon {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+// Main Content
+.main-content {
+    flex: 1;
+    margin-top: 70px;
+    padding: 0;
+    overflow-y: auto;
+}
+
+// Menu Overlay (Mobile)
+.menu-overlay {
+    display: none;
+    position: fixed;
+    top: 70px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 998;
+    opacity: 0;
+    transition: $transition;
+
+    @media (max-width: 1024px) {
+        display: block;
+
+        &.active {
+            opacity: 1;
+        }
+    }
+}
+
+// Responsive Adjustments
+@media (max-width: 768px) {
+    .app-header {
+        padding: 0 16px;
+    }
+
+    .main-content {
+        padding: 0;
+    }
+
+    .logo .logo-text {
+        font-size: 24px;
+    }
+}
+
+@media (max-width: 480px) {
+    .app-header {
+        height: 60px;
+        padding: 0 12px;
+    }
+
+    .main-content {
+        margin-top: 60px;
+        padding: 0;
+    }
+
+    .logo .logo-text {
+        font-size: 20px;
+    }
+}
+
+// Scrollbar Styling
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: $dark-bg;
+}
+
+::-webkit-scrollbar-thumb {
+    background: $dark-border;
+    border-radius: 4px;
+
+    &:hover {
+        background: $text-muted;
+    }
+}
+
+// Animation Classes
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}

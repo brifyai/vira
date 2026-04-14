@@ -1,0 +1,96 @@
+<div class="scrapping-page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Scrapping</h1>
+      <p>Automatiza la captura diaria de noticias (09:00 y 16:00 hora Chile) y revisa resultados y errores.</p>
+    </div>
+    <div class="page-actions">
+      <button class="action-btn" type="button" (click)="loadStatus()" [disabled]="loading" title="Actualizar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6"></path>
+          <path d="M1 20v-6h6"></path>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      </button>
+      <button class="primary-btn run-btn" type="button" (click)="runNow()" [disabled]="running || loading || !scrapingConfig.enabled">
+        <svg *ngIf="!running" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <div *ngIf="running" class="spinner-small"></div>
+        {{ running ? 'Ejecutando...' : 'Ejecutar ahora' }}
+      </button>
+    </div>
+  </div>
+
+  <div class="card" *ngIf="statusError">
+    <div class="error">{{ statusError }}</div>
+  </div>
+
+  <div class="card progress-card" *ngIf="running">
+    <div class="progress-info">
+      <div class="progress-text">
+        <span class="status-msg">{{ runMessage }}</span>
+        <span class="percent">{{ runPercent }}%</span>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill" [style.width.%]="runPercent"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Configuración</h2>
+      <div class="form-grid">
+        <label class="form-row">
+          <span>Habilitado</span>
+          <input type="checkbox" [(ngModel)]="scrapingConfig.enabled" />
+        </label>
+        <label class="form-row">
+          <span>Noticias por fuente</span>
+          <input type="number" min="1" max="10" [(ngModel)]="scrapingConfig.articlesPerSource" />
+        </label>
+        <label class="form-row">
+          <span>Concurrencia</span>
+          <input type="number" min="1" max="10" [(ngModel)]="scrapingConfig.concurrency" />
+        </label>
+        <label class="form-row">
+          <span>Dedup (URLs recientes)</span>
+          <input type="number" min="200" max="20000" [(ngModel)]="scrapingConfig.dedupGlobalLimit" />
+        </label>
+      </div>
+      <div class="help">
+        <div>Horario fijo: 09:00 y 16:00 (America/Santiago).</div>
+        <div>Se evitan duplicados por URL usando las últimas {{ scrapingConfig.dedupGlobalLimit }} URLs guardadas.</div>
+      </div>
+      <div class="card-actions">
+        <button class="save-btn" type="button" (click)="saveConfig()" [disabled]="saving">
+          {{ saving ? 'Guardando...' : 'Guardar' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Ejecuciones recientes</h2>
+      <div class="loading" *ngIf="loading">Cargando...</div>
+      <div class="empty" *ngIf="!loading && (!runs || runs.length === 0)">Sin ejecuciones aún.</div>
+      <div class="runs" *ngIf="!loading && runs && runs.length > 0">
+        <div class="run" *ngFor="let run of runs">
+          <div class="run-main">
+            <div class="run-status" [class.ok]="run.status === 'success'" [class.fail]="run.status === 'failed'" [class.running]="run.status === 'running'">
+              {{ run.status }}
+            </div>
+            <div class="run-meta">
+              <div class="run-line"><strong>Inicio:</strong> {{ formatDate(run.started_at) }}</div>
+              <div class="run-line"><strong>Fin:</strong> {{ formatDate(run.completed_at || null) }}</div>
+              <div class="run-line"><strong>Resumen:</strong> {{ runSummary(run) }}</div>
+              <div class="run-line" *ngIf="run.error_message"><strong>Error:</strong> {{ run.error_message }}</div>
+            </div>
+          </div>
+          <div class="run-id">ID: {{ run.id }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

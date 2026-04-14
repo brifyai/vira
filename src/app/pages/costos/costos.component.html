@@ -1,0 +1,141 @@
+<div class="costos-container">
+    <div class="page-header">
+        <div class="header-left">
+            <h1 class="page-title">Costos</h1>
+            <p class="page-subtitle">Registro de actividad y costos por usuario</p>
+        </div>
+        <div class="header-right">
+            <button class="secondary-btn" type="button" (click)="loadEvents()" [disabled]="loading">Actualizar</button>
+        </div>
+    </div>
+
+    <div class="filters-card">
+        <div class="filters-row">
+            <div class="filter-group">
+                <label>Usuario</label>
+                <select [(ngModel)]="selectedUserId" (change)="loadEvents()">
+                    <option value="all">Todos</option>
+                    <option *ngFor="let u of users" [value]="u.id">{{ displayUser(u) }}</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Actividad</label>
+                <select [(ngModel)]="selectedAction" (change)="loadEvents()">
+                    <option value="all">Todas</option>
+                    <option *ngFor="let a of availableActions" [value]="a">{{ a }}</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Desde</label>
+                <input type="date" [(ngModel)]="fromDate" (change)="loadEvents()">
+            </div>
+
+            <div class="filter-group">
+                <label>Hasta</label>
+                <input type="date" [(ngModel)]="toDate" (change)="loadEvents()">
+            </div>
+        </div>
+    </div>
+
+    <div class="summary-row">
+        <div class="summary-card">
+            <div class="summary-label">Eventos</div>
+            <div class="summary-value">{{ events.length }}</div>
+        </div>
+        <div class="summary-card" *ngFor="let t of totalCostByCurrency">
+            <div class="summary-label">Total ({{ t.currency }})</div>
+            <div class="summary-value">{{ t.total | number:'1.2-2' }}</div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Actividad</h2>
+            </div>
+
+            <div class="panel-body table-wrap">
+                <div class="loading-state" *ngIf="loading">
+                    <div class="spinner"></div>
+                    <p>Cargando...</p>
+                </div>
+
+                <table class="table" *ngIf="!loading">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Actividad</th>
+                            <th>Módulo</th>
+                            <th>Unidades</th>
+                            <th>$/Unidad</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let e of events">
+                            <td class="mono">{{ formatDate(e.created_at) }}</td>
+                            <td>{{ e.user?.full_name || e.user?.email || e.user_id }}</td>
+                            <td><span class="pill">{{ e.action }}</span></td>
+                            <td>{{ e.module }}</td>
+                            <td class="mono">{{ e.units }} {{ e.unit_name }}</td>
+                            <td class="mono">{{ e.unit_cost }} {{ e.currency }}</td>
+                            <td class="mono strong">{{ e.total_cost }} {{ e.currency }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="empty-state" *ngIf="!loading && events.length === 0">
+                    <p>No hay actividad para los filtros seleccionados.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Tarifas</h2>
+            </div>
+            <div class="panel-body">
+                <div class="loading-state" *ngIf="loadingRates">
+                    <div class="spinner"></div>
+                    <p>Cargando...</p>
+                </div>
+
+                <div class="rates-list" *ngIf="!loadingRates">
+                    <div class="rate-row" *ngFor="let r of rates">
+                        <div class="rate-col">
+                            <label>Actividad</label>
+                            <input type="text" [(ngModel)]="r.action" disabled>
+                        </div>
+                        <div class="rate-col">
+                            <label>Módulo</label>
+                            <input type="text" [(ngModel)]="r.module">
+                        </div>
+                        <div class="rate-col">
+                            <label>Unidad</label>
+                            <input type="text" [(ngModel)]="r.unit_name">
+                        </div>
+                        <div class="rate-col">
+                            <label>Costo</label>
+                            <input type="number" step="0.000001" [(ngModel)]="r.unit_cost">
+                        </div>
+                        <div class="rate-col">
+                            <label>Moneda</label>
+                            <input type="text" [(ngModel)]="r.currency">
+                        </div>
+                        <div class="rate-col toggle">
+                            <label>Activa</label>
+                            <input type="checkbox" [(ngModel)]="r.is_active">
+                        </div>
+                        <div class="rate-col actions">
+                            <button class="primary-btn" type="button" (click)="saveRate(r)" [disabled]="savingRate">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

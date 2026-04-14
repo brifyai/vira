@@ -1,0 +1,127 @@
+<div class="users-container">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Gestión de Usuarios</h1>
+            <p class="page-subtitle">Administra roles y asignación de radios</p>
+        </div>
+        <button class="create-btn" (click)="openCreateUserModal()" *ngIf="currentUserRole === 'super_admin' || currentUserRole === 'admin'">
+            <span>+</span> Nuevo Usuario
+        </button>
+    </div>
+
+    <div class="loading-state" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Cargando usuarios...</p>
+    </div>
+
+    <div class="users-grid" *ngIf="!loading">
+        <div class="user-card" *ngFor="let user of users">
+            <div class="user-info">
+                <div class="user-avatar">
+                    <span>{{ user.full_name?.charAt(0) || user.email?.charAt(0) || 'U' }}</span>
+                </div>
+                <div class="user-details">
+                    <h3>{{ user.full_name || 'Usuario sin nombre' }}</h3>
+                    <p>{{ user.email }}</p>
+                    <span class="role-badge" [ngClass]="user.role">{{ user.role }}</span>
+                </div>
+            </div>
+
+            <div class="user-actions">
+                <div class="role-select-container">
+                    <label>Rol:</label>
+                    <select [ngModel]="user.role" (ngModelChange)="updateUserRole(user, $event)" 
+                            [disabled]="currentUserRole !== 'super_admin' && (currentUserRole !== 'admin' || user.role === 'super_admin')">
+                        <option value="user">Usuario</option>
+                        <option value="admin">Admin</option>
+                        <option value="super_admin" *ngIf="currentUserRole === 'super_admin'">Super Admin</option>
+                    </select>
+                </div>
+
+                <button class="action-btn" (click)="openRadioModal(user)">
+                    <span class="icon">📻</span>
+                    Asignar Radios
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Radio Assignment Modal -->
+    <div class="modal-overlay" *ngIf="showRadioModal" (click)="closeRadioModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Radios para {{ selectedUser?.full_name || selectedUser?.email }}</h2>
+                <button class="close-btn" (click)="closeRadioModal()">×</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="assigned-section">
+                    <h3>Radios Asignadas</h3>
+                    <div class="radio-list" *ngIf="userRadios.length > 0; else noAssigned">
+                        <div class="radio-item assigned" *ngFor="let radio of userRadios">
+                            <span>{{ radio.name }}</span>
+                            <button (click)="removeRadio(radio)" class="remove-btn" title="Remover">×</button>
+                        </div>
+                    </div>
+                    <ng-template #noAssigned>
+                        <p class="empty-text">No tiene radios asignadas.</p>
+                    </ng-template>
+                </div>
+
+                <div class="available-section">
+                    <h3>Radios Disponibles</h3>
+                    <div class="radio-list" *ngIf="availableRadios.length > 0; else noAvailable">
+                        <div class="radio-item available" *ngFor="let radio of availableRadios" (click)="assignRadio(radio)">
+                            <span>{{ radio.name }}</span>
+                            <span class="add-icon">+</span>
+                        </div>
+                    </div>
+                    <ng-template #noAvailable>
+                        <p class="empty-text">No hay más radios disponibles.</p>
+                    </ng-template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div class="modal-overlay" *ngIf="showCreateUserModal" (click)="closeCreateUserModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Crear Nuevo Usuario</h2>
+                <button class="close-btn" (click)="closeCreateUserModal()">×</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" [(ngModel)]="newUser.fullName" placeholder="Ej: Juan Pérez">
+                </div>
+                
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" [(ngModel)]="newUser.email" placeholder="Ej: usuario@example.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" [(ngModel)]="newUser.password" placeholder="Mínimo 6 caracteres">
+                </div>
+
+                <div class="form-group">
+                    <label>Rol</label>
+                    <select [(ngModel)]="newUser.role">
+                        <option value="user">Usuario</option>
+                        <option value="admin" *ngIf="currentUserRole === 'super_admin'">Admin</option>
+                        <option value="super_admin" *ngIf="currentUserRole === 'super_admin'">Super Admin</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="cancel-btn" (click)="closeCreateUserModal()">Cancelar</button>
+                <button class="save-btn" (click)="createUser()">Crear Usuario</button>
+            </div>
+        </div>
+    </div>
+</div>

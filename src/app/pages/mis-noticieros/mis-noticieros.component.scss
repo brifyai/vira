@@ -1,0 +1,337 @@
+// Variables
+$primary-color: #6366f1;
+$primary-dark: #4f46e5;
+$primary-light: #818cf8;
+$secondary-color: #8b5cf6;
+$success-color: #10b981;
+$warning-color: #f59e0b;
+$danger-color: #ef4444;
+$info-color: #3b82f6;
+$dark-bg: #0f172a;
+$dark-surface: #1e293b;
+$dark-border: #334155;
+$text-primary: #f8fafc;
+$text-secondary: #94a3b8;
+$text-muted: #64748b;
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+$transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+.mis-noticieros-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.header {
+    margin-bottom: 32px;
+    
+    h1 {
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        background: linear-gradient(135deg, $primary-color 0%, $secondary-color 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    p {
+        font-size: 16px;
+        color: $text-secondary;
+    }
+}
+
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 3px solid $dark-border;
+        border-top-color: $primary-color;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+    }
+
+    p {
+        color: $text-secondary;
+        font-size: 16px;
+    }
+}
+
+.empty-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 60px;
+    background: $dark-surface;
+    border: 1px dashed $dark-border;
+    border-radius: 16px;
+    
+    p {
+        color: $text-secondary;
+        font-size: 16px;
+    }
+}
+
+.broadcasts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 24px;
+}
+
+.broadcast-card {
+    background: $dark-surface;
+    border: 1px solid $dark-border;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: $transition;
+    box-shadow: $shadow-md;
+    display: flex;
+    flex-direction: column;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: $shadow-lg;
+        border-color: $primary-light;
+    }
+
+    .card-header {
+        padding: 20px;
+        border-bottom: 1px solid $dark-border;
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+
+            h3 {
+                font-size: 18px;
+                font-weight: 600;
+                color: $text-primary;
+                margin: 0;
+                line-height: 1.4;
+                flex: 1;
+                margin-right: 12px;
+            }
+
+            .more-options-btn {
+                background: transparent;
+                border: none;
+                color: $text-secondary;
+                cursor: pointer;
+                padding: 4px;
+                border-radius: 4px;
+                transition: $transition;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.05);
+                    color: $text-primary;
+                }
+
+                svg {
+                    width: 20px;
+                    height: 20px;
+                }
+            }
+        }
+
+        .header-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+
+            .status-badge {
+                padding: 4px 10px;
+                border-radius: 20px;
+                font-weight: 500;
+                text-transform: uppercase;
+                font-size: 11px;
+                letter-spacing: 0.5px;
+
+                &.ready {
+                    background: rgba($success-color, 0.1);
+                    color: $success-color;
+                    border: 1px solid rgba($success-color, 0.2);
+                }
+
+                &.draft {
+                    background: rgba($warning-color, 0.1);
+                    color: $warning-color;
+                    border: 1px solid rgba($warning-color, 0.2);
+                }
+
+                &.processing {
+                    background: rgba($info-color, 0.1);
+                    color: $info-color;
+                    border: 1px solid rgba($info-color, 0.2);
+                }
+                
+                &.failed {
+                    background: rgba($danger-color, 0.1);
+                    color: $danger-color;
+                    border: 1px solid rgba($danger-color, 0.2);
+                }
+            }
+
+            .date {
+                color: $text-muted;
+            }
+        }
+    }
+
+    .card-body {
+        padding: 20px;
+        flex: 1;
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            color: $text-secondary;
+            font-size: 14px;
+            
+            .value {
+                color: $text-primary;
+                font-weight: 600;
+            }
+        }
+
+        .audio-player-container {
+            width: 100%;
+            margin-top: 10px;
+            
+            audio {
+                width: 100%;
+                height: 40px;
+                border-radius: 20px;
+                
+                &::-webkit-media-controls-panel {
+                    background-color: rgba(255, 255, 255, 0.9);
+                }
+            }
+        }
+
+        .state-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+            border: 1px dashed $dark-border;
+
+            .processing-state, .draft-state, .error-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                color: $text-muted;
+                
+                svg {
+                    width: 24px;
+                    height: 24px;
+                }
+                
+                p {
+                    font-size: 13px;
+                    margin: 0;
+                }
+            }
+
+            .spinner-small {
+                width: 24px;
+                height: 24px;
+                border: 2px solid $dark-border;
+                border-top-color: $info-color;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+        }
+    }
+
+    .card-footer {
+        padding: 16px 20px;
+        background: rgba(15, 23, 42, 0.3);
+        border-top: 1px solid $dark-border;
+
+        .download-btn, .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: $transition;
+            gap: 8px;
+            
+            svg {
+                width: 18px;
+                height: 18px;
+            }
+        }
+
+        .download-btn {
+            background: rgba($primary-color, 0.1);
+            color: $primary-light;
+            border: 1px solid rgba($primary-color, 0.2);
+
+            &:hover {
+                background: rgba($primary-color, 0.2);
+                border-color: $primary-color;
+            }
+        }
+
+        .action-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: $text-muted;
+            border: 1px solid $dark-border;
+            cursor: default; // Change if clickable
+            
+            &:not(:disabled) {
+                cursor: pointer;
+                color: $text-primary;
+                &:hover {
+                    background: rgba(255, 255, 255, 0.1);
+                }
+            }
+        }
+    }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+// Override angular material menu styles
+::ng-deep .mat-mdc-menu-panel {
+    background-color: $dark-surface !important;
+    border: 1px solid $dark-border;
+    
+    .mat-mdc-menu-item {
+        color: $text-primary !important;
+        
+        &:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        .mat-icon {
+            color: $text-secondary;
+        }
+    }
+}

@@ -1,0 +1,109 @@
+Evidencia /api/chatterbox-tts: 
+[CHATTERBOX] tts input {
+  endpointId: '6ur4f8rinov39e',
+  voice: 'chatterbox:sync-de1a800e-181c-4a67-a487-5861282dbc6c-u1',
+  voice_id: 'sync-de1a800e-181c-4a67-a487-5861282dbc6c-u1',
+  text_len: 65,
+  language: 'es',
+  language_id: 'es',
+  audio_prompt_url: 'https://themdawboacvgyyaftus.supabase.co/storage/v1/object/public/noticias/temp-voice-cloning/1774468844210_Locutorgrave__1_.mp3',
+  cfg_weight: 0.3,
+  temperature: 0.85,
+  exaggeration: 0.45,
+  repetition_penalty: 2,
+  min_p: 0.05,
+  top_p: 1,
+  seed: 163260306
+}
+Evidencia /api/chatterbox-voice-create: 
+[CHATTERBOX] voice-create input {
+  endpointId: '6ur4f8rinov39e',
+  audioUrl: 'https://themdawboacvgyyaftus.supabase.co/storage/v1/object/public/noticias/temp-voice-cloning/1774468844210_Locutorgrave__1_.mp3',
+  language: 'es',
+  language_id: 'es',
+  cfg_weight: 0.3,
+  temperature: 0.85,
+  exaggeration: 0.45,
+  repetition_penalty: 2,
+  min_p: 0.05,
+  top_p: 1,
+  seed: 163260306,
+  use_cpu: false,
+  keep_model_loaded: false
+}
+
+Evidencia2 /api/chatterbox-voice-create: 
+[CHATTERBOX] voice-create input {
+  endpointId: '6ur4f8rinov39e',
+  audioUrl: 'https://themdawboacvgyyaftus.supabase.co/storage/v1/object/public/noticias/temp-voice-cloning/1774468567092_Locutorgrave__1_.mp3',
+  language: 'es',
+  language_id: 'es',
+  cfg_weight: 0.7,
+  temperature: 0.8,
+  exaggeration: 0.45,
+  repetition_penalty: 2,
+  min_p: 0.05,
+  top_p: 1,
+  seed: 163260306,
+  use_cpu: false,
+  keep_model_loaded: false
+}
+
+/api/chatterbox-tts:
+    2026-03-25 19:54:07.600 [info] [dotenv@17.3.1] injecting env (0) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+2026-03-25 19:54:07.600 [info] [Server] Starting...
+2026-03-25 19:54:07.600 [info] [Server] Environment Check:
+2026-03-25 19:54:07.600 [info] - NODE_ENV: production
+2026-03-25 19:54:07.600 [info] - AZURE_API_KEY Present: true
+2026-03-25 19:54:07.600 [info] - AZURE_REGION: eastus
+2026-03-25 19:54:07.600 [info] - GEMINI_API_KEY Present: true
+2026-03-25 19:54:07.600 [info] - RUNPOD_API_KEY Present: true
+2026-03-25 19:54:07.864 [info] [CHATTERBOX] tts input {
+  endpointId: '6ur4f8rinov39e',
+  voice: 'chatterbox:sync-cad01a23-3fd3-4fbe-8eeb-e953549228b8-u2',
+  voice_id: 'sync-cad01a23-3fd3-4fbe-8eeb-e953549228b8-u2',
+  text_len: 65,
+  language: 'es',
+  language_id: 'es',
+  audio_prompt_url: 'https://themdawboacvgyyaftus.supabase.co/storage/v1/object/public/noticias/temp-voice-cloning/1774468405245_Locutorgrave__1_.mp3',
+  cfg_weight: 1,
+  temperature: 0.55,
+  exaggeration: 0.45,
+  repetition_penalty: 2,
+  min_p: 0.05,
+  top_p: 1,
+  seed: 163260306
+}
+2026-03-25 19:54:29.222 [info] [CHATTERBOX] tts output keys [
+  'audio_base64',
+  'duration_seconds',
+  'emotion',
+  'sample_rate',
+  'text'
+]
+
+/api/chatterbox-voice-create : 
+2026-03-25 19:53:27.039 [info] [dotenv@17.3.1] injecting env (0) from .env -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
+2026-03-25 19:53:27.039 [info] [Server] Starting...
+2026-03-25 19:53:27.039 [info] [Server] Environment Check:
+2026-03-25 19:53:27.039 [info] - NODE_ENV: production
+2026-03-25 19:53:27.039 [info] - AZURE_API_KEY Present: true
+2026-03-25 19:53:27.039 [info] - AZURE_REGION: eastus
+2026-03-25 19:53:27.039 [info] - GEMINI_API_KEY Present: true
+2026-03-25 19:53:27.039 [info] - RUNPOD_API_KEY Present: true
+2026-03-25 19:53:27.395 [info] [CHATTERBOX] voice-create input {
+  endpointId: '6ur4f8rinov39e',
+  audioUrl: 'https://themdawboacvgyyaftus.supabase.co/storage/v1/object/public/noticias/temp-voice-cloning/1774468405245_Locutorgrave__1_.mp3',
+  language: 'es',
+  language_id: 'es',
+  cfg_weight: 1,
+  temperature: 0.55,
+  exaggeration: 0.45,
+  repetition_penalty: 2,
+  min_p: 0.05,
+  top_p: 1,
+  seed: 163260306,
+  use_cpu: false,
+  keep_model_loaded: false
+}
+2026-03-25 19:53:54.860 [info] [CHATTERBOX] voice-create output keys [ 'delayTime', 'error', 'executionTime', 'id', 'status', 'workerId' ]

@@ -1,0 +1,373 @@
+<div class="recursos-container">
+  <div class="page-header">
+    <div class="header-content">
+      <div style="margin-bottom: 20px;" class="header-left">
+        <h1 class="page-title">Recursos</h1>
+        <p class="page-subtitle">Administra los recursos de audio para tus noticieros</p>
+      </div>
+      <div class="header-actions">
+        <button *ngIf="activeTab === 'voices'" class="create-btn" (click)="openCreateModal()" [disabled]="loading">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Nueva Voz
+        </button>
+        <button *ngIf="activeTab === 'music'" class="create-btn" (click)="openMusicModal()" [disabled]="loading">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Nueva Música
+        </button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn" [class.active]="activeTab === 'voices'" (click)="onTabChange('voices')">
+        Recursos de Voz
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'music'" (click)="onTabChange('music')">
+        Recursos de Música
+      </button>
+    </div>
+
+    <div class="loading-state" *ngIf="loading">
+      <div class="spinner"></div>
+      <p>Cargando recursos...</p>
+    </div>
+
+    <!-- VOICES LIST -->
+    <div class="voices-list" *ngIf="!loading && activeTab === 'voices'">
+      <div class="voice-card" *ngFor="let voice of voices">
+        <div class="card-header">
+          <div class="voice-info">
+            <div class="voice-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </div>
+            <div>
+              <h3 class="voice-label">{{ voice.label }}</h3>
+              <p class="voice-name">{{ voice.name }}</p>
+            </div>
+          </div>
+          <div class="voice-gender">
+            {{ voice.gender }}
+          </div>
+        </div>
+
+        <div class="card-body" *ngIf="voice.description">
+          <p class="voice-description">{{ voice.description }}</p>
+        </div>
+
+        <div class="card-footer">
+          <button
+            class="action-btn play-btn"
+            (click)="playVoice(voice)"
+            [disabled]="playingVoiceLoadingId === voice.id"
+            [class.play-loading]="playingVoiceLoadingId === voice.id"
+            [class.play-error]="lastPlayErrorVoiceId === voice.id"
+            [attr.aria-label]="playingVoiceLoadingId === voice.id ? 'Generando audio' : (lastPlayErrorVoiceId === voice.id ? 'Error al reproducir, reintentar' : 'Reproducir')"
+            [attr.title]="playingVoiceLoadingId === voice.id ? 'Generando audio...' : (lastPlayErrorVoiceId === voice.id ? 'Error al reproducir. Reintentar' : 'Reproducir')"
+          >
+            <svg *ngIf="playingVoiceLoadingId !== voice.id && lastPlayErrorVoiceId !== voice.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="8 5 19 12 8 19 8 5"></polygon>
+            </svg>
+            <svg *ngIf="playingVoiceLoadingId === voice.id" class="btn-spinner" viewBox="0 0 50 50">
+              <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="80" stroke-dashoffset="60"></circle>
+            </svg>
+            <svg *ngIf="lastPlayErrorVoiceId === voice.id && playingVoiceLoadingId !== voice.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </button>
+          <button class="action-btn edit-btn" (click)="openEditModal(voice)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+          <button class="action-btn delete-btn" (click)="deleteVoice(voice)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="voice-status loading" *ngIf="playingVoiceLoadingId === voice.id">Generando audio...</div>
+        <div class="voice-status error" *ngIf="lastPlayErrorVoiceId === voice.id && playingVoiceLoadingId !== voice.id">Error al generar audio. Reintenta.</div>
+        <div class="card-audio" *ngIf="playingVoiceId === voice.id && playingVoiceUrl">
+          <audio [src]="playingVoiceUrl" controls></audio>
+        </div>
+      </div>
+
+      <div class="empty-state" *ngIf="voices.length === 0">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+        </svg>
+        <p>No hay voces personalizadas aún</p>
+        <p class="empty-subtitle">Usa el botón "Nueva Voz" para agregar la voz de tus locutores.</p>
+      </div>
+    </div>
+
+    <!-- MUSIC LIST -->
+    <div class="voices-list" *ngIf="!loading && activeTab === 'music'">
+      <div class="voice-card" *ngFor="let music of musicResources">
+        <div class="card-header">
+          <div class="voice-info">
+            <div class="voice-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+            </div>
+            <div>
+              <h3 class="voice-label">{{ music.name }}</h3>
+              <p class="voice-name">
+                {{ music.type | titlecase }}
+                <span *ngIf="music.radio" style="font-size: 0.85em; color: #666; margin-left: 8px; background: #eee; padding: 2px 6px; border-radius: 4px;">
+                  Radio: {{ music.radio.name }}
+                </span>
+                <span *ngIf="!music.radio" style="font-size: 0.85em; color: #888; margin-left: 8px; font-style: italic;">
+                  (Global)
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <audio [src]="music.url" controls style="width: 100%; margin-top: 10px;"></audio>
+        </div>
+
+        <div class="card-footer">
+          <button class="action-btn delete-btn" (click)="deleteMusic(music.id, music.url)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="empty-state" *ngIf="musicResources.length === 0">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+        <p>No hay recursos de música aún</p>
+        <p class="empty-subtitle">Usa el botón "Nueva Música" para agregar intros, outros o fondos.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VOICE MODAL -->
+<div class="modal-overlay" *ngIf="showCreateModal || showEditModal">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title">{{ showEditModal ? 'Editar voz' : 'Nueva voz' }}</h2>
+      <button class="modal-close" (click)="closeModals()" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Etiqueta visible</label>
+        <input
+          type="text"
+          class="form-input"
+          [(ngModel)]="formData.label"
+          placeholder="Ej: Voz Juan (personalizada)"
+        />
+      </div>
+      <div class="form-group">
+        <label>Descripción (opcional)</label>
+        <textarea
+          class="form-input"
+          rows="3"
+          [(ngModel)]="formData.description"
+          placeholder="Notas sobre esta voz, por ejemplo radio o locutor."
+        ></textarea>
+      </div>
+
+      <div class="tts-preview-section">
+        <div class="tts-section-header">
+          <h3>Clonar voz con Qwen (DashScope)</h3>
+          <p>Sube un audio de referencia y crea una voz clonada para usarla en TTS.</p>
+        </div>
+        <div class="form-group">
+          <label>Audio de referencia</label>
+          <input type="file" class="form-input" accept="audio/*" (change)="onQwenFileSelected($event)" />
+        </div>
+        <div class="form-group">
+          <label>Target model</label>
+          <select class="form-select" [(ngModel)]="qwenTargetModel" (change)="onQwenParamChange()">
+            <option value="qwen3-tts-vc-2026-01-22">qwen3-tts-vc-2026-01-22</option>
+          </select>
+        </div>
+
+        <div class="tts-controls-grid" style="margin-top: 15px;">
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>rate</label>
+              <span class="tts-badge">{{ qwenRate.toFixed(2) }}</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="2.0"
+              step="0.05"
+              [(ngModel)]="qwenRate"
+              (input)="onQwenParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>0.5</span>
+              <span>2.0</span>
+            </div>
+          </div>
+          <div class="tts-control">
+            <div class="tts-control-header">
+              <label>pitch</label>
+              <span class="tts-badge">{{ qwenPitch.toFixed(2) }}</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="2.0"
+              step="0.05"
+              [(ngModel)]="qwenPitch"
+              (input)="onQwenParamChange()"
+            />
+            <div class="tts-control-scale">
+              <span>0.5</span>
+              <span>2.0</span>
+            </div>
+          </div>
+          <div class="tts-control preview-control">
+            <div class="tts-control-header" style="justify-content: center;">
+              <label>Previsualizar</label>
+            </div>
+            <div class="preview-btn-container">
+              <button
+                type="button"
+                class="tts-preview-btn"
+                [disabled]="!qwenLastVoiceId || qwenPreviewLoading"
+                (click)="previewQwenParams()"
+                title="Escuchar prueba"
+              >
+                <svg *ngIf="qwenPreviewLoading" viewBox="0 0 50 50" style="width: 20px; height: 20px; animation: spin 1s linear infinite;">
+                  <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="80" stroke-dashoffset="60"></circle>
+                </svg>
+                <svg *ngIf="!qwenPreviewLoading && !qwenPreviewPlaying" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+                <svg *ngIf="!qwenPreviewLoading && qwenPreviewPlaying" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                  <path d="M6 6h12v12H6z"/>
+                </svg>
+              </button>
+            </div>
+            <div class="tts-control-scale" style="visibility: hidden;">
+              <span>.</span>
+            </div>
+          </div>
+        </div>
+        <div class="tts-actions">
+          <button
+            type="button"
+            class="primary-btn"
+            [disabled]="qwenCreating || !qwenFile"
+            (click)="createQwenVoice()"
+          >
+            {{ qwenCreating ? (qwenStep === 'uploading' ? 'Subiendo...' : 'Creando...') : 'Crear Voz Clonada' }}
+          </button>
+          <button
+            type="button"
+            class="secondary-btn"
+            [disabled]="qwenSampleDownloading || !qwenLastVoiceId"
+            (click)="downloadQwenSample()"
+          >
+            {{ qwenSampleDownloading ? 'Descargando...' : 'Descargar MP3' }}
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="secondary-btn" (click)="closeModals()">Cancelar</button>
+      <button class="primary-btn" (click)="saveVoice()" [disabled]="saving">
+        {{ saving ? 'Guardando...' : 'Guardar' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MUSIC MODAL -->
+<div class="modal-overlay" *ngIf="showMusicModal">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title">Nueva Música</h2>
+      <button class="modal-close" (click)="showMusicModal = false" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Nombre</label>
+        <input
+          type="text"
+          class="form-input"
+          [(ngModel)]="musicFormData.name"
+          placeholder="Ej: Intro Rock, Cierre Suave..."
+        />
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select class="form-select" [(ngModel)]="musicFormData.type">
+          <option value="intro">Intro</option>
+          <option value="outro">Cierre</option>
+          <option value="background">Fondo</option>
+          <option value="effect">Efecto</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Asignar a Radio (Opcional)</label>
+        <select class="form-select" [(ngModel)]="musicFormData.radioId">
+          <option [ngValue]="null">-- Todas las radios (Global) --</option>
+          <option *ngFor="let radio of radios" [ngValue]="radio.id">{{ radio.name }}</option>
+        </select>
+        <p class="help-text" style="font-size: 0.85em; color: #666; margin-top: 5px;">
+          Si seleccionas una radio, esta música solo aparecerá al crear noticieros para esa radio.
+        </p>
+      </div>
+      <div class="form-group">
+        <label>Archivo de Audio</label>
+        <input
+          type="file"
+          class="form-input"
+          accept="audio/*"
+          (change)="onMusicFileSelected($event)"
+        />
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" (click)="showMusicModal = false">Cancelar</button>
+        <button class="primary-btn" (click)="uploadMusic()" [disabled]="loading || !musicFormData.name || !musicFormData.file">
+          {{ loading ? 'Subiendo...' : 'Subir Música' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

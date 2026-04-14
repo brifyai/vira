@@ -1,0 +1,4 @@
+# Configuración de Wrangler para Cloudflare Worker
+name = "text-to-speech-worker"
+main = "worker-azure.js"
+compatibility_date = "2024-01-01"
