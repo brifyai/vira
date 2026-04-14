@@ -483,8 +483,21 @@ export class FuentesComponent implements OnInit {
             // Obtener URLs actuales para evitar duplicados
             const currentUrls = new Set(this.sources.map(s => s.url.toLowerCase().trim()));
             const invalid: { index: number; reason: string }[] = [];
+
+            type ImportSource = {
+                name: string;
+                url: string;
+                category: string;
+                region: string | null;
+                active?: boolean;
+                selectorListContainer: string;
+                selectorLink: string;
+                selectorContent: string;
+                selectorIgnore: string;
+            };
+
             const toImport = mappedData
-                .map((item, index) => {
+                .map((item, index): ImportSource | null => {
                     const name = String(item.name || '').trim();
                     const url = String(item.url || '').trim();
                     const category = String(item.category || '').trim();
@@ -511,9 +524,9 @@ export class FuentesComponent implements OnInit {
                         selectorIgnore
                     };
                 })
-                .filter(Boolean)
-                .filter((item: any) => {
-                    const url = String(item.url || '').toLowerCase().trim();
+                .filter((item): item is ImportSource => item !== null)
+                .filter((item) => {
+                    const url = item.url.toLowerCase().trim();
                     return url && !currentUrls.has(url);
                 });
 
