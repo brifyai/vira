@@ -73,10 +73,8 @@
 
         <!-- Main Content Grid -->
         <div class="content-grid">
-            <!-- Left Column -->
-            <div class="content-column">
-                <!-- Recent News -->
-                <div class="content-card">
+            <!-- Recent News -->
+            <div class="content-card card-news">
                     <div class="card-header">
                         <h2 class="card-title">
                             <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -104,8 +102,38 @@
                     </div>
                 </div>
 
-                <!-- Sources List -->
-                <div class="content-card">
+            <!-- Recent Broadcasts -->
+            <div class="content-card card-broadcasts">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        Mis Noticieros
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="broadcast-list">
+                        <div class="broadcast-item" *ngFor="let broadcast of recentBroadcasts">
+                            <div class="broadcast-content">
+                                <h3 class="broadcast-title">{{ broadcast.title }}</h3>
+                                <div class="broadcast-meta">
+                                    <span class="broadcast-status" [ngClass]="getStatusClass(broadcast.status)">
+                                        {{ getStatusText(broadcast.status) }}
+                                    </span>
+                                    <span class="broadcast-time">{{ formatDate(broadcast.created_at) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="empty-message" *ngIf="recentBroadcasts.length === 0">
+                            No hay noticieros creados
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sources List -->
+            <div class="content-card card-sources">
                     <div class="card-header">
                         <h2 class="card-title">
                             <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -135,42 +163,9 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Right Column -->
-            <div class="content-column">
-                <!-- Recent Broadcasts -->
-                <div class="content-card">
-                    <div class="card-header">
-                        <h2 class="card-title">
-                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                            </svg>
-                            Mis Noticieros
-                        </h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="broadcast-list">
-                            <div class="broadcast-item" *ngFor="let broadcast of recentBroadcasts">
-                                <div class="broadcast-content">
-                                    <h3 class="broadcast-title">{{ broadcast.title }}</h3>
-                                    <div class="broadcast-meta">
-                                        <span class="status-badge" [ngClass]="getStatusClass(broadcast.status)">
-                                            {{ getStatusText(broadcast.status) }}
-                                        </span>
-                                        <span class="broadcast-time">{{ formatDate(broadcast.created_at) }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="empty-message" *ngIf="recentBroadcasts.length === 0">
-                                No hay noticieros creados
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Radios List -->
-                <div class="content-card">
+                <div class="content-card card-radios">
                     <div class="card-header">
                         <h2 class="card-title">
                             <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -201,7 +196,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
         </div>
     </div>
 </div>

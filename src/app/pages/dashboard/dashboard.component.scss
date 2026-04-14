@@ -20,7 +20,7 @@ $shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
 .dashboard-container {
-    max-width: 1400px;
+    max-width: 1280px;
     margin: 0 auto;
     padding: 24px;
 }
@@ -171,19 +171,42 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 // Content Grid
 .content-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    grid-template-columns: 1.25fr 1fr;
+    grid-template-areas:
+        'news broadcasts'
+        'sources radios';
     gap: 24px;
     margin-bottom: 32px;
+    align-items: stretch;
+
+    @media (max-width: 1024px) {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            'news'
+            'broadcasts'
+            'sources'
+            'radios';
+    }
 
     @media (max-width: 768px) {
         grid-template-columns: 1fr;
     }
+}
 
-    .content-column {
-        display: flex;
-        flex-direction: column;
-        gap: 24px;
-    }
+.card-news {
+    grid-area: news;
+}
+
+.card-broadcasts {
+    grid-area: broadcasts;
+}
+
+.card-sources {
+    grid-area: sources;
+}
+
+.card-radios {
+    grid-area: radios;
 }
 
 // List Styles (Sources & Radios)
@@ -191,6 +214,10 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     gap: 12px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding-right: 4px;
 }
 
 .list-item {
@@ -246,6 +273,8 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
     box-shadow: $shadow-md;
     transition: $transition;
+    display: flex;
+    flex-direction: column;
 
     &:hover {
         box-shadow: $shadow-lg;
@@ -281,6 +310,10 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     .card-body {
         padding: 20px 24px;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
     }
 }
 
@@ -289,6 +322,9 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     gap: 12px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
 }
 
 .news-item {
@@ -369,6 +405,9 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     gap: 12px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
 }
 
 .broadcasts-list {
