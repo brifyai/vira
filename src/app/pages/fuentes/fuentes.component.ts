@@ -437,6 +437,19 @@ export class FuentesComponent implements OnInit {
         }
     }
 
+    private parseActiveCell(value: any): boolean | undefined {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') {
+            if (value === 1) return true;
+            if (value === 0) return false;
+        }
+        const s = String(value ?? '').trim().toLowerCase();
+        if (!s) return undefined;
+        if (['si', 'sí', 'true', '1', 'activa', 'activo', 'yes', 'y'].includes(s)) return true;
+        if (['no', 'false', '0', 'inactiva', 'inactivo', 'n'].includes(s)) return false;
+        return undefined;
+    }
+
     async onImportFileSelected(event: any): Promise<void> {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -446,9 +459,9 @@ export class FuentesComponent implements OnInit {
 
         try {
             const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data);
+            const workbook = XLSX.read(data, { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const importedData = XLSX.utils.sheet_to_json(worksheet) as any[];
+            const importedData = XLSX.utils.sheet_to_json(worksheet, { defval: '' }) as any[];
 
             if (!Array.isArray(importedData) || importedData.length === 0) {
                 throw new Error('El archivo Excel está vacío o tiene un formato incorrecto');
@@ -460,7 +473,7 @@ export class FuentesComponent implements OnInit {
                 url: row.URL || row.url,
                 category: row.Categoría || row.category || row.Category,
                 region: row.Región || row.region || row.Region,
-                active: row.Activa === 'Sí' || row.active === true,
+                active: this.parseActiveCell(row.Activa ?? row.active),
                 selectorListContainer: row['Contenedor Lista'] || row.selectorListContainer,
                 selectorLink: row['Selector Link'] || row.selectorLink,
                 selectorContent: row['Selector Contenido'] || row.selectorContent,
@@ -469,10 +482,40 @@ export class FuentesComponent implements OnInit {
 
             // Obtener URLs actuales para evitar duplicados
             const currentUrls = new Set(this.sources.map(s => s.url.toLowerCase().trim()));
-            const toImport = mappedData.filter(item => {
-                const url = (item.url || '').toLowerCase().trim();
-                return url && !currentUrls.has(url);
-            });
+            const invalid: { index: number; reason: string }[] = [];
+            const toImport = mappedData
+                .map((item, index) => {
+                    const name = String(item.name || '').trim();
+                    const url = String(item.url || '').trim();
+                    const category = String(item.category || '').trim();
+                    const region = String(item.region || '').trim();
+                    const selectorListContainer = String(item.selectorListContainer || '').trim();
+                    const selectorLink = String(item.selectorLink || '').trim();
+                    const selectorContent = String(item.selectorContent || '').trim();
+                    const selectorIgnore = String(item.selectorIgnore || '').trim();
+
+                    if (!url) {
+                        invalid.push({ index, reason: 'URL vacía' });
+                        return null;
+                    }
+
+                    return {
+                        name: name || 'Fuente Importada',
+                        url,
+                        category: category || 'general',
+                        region: region || null,
+                        active: item.active,
+                        selectorListContainer,
+                        selectorLink,
+                        selectorContent,
+                        selectorIgnore
+                    };
+                })
+                .filter(Boolean)
+                .filter((item: any) => {
+                    const url = String(item.url || '').toLowerCase().trim();
+                    return url && !currentUrls.has(url);
+                });
 
             if (toImport.length === 0) {
                 this.snackBar.open('No hay fuentes nuevas para importar (todas las URLs ya existen)', 'Cerrar', { duration: 4000 });
@@ -495,11 +538,13 @@ export class FuentesComponent implements OnInit {
 
             await Promise.all(promises);
 
-            this.snackBar.open(`Se importaron ${toImport.length} fuentes correctamente desde Excel`, 'Cerrar', { duration: 4000 });
+            const invalidMsg = invalid.length ? ` · ${invalid.length} filas inválidas` : '';
+            const ext = String(file.name || '').toLowerCase().endsWith('.csv') ? 'CSV' : 'Excel';
+            this.snackBar.open(`Se importaron ${toImport.length} fuentes correctamente desde ${ext}${invalidMsg}`, 'Cerrar', { duration: 4500 });
             await this.loadSources();
         } catch (error: any) {
             console.error('Error importing sources:', error);
-            this.snackBar.open(`Error al importar Excel: ${error.message || 'Formato inválido'}`, 'Cerrar', { 
+            this.snackBar.open(`Error al importar archivo: ${error.message || 'Formato inválido'}`, 'Cerrar', { 
                 duration: 5000,
                 panelClass: ['error-snackbar']
             });

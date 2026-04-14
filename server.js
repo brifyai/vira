@@ -506,14 +506,7 @@ const scrapeHandler = async (req, res) => {
     // console.log('Scrape request received:', req.body);
     const startTime = Date.now();
 
-    // Send standard JSON response (no streaming)
-    // res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    // res.setHeader('Transfer-Encoding', 'chunked');
-
-    const sendUpdate = (data) => {
-        // Log updates to console instead of streaming to client
-        // console.log('[UPDATE]', JSON.stringify(data));
-    };
+    const sendUpdate = typeof req?.onScrapeUpdate === 'function' ? req.onScrapeUpdate : () => {};
 
     try {
         const { sources, runId, concurrency, articlesPerSource, articles_per_source, dedupGlobalLimit, dedup_global_limit } = req.body || {};
@@ -546,6 +539,7 @@ const scrapeHandler = async (req, res) => {
         const rawAps = articlesPerSource ?? articles_per_source;
         const ARTICLES_PER_SOURCE = Number.isFinite(Number(rawAps)) ? Math.max(1, Math.min(10, Number(rawAps))) : 3;
         const scrapedNews = [];
+        const perSource = [];
         let processedCount = 0;
         const globalSeenUrls = new Set();
         const globalExistingUrls = new Set();
@@ -570,6 +564,17 @@ const scrapeHandler = async (req, res) => {
             // ... (existing scraping logic)
             // console.log(`[START] Scraping source: ${source.name} (${source.url})`);
             sendUpdate({ type: 'progress', message: `Contactando ScrapingBee para: ${source.name}...` });
+            const report = {
+                source_id: source.id,
+                name: source.name,
+                url: source.url,
+                status: 'success',
+                error: null,
+                links_found: 0,
+                articles_extracted: 0,
+                duration_ms: 0
+            };
+            const startedAt = Date.now();
             
             try {
                 // Get HTML with render_js enabled and block unnecessary resources for speed
@@ -586,7 +591,9 @@ const scrapeHandler = async (req, res) => {
                     const errorText = await response.text();
                     console.error(`[ERROR] Failed to scrape ${source.name}: ${response.status} ${response.statusText} - Body: ${errorText}`);
                     sendUpdate({ type: 'error', error: `Error ScrapingBee (${response.status}): ${source.name}` });
-                    return [];
+                    report.status = 'failed';
+                    report.error = `scrapingbee_http_${response.status}`;
+                    return { items: [], report };
                         candidates.push({
                             title: linkText,
                             url: fullUrl,
@@ -601,6 +608,8 @@ const scrapeHandler = async (req, res) => {
                 if (html.length < 1000) {
                      console.warn(`[WARN] HTML content too short for ${source.name}. Possible bot detection or empty page.`);
                      sendUpdate({ type: 'error', error: `Contenido vacío/corto para: ${source.name}` });
+                     report.status = 'failed';
+                     report.error = 'html_too_short';
                 }
 
                 sendUpdate({ type: 'progress', message: `Analizando enlaces de: ${source.name}...` });
@@ -957,12 +966,21 @@ const scrapeHandler = async (req, res) => {
                         console.warn(`Skipping duplicate content for url: ${r.original_url}`);
                     }
                 }
-                
-                return filteredResults;
+                report.links_found = validLinksCount;
+                report.articles_extracted = filteredResults.length;
+                if (filteredResults.length === 0) {
+                    report.status = validLinksCount > 0 ? 'no_content' : 'no_links';
+                }
+                return { items: filteredResults, report };
 
             } catch (error) {
                 console.error(`[ERROR] Critical error scraping source ${source.name}:`, error);
-                return [];
+                report.status = 'failed';
+                report.error = error instanceof Error ? error.message : String(error);
+                return { items: [], report };
+            } finally {
+                report.duration_ms = Date.now() - startedAt;
+                perSource.push(report);
             }
         };
 
@@ -973,9 +991,10 @@ const scrapeHandler = async (req, res) => {
             const chunkPromises = chunk.map(source => processSource(source));
             const chunkResults = await Promise.all(chunkPromises);
             
-            chunkResults.forEach(results => {
-                if (results && results.length > 0) {
-                    scrapedNews.push(...results);
+            chunkResults.forEach(r => {
+                const items = r?.items || [];
+                if (items.length > 0) {
+                    scrapedNews.push(...items);
                 }
             });
 
@@ -1003,11 +1022,20 @@ const scrapeHandler = async (req, res) => {
 
         const duration = (Date.now() - startTime) / 1000;
         // console.log(`[COMPLETE] Scraped ${scrapedNews.length} news in ${duration}s`);
+        const failed = perSource.filter(s => s.status === 'failed');
+        const withNews = perSource.filter(s => (s.articles_extracted || 0) > 0);
         
         res.json({
             success: true,
             count: scrapedNews.length,
             message: `Actualización completada: ${scrapedNews.length} noticias nuevas en ${duration}s`,
+            report: {
+                sourcesTotal: sourcesData.length,
+                sourcesWithNews: withNews.length,
+                sourcesFailed: failed.length,
+                sourcesNoNews: sourcesData.length - withNews.length - failed.length,
+                perSource
+            },
             data: scrapedNews
         });
 
@@ -1029,6 +1057,34 @@ function extractBearerToken(req) {
 async function requireSuperAdmin(req, res) {
     const token = extractBearerToken(req);
     if (!token) {
+        res.status(401).json({ error: 'No autorizado' });
+        return null;
+    }
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData?.user?.id) {
+        res.status(401).json({ error: 'No autorizado' });
+        return null;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('id, role, email, full_name')
+        .eq('id', userData.user.id)
+        .single();
+
+    if (profileError || !profile) {
+        res.status(403).json({ error: 'Acceso denegado' });
+        return null;
+    }
+    if (profile.role !== 'super_admin') {
+        res.status(403).json({ error: 'Acceso denegado' });
+        return null;
+    }
+    return profile;
+}
+
+async function requireSuperAdminFromToken(token, res) {
+    if (!token || typeof token !== 'string') {
         res.status(401).json({ error: 'No autorizado' });
         return null;
     }
@@ -1137,7 +1193,7 @@ async function setSetting(key, value) {
     if (error) throw error;
 }
 
-async function runScrapeWithHandler(sourceIds, { runId, concurrency, articlesPerSource, dedupGlobalLimit } = {}) {
+async function runScrapeWithHandler(sourceIds, { runId, concurrency, articlesPerSource, dedupGlobalLimit, onUpdate } = {}) {
     const fakeReq = {
         body: {
             sources: sourceIds,
@@ -1146,7 +1202,8 @@ async function runScrapeWithHandler(sourceIds, { runId, concurrency, articlesPer
             articlesPerSource,
             dedupGlobalLimit
         },
-        headers: {}
+        headers: {},
+        onScrapeUpdate: typeof onUpdate === 'function' ? onUpdate : undefined
     };
     return await new Promise((resolve) => {
         const fakeRes = {
@@ -1241,7 +1298,8 @@ const cronScrapingHandler = async (req, res) => {
                 count: result.payload?.count ?? 0,
                 message: result.payload?.message,
                 slotKey,
-                sourcesCount: ids.length
+                sourcesCount: ids.length,
+                report: result.payload?.report ?? null
             }
         }).eq('id', run.id);
 
@@ -1260,6 +1318,117 @@ const cronScrapingHandler = async (req, res) => {
 
 app.get('/api/cron/scraping', cronScrapingHandler);
 app.post('/api/cron/scraping', cronScrapingHandler);
+
+app.get('/api/admin/scraping/run', async (req, res) => {
+    const token = req.query?.token;
+    const profile = await requireSuperAdminFromToken(token, res);
+    if (!profile) return;
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+    let closed = false;
+    req.on('close', () => {
+        closed = true;
+    });
+
+    const send = (data) => {
+        if (closed) return;
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+        const asset = await ensureScrapingAsset();
+        const cfg = asset?.config || {};
+
+        const { data: sourcesData, error: sourcesError } = await supabase
+            .from('news_sources')
+            .select('id')
+            .eq('is_active', true);
+
+        if (sourcesError) {
+            send({ type: 'error', message: sourcesError.message });
+            res.end();
+            return;
+        }
+
+        const ids = (sourcesData || []).map(s => s.id).filter(Boolean);
+        if (ids.length === 0) {
+            send({ type: 'error', message: 'No hay fuentes activas' });
+            res.end();
+            return;
+        }
+
+        const { data: run, error: runError } = await supabase
+            .from('automation_runs')
+            .insert({
+                asset_id: asset.id,
+                status: 'running',
+                created_by: profile.id
+            })
+            .select()
+            .single();
+        if (runError) throw runError;
+
+        send({ type: 'progress', percent: 0, message: 'Iniciando...' });
+
+        const result = await runScrapeWithHandler(ids, {
+            runId: run.id,
+            concurrency: cfg.concurrency ?? 4,
+            articlesPerSource: cfg.articlesPerSource ?? 4,
+            dedupGlobalLimit: cfg.dedupGlobalLimit ?? 5000,
+            onUpdate: (u) => send(u)
+        });
+
+        if (result.statusCode >= 400) {
+            await supabase.from('automation_runs').update({
+                status: 'failed',
+                completed_at: new Date().toISOString(),
+                error_message: typeof result.payload?.error === 'string' ? result.payload.error : JSON.stringify(result.payload),
+                created_by: profile.id
+            }).eq('id', run.id);
+            send({ type: 'error', message: result.payload?.error || 'Scraping falló', runId: run.id });
+            res.end();
+            return;
+        }
+
+        await supabase.from('automation_runs').update({
+            status: 'success',
+            completed_at: new Date().toISOString(),
+            result: {
+                count: result.payload?.count ?? 0,
+                message: result.payload?.message,
+                sourcesCount: ids.length,
+                report: result.payload?.report ?? null
+            },
+            created_by: profile.id
+        }).eq('id', run.id);
+
+        await supabase.from('automation_assets').update({
+            last_run_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }).eq('id', asset.id);
+
+        send({
+            type: 'complete',
+            success: true,
+            runId: run.id,
+            result: {
+                count: result.payload?.count ?? 0,
+                message: result.payload?.message,
+                sourcesCount: ids.length,
+                report: result.payload?.report ?? null
+            }
+        });
+        res.end();
+    } catch (error) {
+        console.error('Admin scraping run (SSE) error:', error);
+        send({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' });
+        res.end();
+    }
+});
 
 app.get('/api/admin/scraping/status', async (req, res) => {
     const profile = await requireSuperAdmin(req, res);
@@ -1336,7 +1505,8 @@ app.post('/api/admin/scraping/run', async (req, res) => {
             result: {
                 count: result.payload?.count ?? 0,
                 message: result.payload?.message,
-                sourcesCount: ids.length
+                sourcesCount: ids.length,
+                report: result.payload?.report ?? null
             },
             created_by: profile.id
         }).eq('id', run.id);

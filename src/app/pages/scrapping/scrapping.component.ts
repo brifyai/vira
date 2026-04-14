@@ -21,6 +21,17 @@ type AutomationRun = {
   error_message?: string | null;
 };
 
+type SourceRunReport = {
+  source_id: string;
+  name: string;
+  url: string;
+  status: string;
+  error?: string | null;
+  links_found?: number;
+  articles_extracted?: number;
+  duration_ms?: number;
+};
+
 @Component({
   selector: 'app-scrapping',
   standalone: true,
@@ -45,6 +56,9 @@ export class ScrappingComponent implements OnInit {
 
   asset: any = null;
   runs: AutomationRun[] = [];
+  showReportModal = false;
+  reportRun: AutomationRun | null = null;
+  reportOnlyFailed = true;
 
   constructor(
     private supabaseService: SupabaseService,
@@ -197,10 +211,85 @@ export class ScrappingComponent implements OnInit {
     const r = run?.result || {};
     const count = typeof r.count === 'number' ? r.count : null;
     const sources = typeof r.sourcesCount === 'number' ? r.sourcesCount : null;
+    const failed = typeof r?.report?.sourcesFailed === 'number' ? r.report.sourcesFailed : null;
     const parts: string[] = [];
     if (sources !== null) parts.push(`${sources} fuentes`);
     if (count !== null) parts.push(`${count} noticias`);
+    if (failed !== null) parts.push(`${failed} fallidas`);
     return parts.length ? parts.join(' · ') : '-';
   }
-}
 
+  hasReport(run: AutomationRun): boolean {
+    const perSource = run?.result?.report?.perSource;
+    return Array.isArray(perSource) && perSource.length > 0;
+  }
+
+  openReport(run: AutomationRun): void {
+    this.reportRun = run;
+    this.showReportModal = true;
+  }
+
+  closeReport(): void {
+    this.showReportModal = false;
+    this.reportRun = null;
+  }
+
+  reportRows(run: AutomationRun | null): SourceRunReport[] {
+    const perSource = run?.result?.report?.perSource;
+    if (!Array.isArray(perSource)) return [];
+    return perSource as SourceRunReport[];
+  }
+
+  filteredReportRows(): SourceRunReport[] {
+    const rows = this.reportRows(this.reportRun);
+    if (!this.reportOnlyFailed) return rows;
+    return rows.filter(r => r.status === 'failed');
+  }
+
+  private csvEscape(value: any): string {
+    const s = String(value ?? '');
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  exportReportCsv(run: AutomationRun): void {
+    const rows = this.reportRows(run);
+    if (!rows.length) {
+      this.snackBar.open('No hay reporte para exportar', 'Cerrar', { duration: 2500 });
+      return;
+    }
+    const header = [
+      'source_id',
+      'name',
+      'url',
+      'status',
+      'error',
+      'links_found',
+      'articles_extracted',
+      'duration_ms'
+    ];
+    const lines = [
+      header.join(','),
+      ...rows.map(r =>
+        [
+          this.csvEscape(r.source_id),
+          this.csvEscape(r.name),
+          this.csvEscape(r.url),
+          this.csvEscape(r.status),
+          this.csvEscape(r.error ?? ''),
+          this.csvEscape(r.links_found ?? ''),
+          this.csvEscape(r.articles_extracted ?? ''),
+          this.csvEscape(r.duration_ms ?? '')
+        ].join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([lines], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scraping_run_${run.id}_report.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}

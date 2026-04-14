@@ -88,9 +88,57 @@
             </div>
           </div>
           <div class="run-id">ID: {{ run.id }}</div>
+          <div class="run-actions">
+            <button class="secondary-btn" type="button" (click)="openReport(run)" [disabled]="!hasReport(run)">Ver reporte</button>
+            <button class="secondary-btn" type="button" (click)="exportReportCsv(run)" [disabled]="!hasReport(run)">Exportar CSV</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
+<div class="modal-overlay" *ngIf="showReportModal" (click)="closeReport()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">
+        Reporte de ejecución
+        <div class="modal-subtitle">ID: {{ reportRun?.id }}</div>
+      </div>
+      <button class="close-btn" type="button" (click)="closeReport()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="report-toolbar">
+        <label class="toggle">
+          <input type="checkbox" [(ngModel)]="reportOnlyFailed" />
+          <span>Solo fallas</span>
+        </label>
+        <button class="secondary-btn" type="button" (click)="reportRun && exportReportCsv(reportRun)" [disabled]="!reportRun || !hasReport(reportRun)">Exportar CSV</button>
+      </div>
+
+      <div class="report-empty" *ngIf="!reportRun || !hasReport(reportRun)">Sin reporte para esta ejecución.</div>
+
+      <div class="report-table" *ngIf="reportRun && hasReport(reportRun)">
+        <div class="report-row head">
+          <div>Fuente</div>
+          <div>Estado</div>
+          <div>Links</div>
+          <div>Noticias</div>
+          <div>Error</div>
+        </div>
+        <div class="report-row" *ngFor="let row of filteredReportRows()">
+          <div class="cell name">
+            <div class="title">{{ row.name }}</div>
+            <a class="url" [href]="row.url" target="_blank" rel="noopener">{{ row.url }}</a>
+          </div>
+          <div class="cell status" [class.ok]="row.status === 'success'" [class.fail]="row.status === 'failed'">
+            {{ row.status }}
+          </div>
+          <div class="cell num">{{ row.links_found ?? '-' }}</div>
+          <div class="cell num">{{ row.articles_extracted ?? '-' }}</div>
+          <div class="cell err">{{ row.error || '-' }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
