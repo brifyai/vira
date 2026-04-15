@@ -28,6 +28,21 @@ export interface RadioOption {
     name: string;
 }
 
+export interface SourceImportFailure {
+    id: string;
+    created_at: string;
+    import_run_id: string;
+    file_name?: string | null;
+    url: string;
+    name?: string | null;
+    radio_id?: string | null;
+    region?: string | null;
+    stage: 'analysis' | 'save';
+    error_code?: string | null;
+    error_message?: string | null;
+    details?: any;
+}
+
 @Component({
     selector: 'app-fuentes',
     standalone: true,
@@ -54,6 +69,17 @@ export class FuentesComponent implements OnInit {
     importFailed = 0;
     importMessage = '';
     importErrors: { name: string; url: string; error: string }[] = [];
+    importRunId = '';
+    importFileName = '';
+    showFailuresModal = false;
+    failuresLoading = false;
+    failuresError: string | null = null;
+    failures: SourceImportFailure[] = [];
+    failuresOffset = 0;
+    failuresHasMore = false;
+    failuresRunIdFilter = '';
+    failuresStageFilter: 'all' | 'analysis' | 'save' = 'all';
+    failuresSearch = '';
 
     formData = {
         radioId: '',
@@ -85,6 +111,10 @@ export class FuentesComponent implements OnInit {
         await Promise.all([this.loadRadios(), this.loadSources()]);
     }
 
+    private createRunId(prefix: string): string {
+        return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+
     private async mapWithConcurrency<T>(
         items: T[],
         concurrency: number,
@@ -101,14 +131,53 @@ export class FuentesComponent implements OnInit {
         await Promise.all(runners);
     }
 
+    private async logSourceImportFailure(payload: {
+        url: string;
+        name: string;
+        stage: 'analysis' | 'save';
+        errorCode?: string;
+        errorMessage: string;
+        details?: any;
+        region?: string | null;
+    }): Promise<void> {
+        try {
+            const radioId = this.selectedRadioId !== 'all' ? this.selectedRadioId : null;
+            await this.supabaseService.createSourceImportFailure({
+                import_run_id: this.importRunId || this.createRunId('imp'),
+                file_name: this.importFileName || null,
+                url: payload.url,
+                name: payload.name,
+                radio_id: radioId,
+                region: payload.region ?? null,
+                stage: payload.stage,
+                error_code: payload.errorCode || null,
+                error_message: payload.errorMessage,
+                details: payload.details ?? {}
+            });
+        } catch {
+            return;
+        }
+    }
+
     private async analyzeSourceSelectors(url: string): Promise<{
-        selectorListContainer?: string;
-        selectorLink?: string;
-        selectorContent?: string;
-        selectorIgnore?: string;
-    } | null> {
+        ok: boolean;
+        selectors: {
+            selectorListContainer: string;
+            selectorLink: string;
+            selectorContent: string;
+            selectorIgnore: string;
+        };
+        error?: string;
+        raw?: any;
+    }> {
         const cleanUrl = String(url || '').trim();
-        if (!cleanUrl) return null;
+        if (!cleanUrl) {
+            return {
+                ok: false,
+                selectors: { selectorListContainer: '', selectorLink: '', selectorContent: '', selectorIgnore: '' },
+                error: 'missing_url'
+            };
+        }
         try {
             const response = await fetch(`${config.apiUrl}/api/sources/analyze`, {
                 method: 'POST',
@@ -116,17 +185,117 @@ export class FuentesComponent implements OnInit {
                 body: JSON.stringify({ url: cleanUrl })
             });
             const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.success) return null;
+            if (!response.ok || !data?.success) {
+                const err = String(data?.error || `http_${response.status}`);
+                return {
+                    ok: false,
+                    selectors: { selectorListContainer: '', selectorLink: '', selectorContent: '', selectorIgnore: '' },
+                    error: err,
+                    raw: data
+                };
+            }
 
             const suggested = data?.suggested || {};
             return {
-                selectorListContainer: String(suggested.selector_list_container || '').trim(),
-                selectorLink: String(suggested.selector_link || '').trim(),
-                selectorContent: String(suggested.selector_content || '').trim(),
-                selectorIgnore: String(suggested.selector_ignore || '').trim()
+                ok: true,
+                selectors: {
+                    selectorListContainer: String(suggested.selector_list_container || '').trim(),
+                    selectorLink: String(suggested.selector_link || '').trim(),
+                    selectorContent: String(suggested.selector_content || '').trim(),
+                    selectorIgnore: String(suggested.selector_ignore || '').trim()
+                },
+                raw: data
             };
         } catch {
-            return null;
+            return {
+                ok: false,
+                selectors: { selectorListContainer: '', selectorLink: '', selectorContent: '', selectorIgnore: '' },
+                error: 'network_error'
+            };
+        }
+    }
+
+    openFailuresModal(): void {
+        this.showFailuresModal = true;
+        this.failuresRunIdFilter = this.importRunId || this.failuresRunIdFilter || '';
+        this.failuresStageFilter = 'all';
+        this.failuresSearch = '';
+        this.failuresOffset = 0;
+        void this.loadFailures(true);
+    }
+
+    closeFailuresModal(): void {
+        this.showFailuresModal = false;
+        this.failuresError = null;
+        this.cdr.detectChanges();
+    }
+
+    async loadFailures(reset = false): Promise<void> {
+        if (this.failuresLoading) return;
+        this.failuresLoading = true;
+        this.failuresError = null;
+        this.cdr.detectChanges();
+
+        try {
+            if (reset) {
+                this.failuresOffset = 0;
+                this.failures = [];
+            }
+
+            const pageSize = 200;
+            const data = await this.supabaseService.getSourceImportFailures({
+                limit: pageSize,
+                offset: this.failuresOffset,
+                runId: this.failuresRunIdFilter || undefined,
+                stage: this.failuresStageFilter,
+                search: this.failuresSearch || undefined
+            });
+
+            const rows = (data || []) as SourceImportFailure[];
+            this.failures = reset ? rows : [...this.failures, ...rows];
+            this.failuresOffset = this.failures.length;
+            this.failuresHasMore = rows.length === pageSize;
+        } catch (e: any) {
+            this.failuresError = String(e?.message || 'Error al cargar fallas');
+            this.failuresHasMore = false;
+        } finally {
+            this.failuresLoading = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    formatFailureDate(value: string): string {
+        if (!value) return '—';
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    exportFailuresToExcel(): void {
+        if (!this.failures || this.failures.length === 0) {
+            this.snackBar.open('No hay fallas para exportar', 'Cerrar', { duration: 3000 });
+            return;
+        }
+        try {
+            const exportData = this.failures.map(f => ({
+                Fecha: this.formatFailureDate(f.created_at),
+                'Import Run': f.import_run_id,
+                Archivo: f.file_name || '',
+                Etapa: f.stage,
+                URL: f.url,
+                Nombre: f.name || '',
+                Región: f.region || '',
+                Código: f.error_code || '',
+                Mensaje: f.error_message || '',
+            }));
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Fallas');
+            const date = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(workbook, `fallas_importacion_${date}.xlsx`);
+            this.snackBar.open('Fallas exportadas correctamente a Excel', 'Cerrar', { duration: 3500 });
+        } catch (e: any) {
+            this.snackBar.open(`Error al exportar: ${String(e?.message || 'Error')}`, 'Cerrar', { duration: 4000, panelClass: ['error-snackbar'] });
         }
     }
 
@@ -517,6 +686,8 @@ export class FuentesComponent implements OnInit {
         this.importFailed = 0;
         this.importMessage = '';
         this.importErrors = [];
+        this.importRunId = this.createRunId('imp');
+        this.importFileName = String(file.name || '').trim();
         this.cdr.detectChanges();
 
         try {
@@ -615,12 +786,53 @@ export class FuentesComponent implements OnInit {
                     !!String(item.selectorLink || '').trim() ||
                     !!String(item.selectorIgnore || '').trim();
 
-                const suggested = hasAnySelector ? null : await this.analyzeSourceSelectors(item.url);
+                let selectorListContainer = String(item.selectorListContainer || '').trim();
+                let selectorLink = String(item.selectorLink || '').trim();
+                let selectorContent = String(item.selectorContent || '').trim();
+                let selectorIgnore = String(item.selectorIgnore || '').trim();
 
-                const selectorListContainer = String(item.selectorListContainer || suggested?.selectorListContainer || '').trim();
-                const selectorLink = String(item.selectorLink || suggested?.selectorLink || '').trim();
-                const selectorContent = String(item.selectorContent || suggested?.selectorContent || '').trim();
-                const selectorIgnore = String(item.selectorIgnore || suggested?.selectorIgnore || '').trim();
+                if (!hasAnySelector) {
+                    const analysis = await this.analyzeSourceSelectors(item.url);
+                    if (analysis.ok) {
+                        selectorListContainer = String(analysis.selectors.selectorListContainer || '').trim();
+                        selectorLink = String(analysis.selectors.selectorLink || '').trim();
+                        selectorContent = String(analysis.selectors.selectorContent || '').trim();
+                        selectorIgnore = String(analysis.selectors.selectorIgnore || '').trim();
+
+                        const allEmpty =
+                            !selectorListContainer && !selectorLink && !selectorContent && !selectorIgnore;
+                        const listCandidatesCount = Array.isArray(analysis.raw?.listCandidates)
+                            ? analysis.raw.listCandidates.length
+                            : 0;
+
+                        if (allEmpty || listCandidatesCount === 0) {
+                            await this.logSourceImportFailure({
+                                url: item.url,
+                                name,
+                                stage: 'analysis',
+                                errorCode: 'no_selectors_detected',
+                                errorMessage: 'No se pudieron detectar selectores para esta fuente',
+                                region: item.region || null,
+                                details: {
+                                    listCandidatesCount,
+                                    sampleArticleUrl: analysis.raw?.sampleArticleUrl || null
+                                }
+                            });
+                        }
+                    } else {
+                        await this.logSourceImportFailure({
+                            url: item.url,
+                            name,
+                            stage: 'analysis',
+                            errorCode: analysis.error || 'analysis_failed',
+                            errorMessage: 'Falló el análisis automático de la fuente',
+                            region: item.region || null,
+                            details: {
+                                error: analysis.error || null
+                            }
+                        });
+                    }
+                }
 
                 this.importMessage = `Guardando: ${name}`;
                 this.cdr.detectChanges();
@@ -645,6 +857,14 @@ export class FuentesComponent implements OnInit {
                         name,
                         url: item.url,
                         error: String(e?.message || 'Error al guardar')
+                    });
+                    await this.logSourceImportFailure({
+                        url: item.url,
+                        name,
+                        stage: 'save',
+                        errorCode: 'save_failed',
+                        errorMessage: String(e?.message || 'Error al guardar'),
+                        region: item.region || null
                     });
                 } finally {
                     this.importProcessed++;

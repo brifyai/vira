@@ -310,6 +310,56 @@ export class SupabaseService {
         return data;
     }
 
+    async createSourceImportFailure(payload: {
+        import_run_id: string;
+        file_name?: string | null;
+        url: string;
+        name?: string | null;
+        radio_id?: string | null;
+        region?: string | null;
+        stage: string;
+        error_code?: string | null;
+        error_message?: string | null;
+        details?: any;
+    }) {
+        const { data, error } = await this.supabase
+            .from('source_import_failures')
+            .insert(payload)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async getSourceImportFailures(options?: { limit?: number; offset?: number; runId?: string; stage?: string; search?: string }) {
+        const limit = Number.isFinite(Number(options?.limit)) ? Math.max(1, Math.min(1000, Number(options?.limit))) : 200;
+        const offset = Number.isFinite(Number(options?.offset)) ? Math.max(0, Number(options?.offset)) : 0;
+
+        let query = this.supabase
+            .from('source_import_failures')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+
+        if (options?.runId && String(options.runId).trim()) {
+            query = query.eq('import_run_id', String(options.runId).trim());
+        }
+        if (options?.stage && options.stage !== 'all') {
+            query = query.eq('stage', options.stage);
+        }
+        if (options?.search && String(options.search).trim()) {
+            const raw = String(options.search).trim().slice(0, 120);
+            const safe = raw.replace(/[%]/g, '').replace(/[,]/g, ' ');
+            const pat = `%${safe}%`;
+            query = query.or(`url.ilike.${pat},name.ilike.${pat},error_message.ilike.${pat}`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+    }
+
     async updateNewsSource(id: string, updates: any) {
         const { data, error } = await this.supabase
             .from('news_sources')

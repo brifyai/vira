@@ -16,6 +16,13 @@
                                 <line x1="12" y1="15" x2="12" y2="3"></line>
                             </svg>
                         </button>
+                        <button class="action-icon-btn" type="button" (click)="openFailuresModal()" title="Fallas de importación">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                <line x1="12" y1="9" x2="12" y2="13"></line>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                        </button>
                         <label class="action-icon-btn" [class.disabled]="importing" title="Importar fuentes (Excel/CSV)">
                             <input type="file" (change)="onImportFileSelected($event)" accept=".xlsx, .xls, .csv, text/csv" style="display: none;" [disabled]="importing">
                             <svg *ngIf="!importing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -257,6 +264,95 @@
                         [disabled]="!formData.name || !formData.url">
                         {{ showCreateModal ? 'Crear' : 'Actualizar' }}
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" *ngIf="showFailuresModal" (click)="closeFailuresModal()">
+            <div class="modal modal-wide" (click)="$event.stopPropagation()">
+                <div class="modal-header">
+                    <h2 class="modal-title">Fallas de importación</h2>
+                    <button class="close-btn" (click)="closeFailuresModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="modal-body failures-body">
+                    <div class="failures-toolbar">
+                        <div class="failures-filters">
+                            <div class="form-group compact">
+                                <label>Import Run</label>
+                                <input class="form-input" type="text" [(ngModel)]="failuresRunIdFilter" placeholder="Ej: imp_xxx" />
+                            </div>
+                            <div class="form-group compact">
+                                <label>Etapa</label>
+                                <select class="form-select" [(ngModel)]="failuresStageFilter">
+                                    <option value="all">Todas</option>
+                                    <option value="analysis">Análisis</option>
+                                    <option value="save">Guardado</option>
+                                </select>
+                            </div>
+                            <div class="form-group compact grow">
+                                <label>Buscar</label>
+                                <input class="form-input" type="text" [(ngModel)]="failuresSearch" placeholder="URL, nombre o mensaje..." />
+                            </div>
+                        </div>
+
+                        <div class="failures-actions">
+                            <button class="btn btn-secondary" type="button" (click)="loadFailures(true)" [disabled]="failuresLoading">Actualizar</button>
+                            <button class="btn btn-primary" type="button" (click)="exportFailuresToExcel()" [disabled]="failures.length === 0">Exportar Excel</button>
+                        </div>
+                    </div>
+
+                    <div class="failures-error" *ngIf="failuresError">{{ failuresError }}</div>
+
+                    <div class="failures-table-wrap" *ngIf="!failuresLoading && failures.length > 0">
+                        <table class="failures-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Etapa</th>
+                                    <th>URL</th>
+                                    <th>Nombre</th>
+                                    <th>Código</th>
+                                    <th>Mensaje</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr *ngFor="let f of failures">
+                                    <td>{{ formatFailureDate(f.created_at) }}</td>
+                                    <td><span class="tag" [class.analysis]="f.stage === 'analysis'" [class.save]="f.stage === 'save'">{{ f.stage }}</span></td>
+                                    <td><a [href]="f.url" target="_blank" rel="noopener">{{ f.url }}</a></td>
+                                    <td>{{ f.name || '—' }}</td>
+                                    <td>{{ f.error_code || '—' }}</td>
+                                    <td class="msg">{{ f.error_message || '—' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="empty-state" *ngIf="!failuresLoading && failures.length === 0 && !failuresError">
+                        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        <p>No hay fallas registradas</p>
+                        <p class="empty-hint">Ajusta los filtros o intenta nuevamente más tarde</p>
+                    </div>
+
+                    <div class="failures-footer">
+                        <div class="failures-footer-left">
+                            <span *ngIf="failuresLoading">Cargando...</span>
+                            <span *ngIf="!failuresLoading && failures.length > 0">Mostrando {{ failures.length }} resultados</span>
+                        </div>
+                        <div class="failures-footer-right">
+                            <button class="btn btn-secondary" type="button" (click)="loadFailures(false)" [disabled]="failuresLoading || !failuresHasMore">Cargar más</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
