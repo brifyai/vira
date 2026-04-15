@@ -1194,7 +1194,7 @@ async function runGeminiForJson(prompt) {
     const geminiApiKey = process.env.geminiApiKey || process.env.GEMINI_API_KEY;
     if (!geminiApiKey) return null;
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     const result = await model.generateContent(prompt);
     const text = await result.response.text();
     return safeParseFirstJsonObject(text);
@@ -2320,9 +2320,7 @@ async function processImageWithGemini(imageUrl) {
         const mimeType = imgResponse.headers.get('content-type') || 'image/jpeg';
 
         const genAI = new GoogleGenerativeAI(geminiApiKey);
-        // Use gemini-1.5-flash or gemini-pro-vision if available. 
-        // 1.5 Flash is multimodal and fast.
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         const prompt = "Analiza esta imagen que corresponde a una noticia. Extrae el texto principal, titulares y cualquier información textual relevante. Si es una infografía o un comunicado, transcribe el contenido completo. Si es solo una foto decorativa, describe brevemente el contexto visual relevante para una noticia de radio. Devuelve un texto coherente en español.";
 
