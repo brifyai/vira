@@ -48,6 +48,12 @@ export class FuentesComponent implements OnInit {
     availableRegions: string[] = [];
     exporting = false;
     importing = false;
+    importTotal = 0;
+    importProcessed = 0;
+    importCreated = 0;
+    importFailed = 0;
+    importMessage = '';
+    importErrors: { name: string; url: string; error: string }[] = [];
 
     formData = {
         radioId: '',
@@ -70,8 +76,58 @@ export class FuentesComponent implements OnInit {
         private snackBar: MatSnackBar
     ) { }
 
+    get importPercent(): number {
+        if (!this.importTotal) return 0;
+        return Math.min(100, Math.max(0, Math.round((this.importProcessed / this.importTotal) * 100)));
+    }
+
     async ngOnInit(): Promise<void> {
         await Promise.all([this.loadRadios(), this.loadSources()]);
+    }
+
+    private async mapWithConcurrency<T>(
+        items: T[],
+        concurrency: number,
+        worker: (item: T, index: number) => Promise<void>
+    ): Promise<void> {
+        const limit = Math.max(1, Math.min(4, Number(concurrency) || 1));
+        let index = 0;
+        const runners = new Array(limit).fill(null).map(async () => {
+            while (index < items.length) {
+                const currentIndex = index++;
+                await worker(items[currentIndex], currentIndex);
+            }
+        });
+        await Promise.all(runners);
+    }
+
+    private async analyzeSourceSelectors(url: string): Promise<{
+        selectorListContainer?: string;
+        selectorLink?: string;
+        selectorContent?: string;
+        selectorIgnore?: string;
+    } | null> {
+        const cleanUrl = String(url || '').trim();
+        if (!cleanUrl) return null;
+        try {
+            const response = await fetch(`${config.apiUrl}/api/sources/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: cleanUrl })
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data?.success) return null;
+
+            const suggested = data?.suggested || {};
+            return {
+                selectorListContainer: String(suggested.selector_list_container || '').trim(),
+                selectorLink: String(suggested.selector_link || '').trim(),
+                selectorContent: String(suggested.selector_content || '').trim(),
+                selectorIgnore: String(suggested.selector_ignore || '').trim()
+            };
+        } catch {
+            return null;
+        }
     }
 
     async loadRadios(): Promise<void> {
@@ -455,6 +511,12 @@ export class FuentesComponent implements OnInit {
         if (!file) return;
 
         this.importing = true;
+        this.importTotal = 0;
+        this.importProcessed = 0;
+        this.importCreated = 0;
+        this.importFailed = 0;
+        this.importMessage = '';
+        this.importErrors = [];
         this.cdr.detectChanges();
 
         try {
@@ -535,25 +597,67 @@ export class FuentesComponent implements OnInit {
                 return;
             }
 
-            // Insertar en Supabase
-            const promises = toImport.map(item => this.supabaseService.createNewsSource({
-                radio_id: this.selectedRadioId !== 'all' ? this.selectedRadioId : null,
-                region: item.region || null,
-                name: item.name || 'Fuente Importada',
-                url: item.url,
-                category: item.category || 'general',
-                is_active: item.active !== undefined ? item.active : true,
-                selector_list_container: item.selectorListContainer || '',
-                selector_link: item.selectorLink || '',
-                selector_content: item.selectorContent || '',
-                selector_ignore: item.selectorIgnore || ''
-            }));
+            this.importTotal = toImport.length;
+            this.importProcessed = 0;
+            this.importCreated = 0;
+            this.importFailed = 0;
+            this.importMessage = 'Iniciando análisis e importación...';
+            this.cdr.detectChanges();
 
-            await Promise.all(promises);
+            await this.mapWithConcurrency(toImport, 2, async (item) => {
+                const name = item.name || 'Fuente Importada';
+                this.importMessage = `Analizando: ${name}`;
+                this.cdr.detectChanges();
+
+                const hasAnySelector =
+                    !!String(item.selectorListContainer || '').trim() ||
+                    !!String(item.selectorContent || '').trim() ||
+                    !!String(item.selectorLink || '').trim() ||
+                    !!String(item.selectorIgnore || '').trim();
+
+                const suggested = hasAnySelector ? null : await this.analyzeSourceSelectors(item.url);
+
+                const selectorListContainer = String(item.selectorListContainer || suggested?.selectorListContainer || '').trim();
+                const selectorLink = String(item.selectorLink || suggested?.selectorLink || '').trim();
+                const selectorContent = String(item.selectorContent || suggested?.selectorContent || '').trim();
+                const selectorIgnore = String(item.selectorIgnore || suggested?.selectorIgnore || '').trim();
+
+                this.importMessage = `Guardando: ${name}`;
+                this.cdr.detectChanges();
+
+                try {
+                    await this.supabaseService.createNewsSource({
+                        radio_id: this.selectedRadioId !== 'all' ? this.selectedRadioId : null,
+                        region: item.region || null,
+                        name,
+                        url: item.url,
+                        category: item.category || 'general',
+                        is_active: item.active !== undefined ? item.active : true,
+                        selector_list_container: selectorListContainer,
+                        selector_link: selectorLink,
+                        selector_content: selectorContent,
+                        selector_ignore: selectorIgnore
+                    });
+                    this.importCreated++;
+                } catch (e: any) {
+                    this.importFailed++;
+                    this.importErrors.push({
+                        name,
+                        url: item.url,
+                        error: String(e?.message || 'Error al guardar')
+                    });
+                } finally {
+                    this.importProcessed++;
+                    this.importMessage = `Procesadas ${this.importProcessed} de ${this.importTotal}`;
+                    this.cdr.detectChanges();
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            });
 
             const invalidMsg = invalid.length ? ` · ${invalid.length} filas inválidas` : '';
             const ext = String(file.name || '').toLowerCase().endsWith('.csv') ? 'CSV' : 'Excel';
-            this.snackBar.open(`Se importaron ${toImport.length} fuentes correctamente desde ${ext}${invalidMsg}`, 'Cerrar', { duration: 4500 });
+            const failMsg = this.importFailed ? ` · ${this.importFailed} con error` : '';
+            this.snackBar.open(`Se importaron ${this.importCreated} fuentes correctamente desde ${ext}${invalidMsg}${failMsg}`, 'Cerrar', { duration: 5000 });
             await this.loadSources();
         } catch (error: any) {
             console.error('Error importing sources:', error);

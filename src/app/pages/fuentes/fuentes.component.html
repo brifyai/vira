@@ -47,6 +47,22 @@
             </div>
         </div>
 
+        <div class="import-progress-card" *ngIf="importing && importTotal > 0">
+            <div class="import-progress-top">
+                <div class="import-progress-title">Importando fuentes</div>
+                <div class="import-progress-count">{{ importProcessed }}/{{ importTotal }} ({{ importPercent }}%)</div>
+            </div>
+            <div class="import-progress-bar">
+                <div class="import-progress-bar-fill" [style.width.%]="importPercent"></div>
+            </div>
+            <div class="import-progress-meta">
+                <span class="import-progress-msg">{{ importMessage }}</span>
+                <span class="import-progress-stats">
+                    Creadas: {{ importCreated }} · Errores: {{ importFailed }}
+                </span>
+            </div>
+        </div>
+
         <!-- Loading State -->
         <div class="loading-state" *ngIf="loading">
             <div class="spinner"></div>

@@ -1047,6 +1047,273 @@ const scrapeHandler = async (req, res) => {
 // Scrape endpoint
 app.post('/api/scrape', scrapeHandler);
 
+const sourceAnalysisCache = new Map();
+
+function normalizeHttpUrl(input) {
+    const s = String(input || '').trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s)) return s;
+    return `https://${s}`;
+}
+
+function stripHtmlNoise(html, maxLen = 120000) {
+    const s = String(html || '');
+    const withoutScripts = s.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ');
+    const withoutStyles = withoutScripts.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
+    const withoutSvg = withoutStyles.replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ');
+    const compact = withoutSvg.replace(/\s+/g, ' ').trim();
+    return compact.length > maxLen ? compact.slice(0, maxLen) : compact;
+}
+
+function safeParseFirstJsonObject(text) {
+    const s = String(text || '').trim();
+    if (!s) return null;
+    const start = s.indexOf('{');
+    const end = s.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) return null;
+    try {
+        return JSON.parse(s.slice(start, end + 1));
+    } catch (e) {
+        return null;
+    }
+}
+
+function isGenericClassToken(token) {
+    const t = String(token || '').trim().toLowerCase();
+    if (!t) return true;
+    if (t.length <= 2) return true;
+    if (/^\d+$/.test(t)) return true;
+    const generic = new Set([
+        'container', 'wrapper', 'wrap', 'row', 'col', 'column', 'columns', 'grid', 'flex',
+        'header', 'footer', 'nav', 'navbar', 'menu', 'breadcrumb', 'breadcrumbs',
+        'content', 'main', 'page', 'section', 'article', 'post',
+        'clearfix', 'hidden', 'visible',
+        'btn', 'button', 'icon',
+        'title', 'subtitle', 'text', 'label',
+        'ads', 'ad', 'advert', 'publicidad', 'banner',
+        'modal', 'overlay',
+        'sidebar'
+    ]);
+    if (generic.has(t)) return true;
+    if (t.startsWith('col-') || t.startsWith('row-')) return true;
+    return false;
+}
+
+function getBaseHost(url) {
+    try {
+        return new URL(url).host;
+    } catch (e) {
+        return '';
+    }
+}
+
+function toAbsoluteUrl(href, baseUrl) {
+    try {
+        const u = new URL(href, baseUrl);
+        return u.toString();
+    } catch (e) {
+        return '';
+    }
+}
+
+function extractAnchorCandidates(html, baseUrl) {
+    const out = [];
+    const baseHost = getBaseHost(baseUrl);
+    const re = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = re.exec(html)) !== null) {
+        const rawHref = match[1];
+        if (!rawHref) continue;
+        if (rawHref.includes('javascript:') || rawHref.startsWith('#')) continue;
+        const fullUrl = toAbsoluteUrl(rawHref, baseUrl);
+        if (!fullUrl) continue;
+        if (!/^https?:\/\//i.test(fullUrl)) continue;
+        if (baseHost) {
+            try {
+                const u = new URL(fullUrl);
+                if (u.host !== baseHost) continue;
+            } catch (e) {}
+        }
+        const text = String(match[2] || '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (text.length < 12) continue;
+        out.push({ url: fullUrl, text, index: match.index });
+        if (out.length >= 600) break;
+    }
+    return out;
+}
+
+function guessListContainerCandidates(html, baseUrl) {
+    const anchors = extractAnchorCandidates(html, baseUrl);
+    const counts = new Map();
+    const samples = new Map();
+
+    for (const a of anchors) {
+        const start = Math.max(0, a.index - 5000);
+        const chunk = html.slice(start, a.index);
+        const tagRe = /<(article|div|section|main|ul|ol)\b[^>]*(?:id|class)=["']([^"']+)["'][^>]*>/gi;
+        let m;
+        let last = null;
+        while ((m = tagRe.exec(chunk)) !== null) last = m;
+        if (!last) continue;
+
+        const rawAttr = String(last[2] || '').trim();
+        const isId = /id=["']/.test(last[0]);
+        let selector = '';
+        if (isId) {
+            const id = rawAttr.split(/\s+/)[0].replace(/[^\w-]/g, '').trim();
+            if (id) selector = `#${id}`;
+        } else {
+            const classTokens = rawAttr
+                .split(/\s+/)
+                .map(t => t.trim())
+                .filter(Boolean);
+            const best = classTokens.find(t => !isGenericClassToken(t)) || classTokens[0];
+            const clean = String(best || '').replace(/[^\w-]/g, '').trim();
+            if (clean) selector = `.${clean}`;
+        }
+
+        if (!selector) continue;
+        counts.set(selector, (counts.get(selector) || 0) + 1);
+
+        const list = samples.get(selector) || [];
+        if (list.length < 3) list.push(a.text.slice(0, 90));
+        samples.set(selector, list);
+    }
+
+    return Array.from(counts.entries())
+        .map(([selector, count]) => ({ selector, count, samples: samples.get(selector) || [] }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 12);
+}
+
+async function runGeminiForJson(prompt) {
+    const geminiApiKey = process.env.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) return null;
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(prompt);
+    const text = await result.response.text();
+    return safeParseFirstJsonObject(text);
+}
+
+app.post('/api/sources/analyze', async (req, res) => {
+    const startedAt = Date.now();
+    try {
+        const rawUrl = req?.body?.url;
+        const url = normalizeHttpUrl(rawUrl);
+        if (!url) return res.status(400).json({ success: false, error: 'missing_url' });
+
+        const preflight = await preflightPublicUrl(url);
+        if (!preflight.ok) return res.status(400).json({ success: false, error: preflight.reason });
+
+        const cacheKey = url.toLowerCase().trim();
+        const cached = sourceAnalysisCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            return res.json({ success: true, cached: true, ...cached.value });
+        }
+
+        if (!scrapingBeeApiKey || scrapingBeeApiKey === 'YOUR_SCRAPING_BEE_API_KEY') {
+            return res.status(500).json({ success: false, error: 'scrapingbee_not_configured' });
+        }
+
+        const listResp = await fetchWithTimeout(
+            `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(url)}&render_js=true&block_ads=true&block_resources=true&wait=1200`,
+            {},
+            45000
+        );
+        const listHtmlRaw = await listResp.text().catch(() => '');
+        if (!listResp.ok || listHtmlRaw.length < 800) {
+            return res.status(502).json({
+                success: false,
+                error: 'scrapingbee_failed',
+                status: listResp.status,
+                bodyPreview: listHtmlRaw.slice(0, 400)
+            });
+        }
+
+        const listCandidates = guessListContainerCandidates(listHtmlRaw, url);
+        const anchors = extractAnchorCandidates(listHtmlRaw, url);
+        const sampleArticleUrl = anchors[0]?.url || '';
+
+        let articleHtmlRaw = '';
+        if (sampleArticleUrl) {
+            const articleResp = await fetchWithTimeout(
+                `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(sampleArticleUrl)}&render_js=true&block_ads=true&block_resources=true&wait=900`,
+                {},
+                30000
+            );
+            articleHtmlRaw = await articleResp.text().catch(() => '');
+        }
+
+        let suggested = {
+            selector_list_container: listCandidates[0]?.selector || '',
+            selector_link: '',
+            selector_content: '',
+            selector_ignore: ''
+        };
+
+        const listHtml = stripHtmlNoise(listHtmlRaw, 90000);
+        const articleHtml = stripHtmlNoise(articleHtmlRaw, 90000);
+
+        const ai = await runGeminiForJson(
+            JSON.stringify({
+                task: 'source_selectors',
+                rules: {
+                    output: 'JSON only',
+                    fields: ['selector_list_container', 'selector_link', 'selector_content', 'selector_ignore'],
+                    selector_notes: [
+                        'Prefer robust selectors; avoid too generic containers like .container/.row/.col',
+                        'selector_list_container can contain multiple selectors separated by comma',
+                        'selector_link can be empty if not needed',
+                        'selector_ignore can be empty'
+                    ]
+                },
+                input: {
+                    source_url: url,
+                    list_container_candidates: listCandidates,
+                    list_html_snippet: listHtml,
+                    sample_article_url: sampleArticleUrl,
+                    article_html_snippet: articleHtml
+                }
+            })
+        );
+
+        if (ai && typeof ai === 'object') {
+            suggested = {
+                selector_list_container: String(ai.selector_list_container || suggested.selector_list_container || '').trim(),
+                selector_link: String(ai.selector_link || '').trim(),
+                selector_content: String(ai.selector_content || '').trim(),
+                selector_ignore: String(ai.selector_ignore || '').trim()
+            };
+        } else {
+            if (articleHtmlRaw && /<article\b/i.test(articleHtmlRaw)) suggested.selector_content = 'article';
+            else if (articleHtmlRaw && /<main\b/i.test(articleHtmlRaw)) suggested.selector_content = 'main';
+            else suggested.selector_content = '';
+        }
+
+        const value = {
+            url,
+            listCandidates,
+            sampleArticleUrl,
+            suggested,
+            metrics: {
+                anchorsFound: anchors.length,
+                durationMs: Date.now() - startedAt
+            }
+        };
+
+        sourceAnalysisCache.set(cacheKey, { expiresAt: Date.now() + 1000 * 60 * 30, value });
+        res.json({ success: true, cached: false, ...value });
+    } catch (error) {
+        console.error('Error in /api/sources/analyze:', error);
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'unknown_error' });
+    }
+});
+
 function extractBearerToken(req) {
     const auth = req?.headers?.authorization || req?.headers?.Authorization || '';
     if (typeof auth !== 'string') return null;

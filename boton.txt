@@ -1,0 +1,282 @@
+<style>
+  .sqs-add-to-cart-button {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  #lq-trigger-btn {
+    display: block;
+    width: 100%;
+    padding: 16px 20px;
+    background-color: #c7b185;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 16px;
+    font-family: inherit;
+    transition: background 0.2s;
+  }
+  #lq-trigger-btn:hover { background-color: #b09970; }
+
+  #lq-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  #lq-overlay.lq-open { opacity: 1; pointer-events: all; }
+
+  #lq-modal {
+    background: #fff;
+    border-radius: 10px;
+    padding: 2rem 2rem 1.5rem;
+    width: 94%; max-width: 500px;
+    max-height: 92vh; overflow-y: auto;
+    position: relative;
+    box-sizing: border-box;
+  }
+  #lq-modal h2 {
+    font-size: 22px; font-weight: 700;
+    color: #c7b185; margin: 0 0 4px;
+    font-family: inherit;
+  }
+  #lq-modal p.lq-sub {
+    font-size: 13px; color: #888;
+    margin: 0 0 20px;
+  }
+  .lq-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .lq-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .lq-field label {
+    font-size: 11px; color: #c7b185;
+    font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .lq-field input,
+  .lq-field select,
+  .lq-field textarea {
+    border: 1px solid #e0d5c4;
+    border-radius: 6px;
+    padding: 9px 11px;
+    font-size: 14px; color: #333;
+    width: 100%; box-sizing: border-box;
+    outline: none; background: #faf8f4;
+    font-family: inherit;
+  }
+  .lq-field input:focus,
+  .lq-field select:focus,
+  .lq-field textarea:focus { border-color: #c7b185; }
+  .lq-field textarea { resize: vertical; min-height: 80px; }
+  .lq-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .lq-btn-cancel {
+    background: transparent; border: 1px solid #ddd;
+    border-radius: 6px; padding: 9px 18px;
+    font-size: 14px; color: #999; cursor: pointer;
+    font-family: inherit;
+  }
+  .lq-btn-send {
+    background: #c7b185; color: #fff;
+    border: none; border-radius: 6px;
+    padding: 9px 24px; font-size: 14px;
+    font-weight: 700; cursor: pointer;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    font-family: inherit; transition: background 0.2s;
+  }
+  .lq-btn-send:hover { background: #b09970; }
+  .lq-btn-send:disabled { background: #d9cdb4; cursor: not-allowed; }
+  .lq-close {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none;
+    font-size: 20px; cursor: pointer; color: #bbb;
+    line-height: 1;
+  }
+  .lq-success {
+    text-align: center; padding: 2rem 1rem;
+    display: none;
+  }
+  .lq-success-icon { font-size: 40px; margin-bottom: 12px; }
+  .lq-success h3 { color: #c7b185; font-size: 20px; margin: 0 0 8px; }
+  .lq-success p { color: #888; font-size: 14px; margin: 0; }
+
+  @media (max-width: 500px) {
+    .lq-row { grid-template-columns: 1fr; }
+    #lq-modal { padding: 1.5rem 1.2rem; }
+  }
+</style>
+
+<div id="lq-overlay" onclick="if(event.target===this)lqClose()">
+  <div id="lq-modal">
+    <button class="lq-close" onclick="lqClose()">✕</button>
+
+    <div id="lq-form-wrap">
+      <h2>¡Lo quiero!</h2>
+      <p class="lq-sub">Completa el formulario y te contactamos a la brevedad.</p>
+
+      <div class="lq-row">
+        <div class="lq-field"><label>Nombre</label><input id="lq-nombre" type="text" placeholder="Tu nombre" required /></div>
+        <div class="lq-field"><label>Apellido</label><input id="lq-apellido" type="text" placeholder="Tu apellido" required /></div>
+      </div>
+      <div class="lq-row">
+        <div class="lq-field"><label>Ciudad</label><input id="lq-ciudad" type="text" placeholder="Tu ciudad" required /></div>
+        <div class="lq-field"><label>Teléfono</label><input id="lq-telefono" type="tel" placeholder="+56 9 xxxx xxxx" required /></div>
+      </div>
+      <div class="lq-row">
+        <div class="lq-field"><label>Email</label><input id="lq-email" type="email" placeholder="correo@ejemplo.com" required /></div>
+        <div class="lq-field"><label>Fecha del evento</label><input id="lq-fecha" type="date" required /></div>
+      </div>
+      <div class="lq-field">
+        <label>Tipo de evento</label>
+        <select id="lq-evento">
+          <option value="">Selecciona una opción</option>
+          <option>Matrimonio</option>
+          <option>Baby Shower</option>
+          <option>Cumpleaños</option>
+        </select>
+      </div>
+      <div class="lq-field">
+        <label>Mensaje</label>
+        <textarea id="lq-mensaje" placeholder="Cuéntanos más sobre tu evento..."></textarea>
+      </div>
+
+      <div class="lq-footer">
+        <button class="lq-btn-cancel" onclick="lqClose()">Cancelar</button>
+        <button class="lq-btn-send" id="lq-send-btn" onclick="lqEnviar()">Enviar solicitud</button>
+      </div>
+    </div>
+
+    <div class="lq-success" id="lq-success">
+      <div class="lq-success-icon">✉️</div>
+      <h3>¡Solicitud enviada!</h3>
+      <p>Gracias, pronto nos pondremos en contacto contigo.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+
+  function insertarBoton() {
+    var addToCartBtn = document.querySelector(".sqs-add-to-cart-button");
+    if (!addToCartBtn) return;
+
+    if (document.getElementById("lq-trigger-btn")) return;
+
+    var btn = document.createElement("button");
+    btn.id = "lq-trigger-btn";
+    btn.type = "button";
+    btn.textContent = "Lo quiero";
+    btn.addEventListener("click", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      lqAbrir();
+    });
+
+    var insertTarget = addToCartBtn.closest(".sqs-add-to-cart-button-wrapper") || addToCartBtn.parentNode;
+    if (!insertTarget || !insertTarget.parentNode) return;
+    insertTarget.parentNode.insertBefore(btn, insertTarget);
+  }
+
+  document.addEventListener("DOMContentLoaded", insertarBoton);
+  setTimeout(insertarBoton, 800);
+  setTimeout(insertarBoton, 1600);
+
+  window.lqAbrir = function() {
+    document.getElementById("lq-overlay").classList.add("lq-open");
+    document.body.style.overflow = "hidden";
+  };
+
+  window.lqClose = function() {
+    document.getElementById("lq-overlay").classList.remove("lq-open");
+    document.body.style.overflow = "";
+  };
+
+  window.lqEnviar = function() {
+    var nombre   = document.getElementById("lq-nombre").value.trim();
+    var apellido = document.getElementById("lq-apellido").value.trim();
+    var ciudad   = document.getElementById("lq-ciudad").value.trim();
+    var telefono = document.getElementById("lq-telefono").value.trim();
+    var email    = document.getElementById("lq-email").value.trim();
+    var fecha    = document.getElementById("lq-fecha").value;
+    var evento   = document.getElementById("lq-evento").value;
+    var mensaje  = document.getElementById("lq-mensaje").value.trim();
+
+    if (!nombre || !apellido || !email || !telefono || !evento) {
+      alert("Por favor completa los campos obligatorios: Nombre, Apellido, Teléfono, Email y Tipo de evento.");
+      return;
+    }
+
+    var btn = document.getElementById("lq-send-btn");
+    btn.disabled = true;
+    btn.textContent = "Enviando...";
+
+    var productoTitulo = (
+      document.querySelector(".ProductItem-details-title h1") ||
+      document.querySelector(".product-title h1") ||
+      document.querySelector("h1.entry-title")
+    );
+    var producto = productoTitulo ? productoTitulo.innerText.trim() : window.location.pathname;
+
+    var formData = {
+      "formId":    "lq-contact-form",
+      "pagePath":  window.location.pathname,
+      "fields": [
+        { "rawLabel": "Nombre",         "value": nombre },
+        { "rawLabel": "Apellido",       "value": apellido },
+        { "rawLabel": "Ciudad",         "value": ciudad },
+        { "rawLabel": "Teléfono",       "value": telefono },
+        { "rawLabel": "Email",          "value": email },
+        { "rawLabel": "Fecha Evento",   "value": fecha },
+        { "rawLabel": "Tipo de Evento", "value": evento },
+        { "rawLabel": "Producto",       "value": producto },
+        { "rawLabel": "Mensaje",        "value": mensaje }
+      ]
+    };
+
+    fetch("/api/form-submission", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: JSON.stringify(formData)
+    })
+    .then(function(res) {
+      if (res.ok || res.status === 200) {
+        document.getElementById("lq-form-wrap").style.display = "none";
+        document.getElementById("lq-success").style.display = "block";
+        setTimeout(lqClose, 3500);
+      } else {
+        throw new Error("Error " + res.status);
+      }
+    })
+    .catch(function(err) {
+      var asunto = encodeURIComponent("Solicitud: " + producto);
+      var cuerpo = encodeURIComponent(
+        "Nombre: " + nombre + " " + apellido + "\n" +
+        "Ciudad: " + ciudad + "\n" +
+        "Teléfono: " + telefono + "\n" +
+        "Email: " + email + "\n" +
+        "Fecha: " + fecha + "\n" +
+        "Evento: " + evento + "\n" +
+        "Producto: " + producto + "\n\n" +
+        "Mensaje:\n" + mensaje
+      );
+      window.location.href = "mailto:TU_CORREO@letsgou.cl?subject=" + asunto + "&body=" + cuerpo;
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.textContent = "Enviar solicitud";
+    });
+  };
+
+})();
+</script>
