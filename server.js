@@ -661,19 +661,8 @@ const scrapeHandler = async (req, res) => {
                         while ((containerMatch = regexPattern.exec(html)) !== null) {
                             const content = containerMatch[1];
                             
-                            // Look for all links in the container
-                            const linkMatches = content.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>/gi);
-                            for (const lm of linkMatches) {
-                                 let url = lm[1];
-                                 if (url.startsWith('/')) {
-                                     try {
-                                         const urlObj = new URL(source.url);
-                                         url = `${urlObj.protocol}//${urlObj.host}${url}`;
-                                     } catch (e) {}
-                                 }
-                                 highPriorityUrls.add(url);
-                                 // console.log(`[DEBUG] Found High Priority URL via Dynamic Selector (${selector}): ${url}`);
-                            }
+                    const extracted = extractLinksFromContainerHtml(content, source.url, source.selector_link);
+                    for (const url of extracted) highPriorityUrls.add(url);
                         }
                     }
                 } else {
@@ -931,6 +920,8 @@ const scrapeHandler = async (req, res) => {
 
                         // Final image extraction for the news record (thumbnail)
                         const finalImageUrl = targetedImageUrl || extractImage(articleHtml, article.url);
+                        const detectedCategory = extractArticleCategory(articleHtml);
+                        const finalCategory = detectedCategory || source.category || null;
 
                         return {
                             title: article.title,
@@ -943,8 +934,19 @@ const scrapeHandler = async (req, res) => {
                             is_processed: false,
                             is_selected: false,
                             source_id: source.id,
-                            category: source.category || null,
-                            metadata: runId ? { scrape_run_id: runId, source_name: source.name, source_category: source.category || null } : null
+                            category: finalCategory,
+                            metadata: runId
+                                ? {
+                                    scrape_run_id: runId,
+                                    source_name: source.name,
+                                    source_category: source.category || null,
+                                    detected_category: detectedCategory
+                                }
+                                : {
+                                    source_name: source.name,
+                                    source_category: source.category || null,
+                                    detected_category: detectedCategory
+                                }
                         };
                     } catch (error) {
                         console.warn(`Skipping ${article.url} due to exception:`, error);
@@ -1114,6 +1116,42 @@ function toAbsoluteUrl(href, baseUrl) {
     } catch (e) {
         return '';
     }
+}
+
+function extractLinksFromContainerHtml(containerHtml, baseUrl, selectorLink) {
+    const urls = new Set();
+    const selectorRaw = String(selectorLink || '').trim();
+    const selectors = selectorRaw
+        ? selectorRaw.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+    const anchorClassNames = new Set();
+    for (const sel of selectors) {
+        const m1 = sel.match(/a\.([A-Za-z0-9_-]+)/);
+        if (m1?.[1]) anchorClassNames.add(m1[1]);
+
+        const m2 = sel.match(/\.([A-Za-z0-9_-]+)/);
+        if (m2?.[1]) anchorClassNames.add(m2[1]);
+    }
+
+    if (anchorClassNames.size > 0) {
+        for (const className of anchorClassNames) {
+            const re = new RegExp(`<a\\b[^>]*class=["'][^"']*${className}[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>`, 'gi');
+            let m;
+            while ((m = re.exec(containerHtml)) !== null) {
+                const fullUrl = toAbsoluteUrl(m[1], baseUrl);
+                if (fullUrl) urls.add(fullUrl);
+            }
+        }
+        return Array.from(urls);
+    }
+
+    const linkMatches = containerHtml.matchAll(/<a\b[^>]+href=["']([^"']+)["'][^>]*>/gi);
+    for (const lm of linkMatches) {
+        const fullUrl = toAbsoluteUrl(lm[1], baseUrl);
+        if (fullUrl) urls.add(fullUrl);
+    }
+    return Array.from(urls);
 }
 
 function extractAnchorCandidates(html, baseUrl) {
@@ -1915,6 +1953,85 @@ function isCssNoiseContent(text) {
     const ratio = (braces + semicolons + colons) / Math.max(t.length, 1);
 
     return (braces >= 4 && semicolons >= 6 && colons >= 6) || ratio > 0.08;
+}
+
+function normalizeNewsCategory(raw) {
+    const t = String(raw || '').trim().toLowerCase();
+    if (!t) return null;
+
+    const direct = {
+        'deportes': 'deportes',
+        'deporte': 'deportes',
+        'sport': 'deportes',
+        'sports': 'deportes',
+        'economia': 'economía',
+        'economía': 'economía',
+        'negocios': 'economía',
+        'business': 'economía',
+        'politica': 'política',
+        'política': 'política',
+        'politics': 'política',
+        'tecnologia': 'tecnología',
+        'tecnología': 'tecnología',
+        'tech': 'tecnología',
+        'tecnica': 'tecnología',
+        'entretenimiento': 'entretenimiento',
+        'espectaculos': 'entretenimiento',
+        'espectáculos': 'entretenimiento',
+        'cultura': 'entretenimiento',
+        'general': 'general',
+        'nacional': 'general',
+        'internacional': 'general',
+        'mundo': 'general',
+        'actualidad': 'general',
+        'noticias': 'general'
+    };
+    if (direct[t]) return direct[t];
+
+    if (t.includes('deport')) return 'deportes';
+    if (t.includes('econom')) return 'economía';
+    if (t.includes('pol')) return 'política';
+    if (t.includes('tecno') || t.includes('digit')) return 'tecnología';
+    if (t.includes('entreten') || t.includes('espect') || t.includes('cultura')) return 'entretenimiento';
+    return null;
+}
+
+function decodeHtmlEntities(text) {
+    return String(text || '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>');
+}
+
+function extractArticleCategory(html) {
+    if (!html || typeof html !== 'string') return null;
+    const metaRegexes = [
+        /<meta[^>]+property=["']article:section["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+        /<meta[^>]+property=["']og:section["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+        /<meta[^>]+name=["']section["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+        /<meta[^>]+name=["']category["'][^>]+content=["']([^"']+)["'][^>]*>/i
+    ];
+    for (const re of metaRegexes) {
+        const m = html.match(re);
+        if (m?.[1]) {
+            const normalized = normalizeNewsCategory(decodeHtmlEntities(m[1]));
+            if (normalized) return normalized;
+        }
+    }
+
+    // Try to infer from breadcrumbs/nav links if meta tags do not exist
+    const anchorRegex = /<a[^>]*>([\s\S]*?)<\/a>/gi;
+    let m;
+    while ((m = anchorRegex.exec(html)) !== null) {
+        const text = decodeHtmlEntities(m[1]).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!text || text.length > 35) continue;
+        const normalized = normalizeNewsCategory(text);
+        if (normalized) return normalized;
+    }
+    return null;
 }
 
 function extractBalancedTagChunk(html, startIndex, tagName, maxScan = 250000) {

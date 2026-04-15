@@ -174,7 +174,7 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     grid-template-columns: 1.25fr 1fr;
     grid-template-areas:
         'news broadcasts'
-        'sources radios';
+        'sources latest';
     gap: 24px;
     margin-bottom: 32px;
     align-items: stretch;
@@ -185,7 +185,7 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             'news'
             'broadcasts'
             'sources'
-            'radios';
+            'latest';
     }
 
     @media (max-width: 768px) {
@@ -205,8 +205,8 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     grid-area: sources;
 }
 
-.card-radios {
-    grid-area: radios;
+.card-latest-news {
+    grid-area: latest;
 }
 
 // List Styles (Sources & Radios)

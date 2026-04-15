@@ -513,11 +513,11 @@ export class SupabaseService {
         }
 
         if (options?.category && options.category !== 'all') {
-            query = query.eq('source_category', options.category);
+            query = query.eq('category', options.category);
         }
 
         if (options?.since) {
-            query = query.gte('scraped_at', options.since);
+            query = query.gte('published_at', options.since);
         }
 
         const { data, error } = await query;

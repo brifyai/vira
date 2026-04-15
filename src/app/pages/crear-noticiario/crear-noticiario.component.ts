@@ -137,7 +137,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     // News detail modal
     selectedNewsDetail: ScrapedNews | null = null;
 
-    // Categories (derived from sources)
+    // Categories (derived from available news)
     categories: string[] = ['all'];
 
     // Sources
@@ -221,7 +221,6 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             const data = await this.supabaseService.safeFetch(
                 () => this.supabaseService.getScrapedNews({
                     limit: 500,
-                    category: this.categoryFilter,
                     sourceIds,
                     since: since || undefined
                 }),
@@ -249,13 +248,23 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     is_selected: item.is_selected,
                     source_id: item.source_id,
                     source_name: item.source_name || 'Fuente desconocida',
-                    category: item.source_category || item.category || 'general',
+                    category: item.category || 'general',
                     publishedAt: item.published_at ? new Date(item.published_at) : undefined,
                     readingTime: calculatedReadingTime,
                     humanizedContent: item.humanizedContent, // Assuming this might come from view or join
                     formattedDate: this.formatDate(item.published_at ? new Date(item.published_at) : undefined)
                 };
             });
+
+            const uniqueNewsCategories = new Set(
+                this.availableNews
+                    .map(n => String(n.category || '').trim())
+                    .filter(Boolean)
+            );
+            this.categories = ['all', ...Array.from(uniqueNewsCategories).sort((a, b) => a.localeCompare(b, 'es'))];
+            if (this.categoryFilter !== 'all' && !uniqueNewsCategories.has(this.categoryFilter)) {
+                this.categoryFilter = 'all';
+            }
 
             // console.log('Available news mapped:', this.availableNews);
         } catch (error) {
@@ -310,13 +319,6 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             
             // Filter active sources
             this.activeSources = this.sources.filter(s => s.active);
-
-            const uniqueCategories = new Set(
-                this.activeSources
-                    .map(s => String(s.category || '').trim())
-                    .filter(Boolean)
-            );
-            this.categories = ['all', ...Array.from(uniqueCategories).sort((a, b) => a.localeCompare(b, 'es'))];
 
             const uniqueRegions = new Set(
                 this.activeSources

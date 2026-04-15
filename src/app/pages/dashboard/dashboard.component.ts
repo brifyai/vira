@@ -16,19 +16,21 @@ export class DashboardComponent implements OnInit {
         totalBroadcasts: 0,
         activeAutomations: 0,
         recentNews: 0,
-        totalRadios: 0,
+        latestNews: 0,
         totalSources: 0
     };
 
     // Data Lists
     recentNews: any[] = [];
     recentBroadcasts: any[] = [];
-    radios: any[] = [];
     sources: any[] = [];
     automations: any[] = [];
+    latestScrapeNews: any[] = [];
+    categorySummary: Array<{ category: string; count: number }> = [];
+    latestScrapeWindowLabel = '';
+    latestScrapeSlot: 9 | 16 | null = null;
+    latestScrapeDay = '';
 
-    radiosPage = 1;
-    radiosPageSize = 8;
     sourcesPage = 1;
     sourcesPageSize = 8;
 
@@ -49,40 +51,31 @@ export class DashboardComponent implements OnInit {
         try {
             // Fetch all required data in parallel
             const [
-                radiosData,
                 sourcesData,
                 broadcastsData,
                 newsData
             ] = await Promise.all([
-                this.supabaseService.safeFetch(() => this.supabaseService.getRadios(), 3, 15000),
                 this.supabaseService.safeFetch(() => this.supabaseService.getNewsSources(), 3, 15000),
                 this.supabaseService.safeFetch(() => this.supabaseService.getNewsBroadcasts({ limit: 5 }), 3, 15000),
-                this.supabaseService.safeFetch(() => this.supabaseService.getScrapedNews({ limit: 5 }), 3, 15000)
+                this.supabaseService.safeFetch(() => this.supabaseService.getScrapedNews({ limit: 500 }), 3, 15000)
             ]);
 
-            this.radios = radiosData || [];
             this.sources = sourcesData || [];
             this.recentBroadcasts = broadcastsData || [];
             this.recentNews = newsData || [];
-            this.radiosPage = 1;
             this.sourcesPage = 1;
+            this.rebuildCategorySummary();
+            this.rebuildLatestScrapeNews();
 
             // Update stats
             this.stats = {
-                totalNews: 0, // We'd need a count query for total, for now use length of what we might fetch or just 0
-                totalBroadcasts: broadcastsData ? broadcastsData.length : 0, // This is just page length, ideally we need count
-                activeAutomations: 0, // Placeholder
-                recentNews: newsData ? newsData.length : 0,
-                totalRadios: this.radios.length,
+                totalNews: this.recentNews.length,
+                totalBroadcasts: broadcastsData ? broadcastsData.length : 0,
+                activeAutomations: 0,
+                recentNews: this.recentNews.length,
+                latestNews: this.latestScrapeNews.length,
                 totalSources: this.sources.length
             };
-
-            // Calculate "totals" properly if possible, or just use what we have
-            // Since we don't have count endpoints, we rely on the returned arrays.
-            // getRadios() returns all, so length is accurate.
-            // getNewsBroadcasts({limit:5}) returns 5. We can't know total without a count query.
-            // For now, let's just display the counts we have or hide the "Total" cards if inaccurate.
-            // But user asked for "Radios -> cuantas radios", so that one is covered.
             
         } catch (error) {
             console.error('Error loading dashboard data:', error);
@@ -92,30 +85,13 @@ export class DashboardComponent implements OnInit {
         }
     }
 
-    get radiosTotalPages(): number {
-        return Math.max(1, Math.ceil(this.radios.length / this.radiosPageSize));
-    }
-
     get sourcesTotalPages(): number {
         return Math.max(1, Math.ceil(this.sources.length / this.sourcesPageSize));
-    }
-
-    get pagedRadios(): any[] {
-        const start = (this.radiosPage - 1) * this.radiosPageSize;
-        return this.radios.slice(start, start + this.radiosPageSize);
     }
 
     get pagedSources(): any[] {
         const start = (this.sourcesPage - 1) * this.sourcesPageSize;
         return this.sources.slice(start, start + this.sourcesPageSize);
-    }
-
-    prevRadiosPage() {
-        this.radiosPage = Math.max(1, this.radiosPage - 1);
-    }
-
-    nextRadiosPage() {
-        this.radiosPage = Math.min(this.radiosTotalPages, this.radiosPage + 1);
     }
 
     prevSourcesPage() {
@@ -176,5 +152,73 @@ export class DashboardComponent implements OnInit {
         if (hours < 24) return `Hace ${hours} h`;
         if (days < 7) return `Hace ${days} días`;
         return d.toLocaleDateString('es-ES');
+    }
+
+    private getChileDateParts(dateInput: string | Date): { dateKey: string; hour: number } {
+        const d = new Date(dateInput);
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Santiago',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            hour12: false
+        }).formatToParts(d);
+
+        const year = parts.find(p => p.type === 'year')?.value || '0000';
+        const month = parts.find(p => p.type === 'month')?.value || '01';
+        const day = parts.find(p => p.type === 'day')?.value || '01';
+        const hour = Number(parts.find(p => p.type === 'hour')?.value || '0');
+        return { dateKey: `${year}-${month}-${day}`, hour };
+    }
+
+    private getScrapeSlotHour(hour: number): 9 | 16 {
+        return hour >= 16 ? 16 : 9;
+    }
+
+    private rebuildLatestScrapeNews(): void {
+        if (!this.recentNews || this.recentNews.length === 0) {
+            this.latestScrapeNews = [];
+            this.latestScrapeWindowLabel = '';
+            this.latestScrapeSlot = null;
+            this.latestScrapeDay = '';
+            return;
+        }
+
+        const sorted = [...this.recentNews].sort((a, b) => {
+            const da = new Date(a.scraped_at || a.published_at || a.created_at || 0).getTime();
+            const db = new Date(b.scraped_at || b.published_at || b.created_at || 0).getTime();
+            return db - da;
+        });
+
+        const first = sorted[0];
+        const firstDate = first.scraped_at || first.published_at || first.created_at;
+        const parts = this.getChileDateParts(firstDate);
+        const slot = this.getScrapeSlotHour(parts.hour);
+
+        this.latestScrapeSlot = slot;
+        this.latestScrapeDay = parts.dateKey;
+        this.latestScrapeWindowLabel = `${parts.dateKey} · ${slot}:00`;
+
+        const filtered = sorted.filter(n => {
+            const dateRef = n.scraped_at || n.published_at || n.created_at;
+            const p = this.getChileDateParts(dateRef);
+            return p.dateKey === parts.dateKey && this.getScrapeSlotHour(p.hour) === slot;
+        });
+
+        this.latestScrapeNews = filtered.slice(0, 5);
+    }
+
+    private rebuildCategorySummary(): void {
+        const counts = new Map<string, number>();
+        for (const n of this.recentNews || []) {
+            const category = String(n.category || 'general').trim().toLowerCase() || 'general';
+            counts.set(category, (counts.get(category) || 0) + 1);
+        }
+
+        this.categorySummary = Array.from(counts.entries())
+            .map(([category, count]) => ({ category, count }))
+            .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category, 'es'))
+            .slice(0, 12);
     }
 }

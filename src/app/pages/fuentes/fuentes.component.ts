@@ -159,62 +159,6 @@ export class FuentesComponent implements OnInit {
         }
     }
 
-    private async analyzeSourceSelectors(url: string): Promise<{
-        ok: boolean;
-        selectors: {
-            selectorListContainer: string;
-            selectorLink: string;
-            selectorContent: string;
-            selectorIgnore: string;
-        };
-        error?: string;
-        raw?: any;
-    }> {
-        const cleanUrl = String(url || '').trim();
-        if (!cleanUrl) {
-            return {
-                ok: false,
-                selectors: { selectorListContainer: '', selectorLink: '', selectorContent: '', selectorIgnore: '' },
-                error: 'missing_url'
-            };
-        }
-        try {
-            const response = await fetch(`${config.apiUrl}/api/sources/analyze`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: cleanUrl })
-            });
-            const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.success) {
-                const err = String(data?.error || `http_${response.status}`);
-                return {
-                    ok: false,
-                    selectors: { selectorListContainer: '', selectorLink: '', selectorContent: '', selectorIgnore: '' },
-                    error: err,
-                    raw: data
-                };
-            }
-
-            const suggested = data?.suggested || {};
-            return {
-                ok: true,
-                selectors: {
-                    selectorListContainer: String(suggested.selector_list_container || '').trim(),
-                    selectorLink: String(suggested.selector_link || '').trim(),
-                    selectorContent: String(suggested.selector_content || '').trim(),
-                    selectorIgnore: String(suggested.selector_ignore || '').trim()
-                },
-                raw: data
-            };
-        } catch {
-            return {
-                ok: false,
-                selectors: { selectorListContainer: '', selectorLink: '', selectorContent: '', selectorIgnore: '' },
-                error: 'network_error'
-            };
-        }
-    }
-
     openFailuresModal(): void {
         this.showFailuresModal = true;
         this.failuresRunIdFilter = this.importRunId || this.failuresRunIdFilter || '';
@@ -772,67 +716,15 @@ export class FuentesComponent implements OnInit {
             this.importProcessed = 0;
             this.importCreated = 0;
             this.importFailed = 0;
-            this.importMessage = 'Iniciando análisis e importación...';
+            this.importMessage = 'Iniciando importación...';
             this.cdr.detectChanges();
 
             await this.mapWithConcurrency(toImport, 2, async (item) => {
                 const name = item.name || 'Fuente Importada';
-                this.importMessage = `Analizando: ${name}`;
-                this.cdr.detectChanges();
-
-                const hasAnySelector =
-                    !!String(item.selectorListContainer || '').trim() ||
-                    !!String(item.selectorContent || '').trim() ||
-                    !!String(item.selectorLink || '').trim() ||
-                    !!String(item.selectorIgnore || '').trim();
-
-                let selectorListContainer = String(item.selectorListContainer || '').trim();
-                let selectorLink = String(item.selectorLink || '').trim();
-                let selectorContent = String(item.selectorContent || '').trim();
-                let selectorIgnore = String(item.selectorIgnore || '').trim();
-
-                if (!hasAnySelector) {
-                    const analysis = await this.analyzeSourceSelectors(item.url);
-                    if (analysis.ok) {
-                        selectorListContainer = String(analysis.selectors.selectorListContainer || '').trim();
-                        selectorLink = String(analysis.selectors.selectorLink || '').trim();
-                        selectorContent = String(analysis.selectors.selectorContent || '').trim();
-                        selectorIgnore = String(analysis.selectors.selectorIgnore || '').trim();
-
-                        const allEmpty =
-                            !selectorListContainer && !selectorLink && !selectorContent && !selectorIgnore;
-                        const listCandidatesCount = Array.isArray(analysis.raw?.listCandidates)
-                            ? analysis.raw.listCandidates.length
-                            : 0;
-
-                        if (allEmpty || listCandidatesCount === 0) {
-                            await this.logSourceImportFailure({
-                                url: item.url,
-                                name,
-                                stage: 'analysis',
-                                errorCode: 'no_selectors_detected',
-                                errorMessage: 'No se pudieron detectar selectores para esta fuente',
-                                region: item.region || null,
-                                details: {
-                                    listCandidatesCount,
-                                    sampleArticleUrl: analysis.raw?.sampleArticleUrl || null
-                                }
-                            });
-                        }
-                    } else {
-                        await this.logSourceImportFailure({
-                            url: item.url,
-                            name,
-                            stage: 'analysis',
-                            errorCode: analysis.error || 'analysis_failed',
-                            errorMessage: 'Falló el análisis automático de la fuente',
-                            region: item.region || null,
-                            details: {
-                                error: analysis.error || null
-                            }
-                        });
-                    }
-                }
+                const selectorListContainer = String(item.selectorListContainer || '').trim();
+                const selectorLink = String(item.selectorLink || '').trim();
+                const selectorContent = String(item.selectorContent || '').trim();
+                const selectorIgnore = String(item.selectorIgnore || '').trim();
 
                 this.importMessage = `Guardando: ${name}`;
                 this.cdr.detectChanges();

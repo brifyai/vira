@@ -45,14 +45,15 @@
             <div class="stat-card stat-card-info">
                 <div class="stat-icon">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M2 12h20"></path>
-                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="8" y1="13" x2="16" y2="13"></line>
+                        <line x1="8" y1="17" x2="12" y2="17"></line>
                     </svg>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-value">{{ stats.totalRadios }}</div>
-                    <div class="stat-label">Radios</div>
+                    <div class="stat-value">{{ stats.latestNews }}</div>
+                    <div class="stat-label">Últimas Noticias</div>
                 </div>
             </div>
 
@@ -73,7 +74,7 @@
 
         <!-- Main Content Grid -->
         <div class="content-grid">
-            <!-- Recent News -->
+            <!-- News Categories -->
             <div class="content-card card-news">
                     <div class="card-header">
                         <h2 class="card-title">
@@ -81,22 +82,21 @@
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                 <polyline points="14 2 14 8 20 8"></polyline>
                             </svg>
-                            Noticias Recientes
+                            Noticias Por Categoría
                         </h2>
                     </div>
                     <div class="card-body">
                         <div class="news-list">
-                            <div class="news-item" *ngFor="let news of recentNews">
+                            <div class="news-item" *ngFor="let item of categorySummary">
                                 <div class="news-content">
-                                    <h3 class="news-title">{{ news.title }}</h3>
+                                    <h3 class="news-title">{{ item.category }}</h3>
                                     <div class="news-meta">
-                                        <span class="news-source">{{ news.source }}</span>
-                                        <span class="news-time">{{ formatDate(news.created_at) }}</span>
+                                        <span class="news-source">{{ item.count }} noticias</span>
                                     </div>
                                 </div>
                             </div>
-                            <div class="empty-message" *ngIf="recentNews.length === 0">
-                                No hay noticias recientes
+                            <div class="empty-message" *ngIf="categorySummary.length === 0">
+                                No hay categorías disponibles
                             </div>
                         </div>
                     </div>
@@ -164,35 +164,33 @@
                     </div>
                 </div>
 
-                <!-- Radios List -->
-                <div class="content-card card-radios">
+                <!-- Latest Scrape News -->
+                <div class="content-card card-latest-news">
                     <div class="card-header">
                         <h2 class="card-title">
                             <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <path d="M2 12h20"></path>
-                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="8" y1="13" x2="16" y2="13"></line>
                             </svg>
-                            Radios
+                            Últimas Noticias
                         </h2>
+                        <span class="pagination-info" *ngIf="latestScrapeWindowLabel">
+                            Ventana: {{ latestScrapeWindowLabel }}
+                        </span>
                     </div>
                     <div class="card-body">
                         <div class="list-container">
-                            <div class="list-item" *ngFor="let radio of pagedRadios">
+                            <div class="list-item" *ngFor="let news of latestScrapeNews">
                                 <div class="item-content">
-                                    <h3 class="item-title">{{ radio.name }}</h3>
-                                    <p class="item-subtitle">{{ radio.city || 'Sin ubicación' }}</p>
-                                    <span class="item-link">{{ radio.stream_url }}</span>
+                                    <h3 class="item-title">{{ news.title }}</h3>
+                                    <p class="item-subtitle">{{ news.source_name || 'Fuente desconocida' }} · {{ news.category || 'general' }}</p>
+                                    <a [href]="news.original_url" target="_blank" rel="noopener" class="item-link">{{ news.original_url }}</a>
                                 </div>
                             </div>
-                            <div class="empty-message" *ngIf="radios.length === 0">
-                                No hay radios configuradas
+                            <div class="empty-message" *ngIf="latestScrapeNews.length === 0">
+                                No hay noticias para la última ventana de scraping
                             </div>
-                        </div>
-                        <div class="pagination" *ngIf="radiosTotalPages > 1">
-                            <span class="pagination-info">Página {{ radiosPage }} de {{ radiosTotalPages }}</span>
-                            <button class="pagination-btn" (click)="prevRadiosPage()" [disabled]="radiosPage <= 1">Anterior</button>
-                            <button class="pagination-btn" (click)="nextRadiosPage()" [disabled]="radiosPage >= radiosTotalPages">Siguiente</button>
                         </div>
                     </div>
                 </div>
