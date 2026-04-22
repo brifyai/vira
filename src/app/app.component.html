@@ -1,6 +1,6 @@
 <div class="app-container">
     <!-- Header/Navigation -->
-    <header class="app-header">
+    <header class="app-header" *ngIf="isLoggedIn">
         <div class="header-left">
             <button class="menu-toggle" (click)="toggleMenu()" aria-label="Toggle menu">
                 <span class="menu-icon"></span>
@@ -117,10 +117,10 @@
     </header>
 
     <!-- Main Content Area -->
-    <main class="main-content">
+    <main class="main-content" [class.public]="!isLoggedIn">
         <router-outlet></router-outlet>
     </main>
 
     <!-- Overlay for mobile menu -->
-    <div class="menu-overlay" [class.active]="isMenuOpen" (click)="toggleMenu()"></div>
+    <div class="menu-overlay" *ngIf="isLoggedIn" [class.active]="isMenuOpen" (click)="toggleMenu()"></div>
 </div>

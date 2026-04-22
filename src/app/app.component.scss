@@ -356,6 +356,10 @@ body {
     overflow-y: auto;
 }
 
+.main-content.public {
+    margin-top: 0;
+}
+
 // Menu Overlay (Mobile)
 .menu-overlay {
     display: none;
@@ -403,6 +407,10 @@ body {
     .main-content {
         margin-top: 60px;
         padding: 0;
+    }
+
+    .main-content.public {
+        margin-top: 0;
     }
 
     .logo .logo-text {
