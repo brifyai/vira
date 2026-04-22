@@ -16,11 +16,12 @@ export class WelcomeComponent implements OnInit {
     private router = inject(Router);
     private supabaseService = inject(SupabaseService);
 
-    sourcesCount: number | null = null;
+    sourcesCount = 0;
+    sourcesCountLoaded = false;
     readonly audioExampleSrc = 'ejemplo/Ejemplo.wav';
 
     get sourcesCountHuman(): string {
-        return this.sourcesCount === null ? 'muchas' : String(this.sourcesCount);
+        return this.sourcesCountLoaded ? String(this.sourcesCount) : '...';
     }
 
     ngOnInit(): void {
@@ -34,11 +35,28 @@ export class WelcomeComponent implements OnInit {
     }
 
     private async loadSourcesCount(): Promise<void> {
-        const sources = await this.supabaseService.safeFetch(
-            () => this.supabaseService.getNewsSources(),
+        const count = await this.supabaseService.safeFetch<number | null>(
+            async () => {
+                const { count, error } = await this.supabaseService
+                    .getClient()
+                    .from('news_sources')
+                    .select('*', { count: 'exact', head: true });
+
+                if (error) throw error;
+                return count ?? null;
+            },
             1,
             8000
         );
-        this.sourcesCount = sources ? sources.length : null;
+
+        if (typeof count === 'number') {
+            this.sourcesCount = count;
+            this.sourcesCountLoaded = true;
+            return;
+        }
+
+        const sources = await this.supabaseService.safeFetch(() => this.supabaseService.getNewsSources(), 1, 8000);
+        this.sourcesCount = sources ? sources.length : 0;
+        this.sourcesCountLoaded = true;
     }
 }
