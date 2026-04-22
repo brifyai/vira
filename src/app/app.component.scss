@@ -10,14 +10,14 @@ $secondary-color: #8b5cf6;
 $success-color: #10b981;
 $warning-color: #f59e0b;
 $danger-color: #ef4444;
-$dark-bg: #0f172a;
-$dark-surface: #1e293b;
-$dark-border: #334155;
+$dark-bg: var(--background);
+$dark-surface: rgba(255, 255, 255, 0.05);
+$dark-border: rgba(255, 255, 255, 0.1);
 $light-bg: #f8fafc;
 $light-surface: #ffffff;
 $light-border: #e2e8f0;
-$text-primary: #f8fafc;
-$text-secondary: #94a3b8;
+$text-primary: var(--foreground);
+$text-secondary: var(--muted);
 $text-muted: #64748b;
 $shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 $shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -43,7 +43,7 @@ body {
 .app-container {
     min-height: 100vh;
     width: 100%;
-    background: linear-gradient(135deg, $dark-bg 0%, #1a1a2e 100%);
+    background: transparent;
     display: flex;
     flex-direction: column;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -56,7 +56,7 @@ body {
     left: 0;
     right: 0;
     height: 70px;
-    background: rgba(30, 41, 59, 0.95);
+    background: $dark-surface;
     backdrop-filter: blur(10px);
     border-bottom: 1px solid $dark-border;
     display: flex;
@@ -157,7 +157,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(15, 23, 42, 0.5);
+    background: rgba(255, 255, 255, 0.05);
     padding: 8px 16px;
     border-radius: 12px;
     border: 1px solid $dark-border;

@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+:root {
+  --background: #020617;
+  --foreground: #e2e8f0;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-strong: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.1);
+  --muted: #94a3b8;
+  --primary: #2563eb;
+  --primary-hover: #3b82f6;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+.lalolex{font-size: 10px;}
+.lalolex2{font-size: 10px;}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #020617;
+    --foreground: #e2e8f0;
+  }
+}
+
+body {
+  background: radial-gradient(560px 560px at 50% -120px, rgba(37, 99, 235, 0.25), transparent 70%),
+    radial-gradient(520px 520px at 120% 110%, rgba(99, 102, 241, 0.20), transparent 70%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+    Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+@layer components {
+  .app-card {
+    @apply rounded-3xl border border-white/10 bg-white/5 backdrop-blur;
+  }
+  .app-card-strong {
+    @apply rounded-3xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 backdrop-blur;
+  }
+  .app-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50;
+  }
+  .app-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50;
+  }
+  .app-input {
+    @apply block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-400 outline-none ring-0 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20;
+  }
+  .app-label {
+    @apply text-sm font-medium text-slate-200;
+  }
+  .app-muted {
+    @apply text-sm text-slate-300;
+  }
+}
