@@ -20,7 +20,6 @@ export class AppComponent implements OnInit {
     menuItems = [
         { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
         { path: '/crear-noticiario', label: 'Crear Noticiario', icon: 'add_circle' },
-        { path: '/ultimo-minuto', label: 'Último Minuto', icon: 'flash_on' },
         { path: '/timeline-noticiario', label: 'Timeline Noticiario', icon: 'timeline' },
         { path: '/mis-noticieros', label: 'Mis Noticieros', icon: 'folder_special' }
     ];

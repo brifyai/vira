@@ -327,6 +327,15 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: auto;
 }
 
+.empty-message {
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px dashed rgba($dark-border, 0.9);
+    background: rgba(0, 0, 0, 0.12);
+    color: $text-secondary;
+    font-size: 13px;
+}
+
 .news-item {
     display: flex;
     align-items: center;

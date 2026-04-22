@@ -1,0 +1,763 @@
+<style>
+
+  .sqs-add-to-cart-button {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+.newsletter-form-body,
+.newsletter-form-body * {
+  font-family: 'Libre Baskerville' !important;
+}
+  #lq-modal,
+#lq-modal * {
+  font-family: "Libre Baskerville", serif !important;
+}
+  #lq-trigger-btn {
+    display: block;
+    width: 100%;
+    padding: 16px 20px;
+    background-color: #9B8B63;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 16px;
+    font-family: inherit;
+    transition: background 0.2s;
+  }
+  #lq-trigger-btn:hover { background-color: #b09970; }
+
+  #lq-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  #lq-overlay.lq-open { opacity: 1; pointer-events: all; }
+
+  #lq-modal {
+    background: #fff;
+    border-radius: 10px;
+    padding: 2rem 2rem 1.5rem;
+    width: 94%; max-width: 500px;
+    max-height: 92vh; overflow-y: auto;
+    position: relative;
+    box-sizing: border-box;
+  }
+  #lq-modal h2 {
+    font-size: 22px; font-weight: 700;
+    color: #9B8B63; margin: 0 0 4px;
+    font-family: inherit;
+  }
+  #lq-modal p.lq-sub {
+    font-size: 13px; color: #888;
+    margin: 0 0 20px;
+  }
+  .lq-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .lq-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .lq-field label {
+    font-size: 11px; color: #9B8B63;
+    font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .lq-field input,
+  .lq-field select,
+  .lq-field textarea {
+    border: 1px solid #e0d5c4;
+    border-radius: 6px;
+    padding: 9px 11px;
+    font-size: 14px; color: #333;
+    width: 100%; box-sizing: border-box;
+    outline: none; background: #faf8f4;
+    font-family: inherit;
+  }
+  .lq-field input:focus,
+  .lq-field select:focus,
+  .lq-field textarea:focus { border-color: #9B8B63; }
+  .lq-field textarea { resize: vertical; min-height: 80px; }
+  .lq-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .lq-btn-cancel {
+    background: transparent; border: 1px solid #ddd;
+    border-radius: 6px; padding: 9px 18px;
+    font-size: 14px; color: #999; cursor: pointer;
+    font-family: inherit;
+  }
+  .lq-btn-send {
+    background: #9B8B63; color: #fff;
+    border: none; border-radius: 6px;
+    padding: 9px 24px; font-size: 14px;
+    font-weight: 700; cursor: pointer;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    font-family: inherit; transition: background 0.2s;
+  }
+  .lq-btn-send:hover { background: #b09970; }
+  .lq-btn-send:disabled { background: #d9cdb4; cursor: not-allowed; }
+  .lq-close {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none;
+    font-size: 20px; cursor: pointer; color: #bbb;
+    line-height: 1;
+  }
+  .lq-success {
+    text-align: center; padding: 2rem 1rem;
+    display: none;
+  }
+  .lq-success-icon { font-size: 40px; margin-bottom: 12px; }
+  .lq-success h3 { color: #9B8B63; font-size: 20px; margin: 0 0 8px; }
+  .lq-success p { color: #888; font-size: 14px; margin: 0; }
+
+  .lq-error {
+    display: none;
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border: 1px solid #f2c9c9;
+    background: #fff7f7;
+    color: #b34a4a;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  @media (max-width: 500px) {
+    .lq-row { grid-template-columns: 1fr; }
+    #lq-modal { padding: 1.5rem 1.2rem; }
+  }
+</style>
+
+<div id="lq-overlay" onclick="if(event.target===this)lqClose()">
+  <div id="lq-modal">
+    <button class="lq-close" onclick="lqClose()">✕</button>
+
+    <div id="lq-form-wrap">
+      <h2>¡Lo quiero!</h2>
+      <p class="lq-sub">Completa el formulario y te contactamos a la brevedad.</p>
+
+      <div class="lq-row">
+        <div class="lq-field"><label>Nombre</label><input id="lq-nombre" type="text" placeholder="Tu nombre" required /></div>
+        <div class="lq-field"><label>Apellido</label><input id="lq-apellido" type="text" placeholder="Tu apellido" required /></div>
+      </div>
+      <div class="lq-row">
+        <div class="lq-field"><label>Ciudad</label><input id="lq-ciudad" type="text" placeholder="Tu ciudad" required /></div>
+        <div class="lq-field"><label>Teléfono</label><input id="lq-telefono" type="tel" placeholder="+56 9 xxxx xxxx" required /></div>
+      </div>
+      <div class="lq-row">
+        <div class="lq-field"><label>Email</label><input id="lq-email" type="email" placeholder="correo@ejemplo.com" required /></div>
+        <div class="lq-field"><label>Fecha del evento</label><input id="lq-fecha" type="date" required /></div>
+      </div>
+      <div class="lq-field">
+        <label>Tipo de evento</label>
+        <select id="lq-evento">
+          <option value="">Selecciona una opción</option>
+          <option>Matrimonio</option>
+          <option>Baby Shower</option>
+          <option>Cumpleaños</option>
+        </select>
+      </div>
+      <div class="lq-field">
+        <label>Mensaje</label>
+        <textarea id="lq-mensaje" placeholder="Cuéntanos más sobre tu evento..."></textarea>
+      </div>
+
+      <div class="lq-footer">
+        <button class="lq-btn-cancel" onclick="lqClose()">Cancelar</button>
+        <button class="lq-btn-send" id="lq-send-btn" onclick="lqEnviar()">Enviar solicitud</button>
+      </div>
+      <p class="lq-error" id="lq-error" role="alert"></p>
+    </div>
+
+    <div class="lq-success" id="lq-success">
+      <div class="lq-success-icon">✉️</div>
+      <h3>¡Solicitud enviada!</h3>
+      <p>Gracias, pronto nos pondremos en contacto contigo.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+
+  var LQ_SQSP_FORM_ID = "form-submission-html-69e0fdfac69afe48418d25f1";
+
+  (function() {
+    if (window.__lqFormNetworkCaptureInstalled) return;
+    window.__lqFormNetworkCaptureInstalled = true;
+    window.__lqLastSqspFormError = "";
+
+    function esEndpointForm(urlStr) {
+      try {
+        var u = new URL(urlStr, window.location.href);
+        return (
+          u.pathname.indexOf("/api/form/SaveFormSubmission") !== -1 ||
+          u.pathname.indexOf("/api/form-submission") !== -1
+        );
+      } catch (e) {
+        return false;
+      }
+    }
+
+    var originalFetch = window.fetch;
+    if (typeof originalFetch === "function") {
+      window.fetch = function(input, init) {
+        var urlStr = "";
+        try {
+          urlStr = typeof input === "string" ? input : (input && input.url ? input.url : "");
+        } catch (e) {}
+
+        return originalFetch.call(this, input, init).then(function(res) {
+          try {
+            if (urlStr && esEndpointForm(urlStr) && !res.ok) {
+              res.clone().text().then(function(t) {
+                window.__lqLastSqspFormError = (t || "").toString().slice(0, 1200);
+              });
+            }
+          } catch (e) {}
+          return res;
+        });
+      };
+    }
+
+    var XHR = window.XMLHttpRequest;
+    if (XHR && XHR.prototype && typeof XHR.prototype.open === "function") {
+      var originalOpen = XHR.prototype.open;
+      XHR.prototype.open = function(method, url) {
+        try {
+          this.__lqUrl = url;
+        } catch (e) {}
+        return originalOpen.apply(this, arguments);
+      };
+      var originalSend = XHR.prototype.send;
+      XHR.prototype.send = function(body) {
+        try {
+          var xhr = this;
+          xhr.addEventListener("load", function() {
+            try {
+              if (xhr.__lqUrl && esEndpointForm(xhr.__lqUrl) && xhr.status >= 400) {
+                window.__lqLastSqspFormError = (xhr.responseText || "").toString().slice(0, 1200);
+              }
+            } catch (e) {}
+          });
+        } catch (e) {}
+        return originalSend.apply(this, arguments);
+      };
+    }
+  })();
+
+  function normalizarTexto(t) {
+    return (t || "").toString().trim().toLowerCase();
+  }
+
+  function encontrarFormularioSquarespace() {
+    if (LQ_SQSP_FORM_ID) {
+      var byId = document.getElementById(LQ_SQSP_FORM_ID);
+      if (byId) {
+        if (byId.tagName === "FORM") return byId;
+        var inner = byId.querySelector ? byId.querySelector("form") : null;
+        if (inner) return inner;
+
+        // Cuando el ID es "form-submission-html-<id>", el formulario real suele ser hermano dentro de .sqs-site-style-form
+        var suffix = "";
+        if (LQ_SQSP_FORM_ID.indexOf("form-submission-html-") === 0) {
+          suffix = LQ_SQSP_FORM_ID.replace("form-submission-html-", "");
+        }
+        if (suffix) {
+          var formContext = document.getElementById("form-context-" + suffix);
+          if (formContext) {
+            var root = formContext.closest ? formContext.closest(".sqs-site-style-form") : null;
+            if (root) {
+              var mapped = root.querySelector(".form-wrapper form, form.react-form-contents");
+              if (mapped) return mapped;
+            }
+          }
+        }
+      }
+    }
+
+    function scoreForm(f) {
+      var score = 0;
+      try {
+        if (f.closest && f.closest("#lq-modal")) return -999;
+        if (f.closest && (f.closest(".newsletter-form-body") || f.closest(".newsletter-form"))) score -= 10;
+        if (f.closest && f.closest(".sqs-block-form")) score += 6;
+        if (f.closest && f.closest(".form-wrapper")) score += 3;
+        if (f.classList && f.classList.contains("react-form-contents")) score += 4;
+        if (f.querySelector('input[name="formId"]')) score += 4;
+        if (f.querySelector('input[type="email"], input[name*="email" i], input[id*="email" i]')) score += 5;
+        if (f.querySelector("textarea")) score += 5;
+        if (f.querySelector('button[type="submit"], input[type="submit"]')) score += 2;
+        var action = (f.getAttribute("action") || "").toLowerCase();
+        if (action.indexOf("form") !== -1) score += 1;
+      } catch (e) {}
+      return score;
+    }
+
+    var forms = Array.prototype.slice.call(document.querySelectorAll("form"));
+    var best = null;
+    var bestScore = -999;
+    for (var i = 0; i < forms.length; i++) {
+      var s = scoreForm(forms[i]);
+      if (s > bestScore) {
+        bestScore = s;
+        best = forms[i];
+      }
+    }
+    if (best && bestScore >= 3) return best;
+    return null;
+  }
+
+  function setValorEnControl(control, value) {
+    if (!control) return false;
+    function setNativeValue(el, val) {
+      try {
+        var ownDesc = Object.getOwnPropertyDescriptor(el, "value");
+        var ownSetter = ownDesc && ownDesc.set ? ownDesc.set : null;
+        var proto = Object.getPrototypeOf(el);
+        var protoDesc = proto ? Object.getOwnPropertyDescriptor(proto, "value") : null;
+        var protoSetter = protoDesc && protoDesc.set ? protoDesc.set : null;
+        if (protoSetter && ownSetter !== protoSetter) {
+          protoSetter.call(el, val);
+          return;
+        }
+        if (ownSetter) {
+          ownSetter.call(el, val);
+          return;
+        }
+      } catch (e) {}
+      try {
+        el.value = val;
+      } catch (e2) {}
+    }
+    if (control.tagName === "SELECT") {
+      var target = normalizarTexto(value);
+      for (var i = 0; i < control.options.length; i++) {
+        if (normalizarTexto(control.options[i].textContent) === target) {
+          control.selectedIndex = i;
+          control.dispatchEvent(new Event("change", { bubbles: true }));
+          return true;
+        }
+      }
+      try {
+        setNativeValue(control, value);
+      } catch (e3) {}
+      control.dispatchEvent(new Event("input", { bubbles: true }));
+      control.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
+
+    setNativeValue(control, value);
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+    control.dispatchEvent(new Event("change", { bubbles: true }));
+    try {
+      control.dispatchEvent(new Event("blur", { bubbles: true }));
+    } catch (e4) {}
+    return true;
+  }
+
+  function setCampoPorLabel(form, labelText, value) {
+    if (!form) return false;
+
+    var labels = Array.prototype.slice.call(form.querySelectorAll("label"));
+    var target = normalizarTexto(labelText);
+
+    for (var i = 0; i < labels.length; i++) {
+      var lbl = labels[i];
+      if (normalizarTexto(lbl.textContent) !== target) continue;
+
+      var control = null;
+      var forId = lbl.getAttribute("for");
+      if (forId) control = document.getElementById(forId);
+      if (!control) control = lbl.querySelector("input, select, textarea");
+      if (!control) control = lbl.parentNode ? lbl.parentNode.querySelector("input, select, textarea") : null;
+      if (!control) continue;
+
+      return setValorEnControl(control, value);
+    }
+
+    return false;
+  }
+
+  function setCampoPorSelector(form, selector, value) {
+    if (!form) return false;
+    var control = form.querySelector(selector);
+    if (!control) return false;
+    return setValorEnControl(control, value);
+  }
+
+  function setCampoTextoPorHeuristica(form, posibles, value) {
+    for (var i = 0; i < posibles.length; i++) {
+      if (setCampoPorSelector(form, posibles[i], value)) return true;
+    }
+    return false;
+  }
+
+  function listarCamposRequeridosFaltantes(form) {
+    var faltantes = [];
+    if (!form) return faltantes;
+    var controls = Array.prototype.slice.call(form.querySelectorAll("input, select, textarea"));
+    for (var i = 0; i < controls.length; i++) {
+      var el = controls[i];
+      if (!el) continue;
+      var type = (el.getAttribute("type") || "").toLowerCase();
+      if (type === "hidden") continue;
+      if (el.disabled) continue;
+
+      var required = !!el.required || (el.getAttribute("aria-required") === "true");
+      if (!required) continue;
+
+      var empty = false;
+      if (type === "checkbox" || type === "radio") empty = !el.checked;
+      else empty = !(el.value || "").toString().trim();
+      if (!empty) continue;
+
+      var label = "";
+      try {
+        var id = el.getAttribute("id");
+        if (id) {
+          var lbl = form.querySelector('label[for="' + id + '"]');
+          if (lbl) label = (lbl.textContent || "").trim();
+        }
+      } catch (e) {}
+      if (!label) label = (el.getAttribute("placeholder") || el.getAttribute("name") || el.getAttribute("id") || "Campo requerido").toString().trim();
+      if (label) faltantes.push(label);
+    }
+    return faltantes;
+  }
+
+  function detectarExito(container) {
+    if (!container) return false;
+    return !!container.querySelector(
+      ".form-submission-text, .form-submission-html, .form-submission, .form-submission-message, [data-test='form-submission-success']"
+    );
+  }
+
+  function detectarError(container) {
+    if (!container) return null;
+    var el = container.querySelector(
+      ".form-block-error, .form-field-error, .field-error, .sqs-form-error, [data-test='form-submission-error']"
+    );
+    if (!el) return null;
+    var msg = (el.textContent || "").trim();
+    if (!msg) return null;
+    return new Error(msg);
+  }
+
+  function dispararEnvioFormulario(ssForm) {
+    var submitter = ssForm.querySelector('button[type="submit"], input[type="submit"]');
+    if (!submitter && ssForm.closest) {
+      var wrap = ssForm.closest(".sqs-block-form") || ssForm.closest(".form-wrapper");
+      if (wrap) submitter = wrap.querySelector('button[type="submit"], input[type="submit"]');
+    }
+    if (submitter && typeof submitter.click === "function") {
+      submitter.click();
+      return true;
+    }
+    if (typeof ssForm.requestSubmit === "function") {
+      ssForm.requestSubmit();
+      return true;
+    }
+    ssForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    return true;
+  }
+
+  function enviarPorFormularioSquarespace(values) {
+    var ssForm = encontrarFormularioSquarespace();
+    if (!ssForm) return Promise.reject(new Error("No se encontró un Form Block de Squarespace en la página."));
+
+    setCampoPorLabel(ssForm, "Nombre", values.nombre);
+    setCampoTextoPorHeuristica(ssForm, [
+      'input[autocomplete="given-name"]',
+      'input[name="fname"]',
+      'input[name*="first" i]',
+      'input[id*="first" i]'
+    ], values.nombre);
+
+    setCampoPorLabel(ssForm, "Apellido", values.apellido);
+    setCampoTextoPorHeuristica(ssForm, [
+      'input[autocomplete="family-name"]',
+      'input[name="lname"]',
+      'input[name*="last" i]',
+      'input[id*="last" i]'
+    ], values.apellido);
+
+    setCampoPorLabel(ssForm, "Ciudad", values.ciudad);
+    setCampoTextoPorHeuristica(ssForm, [
+      'input[name*="ciudad" i]',
+      'input[id*="ciudad" i]',
+      'input[name*="city" i]',
+      'input[id*="city" i]'
+    ], values.ciudad);
+
+    setCampoPorLabel(ssForm, "Teléfono", values.telefono);
+    setCampoTextoPorHeuristica(ssForm, [
+      'input[type="tel"]',
+      'input[autocomplete="tel"]',
+      'input[name*="tel" i]',
+      'input[name*="phone" i]',
+      'input[id*="tel" i]',
+      'input[id*="phone" i]'
+    ], values.telefono);
+    var okEmail =
+      setCampoPorLabel(ssForm, "Email", values.email) ||
+      setCampoPorLabel(ssForm, "Correo electrónico", values.email) ||
+      setCampoTextoPorHeuristica(ssForm, [
+        'input[type="email"]',
+        'input[autocomplete="email"]',
+        'input[name="email"]',
+        'input[name*="email" i]',
+        'input[id*="email" i]'
+      ], values.email);
+
+    setCampoPorLabel(ssForm, "Fecha del evento", values.fecha);
+    setCampoPorLabel(ssForm, "Fecha Evento", values.fecha);
+    setCampoPorLabel(ssForm, "Date", values.fecha);
+    setCampoTextoPorHeuristica(ssForm, [
+      'input[type="date"]',
+      'input[name*="fecha" i]',
+      'input[id*="fecha" i]',
+      'input[name*="date" i]',
+      'input[id*="date" i]'
+    ], values.fecha);
+
+    setCampoPorLabel(ssForm, "Tipo de evento", values.evento);
+    setCampoPorLabel(ssForm, "Tipo de Evento", values.evento);
+    setCampoTextoPorHeuristica(ssForm, [
+      'select[name*="evento" i]',
+      'select[id*="evento" i]',
+      'select[name*="event" i]',
+      'select[id*="event" i]',
+      'input[name*="evento" i]',
+      'input[id*="evento" i]',
+      'input[name*="event" i]',
+      'input[id*="event" i]'
+    ], values.evento);
+
+    setCampoPorLabel(ssForm, "Producto", values.producto);
+    if (values.producto) {
+      setCampoTextoPorHeuristica(ssForm, [
+        'input[name*="producto" i]',
+        'input[id*="producto" i]',
+        'input[name*="product" i]',
+        'input[id*="product" i]'
+      ], values.producto);
+    }
+    var okMensaje =
+      setCampoPorLabel(ssForm, "Mensaje", values.mensaje) ||
+      setCampoPorLabel(ssForm, "Message", values.mensaje) ||
+      setCampoTextoPorHeuristica(ssForm, [
+        'textarea[name="message"]',
+        'textarea[name*="message" i]',
+        'textarea[name*="mensaje" i]',
+        'textarea[id*="message" i]',
+        'textarea[id*="mensaje" i]',
+        "textarea"
+      ], values.mensaje);
+    if (!okEmail || !okMensaje) {
+      return Promise.reject(new Error("No se pudo completar Email y/o Mensaje en el formulario oculto. Revisa que el Form Block tenga esos campos (Email y Message) dentro del mismo formulario."));
+    }
+
+    var container = ssForm.closest ? (ssForm.closest(".sqs-block-form") || ssForm.closest(".form-wrapper") || ssForm) : ssForm;
+    var faltantes = listarCamposRequeridosFaltantes(ssForm);
+    if (faltantes.length) {
+      return Promise.reject(new Error("Faltan campos requeridos en el formulario oculto: " + faltantes.join(", ")));
+    }
+
+    return new Promise(function(resolve, reject) {
+      var settled = false;
+      var obs = null;
+      var timeoutId = null;
+
+      function cleanup() {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (obs) obs.disconnect();
+      }
+
+      function doneOk() {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      }
+
+      function doneErr(e) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(e || new Error("No pudimos enviar la solicitud."));
+      }
+
+      try {
+        obs = new MutationObserver(function() {
+          if (detectarExito(container)) return doneOk();
+          var e2 = detectarError(container);
+          if (e2) return doneErr(e2);
+        });
+        obs.observe(container, { subtree: true, childList: true, attributes: true });
+      } catch (e) {}
+
+      timeoutId = setTimeout(function() {
+        if (detectarExito(container)) return doneOk();
+        var e3 = detectarError(container);
+        if (e3) return doneErr(e3);
+        var last = (window.__lqLastSqspFormError || "").trim();
+        if (last) return doneErr(new Error("Squarespace respondió con un error. Detalle: " + last));
+        doneErr(new Error("No pudimos confirmar el envío. Revisa que el formulario de Squarespace esté activo y que el sitio no esté en modo privado."));
+      }, 12000);
+
+      setTimeout(function() {
+        if (detectarExito(container)) return doneOk();
+        var e1 = detectarError(container);
+        if (e1) return doneErr(e1);
+        try {
+          dispararEnvioFormulario(ssForm);
+        } catch (e) {
+          doneErr(e);
+        }
+      }, 60);
+    });
+  }
+
+  function insertarBoton() {
+    var addToCartBtn = document.querySelector(".sqs-add-to-cart-button");
+    if (!addToCartBtn) return;
+
+    if (document.getElementById("lq-trigger-btn")) return;
+
+    var btn = document.createElement("button");
+    btn.id = "lq-trigger-btn";
+    btn.type = "button";
+    btn.textContent = "Lo quiero";
+    btn.addEventListener("click", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      lqAbrir();
+    });
+
+    var insertTarget = addToCartBtn.closest(".sqs-add-to-cart-button-wrapper") || addToCartBtn.parentNode;
+    if (!insertTarget || !insertTarget.parentNode) return;
+    insertTarget.parentNode.insertBefore(btn, insertTarget);
+  }
+
+  document.addEventListener("DOMContentLoaded", insertarBoton);
+  setTimeout(insertarBoton, 800);
+  setTimeout(insertarBoton, 1600);
+
+  window.lqAbrir = function() {
+    document.getElementById("lq-overlay").classList.add("lq-open");
+    document.body.style.overflow = "hidden";
+  };
+
+  window.lqClose = function() {
+    document.getElementById("lq-overlay").classList.remove("lq-open");
+    document.body.style.overflow = "";
+  };
+
+  window.lqEnviar = function() {
+    var nombre   = document.getElementById("lq-nombre").value.trim();
+    var apellido = document.getElementById("lq-apellido").value.trim();
+    var ciudad   = document.getElementById("lq-ciudad").value.trim();
+    var telefono = document.getElementById("lq-telefono").value.trim();
+    var email    = document.getElementById("lq-email").value.trim();
+    var fecha    = document.getElementById("lq-fecha").value;
+    var evento   = document.getElementById("lq-evento").value;
+    var mensaje  = document.getElementById("lq-mensaje").value.trim();
+
+    if (!nombre || !apellido || !email || !telefono || !evento) {
+      alert("Por favor completa los campos obligatorios: Nombre, Apellido, Teléfono, Email y Tipo de evento.");
+      return;
+    }
+
+    var btn = document.getElementById("lq-send-btn");
+    btn.disabled = true;
+    btn.textContent = "Enviando...";
+
+    var errEl = document.getElementById("lq-error");
+    if (errEl) {
+      errEl.style.display = "none";
+      errEl.textContent = "";
+    }
+
+    var productoTitulo = (
+      document.querySelector(".ProductItem-details-title h1") ||
+      document.querySelector(".product-title h1") ||
+      document.querySelector("h1.entry-title")
+    );
+    var producto = productoTitulo ? productoTitulo.innerText.trim() : window.location.pathname;
+
+    var values = {
+      nombre: nombre,
+      apellido: apellido,
+      ciudad: ciudad,
+      telefono: telefono,
+      email: email,
+      fecha: fecha,
+      evento: evento,
+      mensaje: mensaje,
+      producto: producto
+    };
+
+    enviarPorFormularioSquarespace(values)
+    .then(function() {
+      document.getElementById("lq-form-wrap").style.display = "none";
+      document.getElementById("lq-success").style.display = "block";
+      setTimeout(lqClose, 3500);
+    })
+    .catch(function(err) {
+      if (errEl) {
+        var msg = (err && err.message ? err.message : "").trim();
+        errEl.textContent = msg ? msg : "No pudimos enviar la solicitud. Intenta nuevamente.";
+        errEl.style.display = "block";
+      } else {
+        alert("No pudimos enviar la solicitud. Intenta nuevamente.");
+      }
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.textContent = "Enviar solicitud";
+    });
+  };
+
+})();
+(function () {
+  var tries = 0;
+  var maxTries = 30;
+
+  function traducir() {
+    var root = document.querySelector(".newsletter-form-body");
+    if (!root) {
+      if (tries++ < maxTries) setTimeout(traducir, 400);
+      return;
+    }
+
+    var el;
+
+    el = root.querySelector(".field.first-name .newsletter-form-field-label");
+    if (el) el.textContent = "Nombre";
+    el = root.querySelector(".field.last-name .newsletter-form-field-label");
+    if (el) el.textContent = "Apellido";
+    el = root.querySelector('label[for^="email-"].newsletter-form-field-label');
+    if (el) el.textContent = "Correo electrónico";
+
+    el = root.querySelector('input[name="fname"]');
+    if (el) el.placeholder = "Nombre";
+    el = root.querySelector('input[name="lname"]');
+    if (el) el.placeholder = "Apellido";
+    el = root.querySelector('input[name="email"]');
+    if (el) el.placeholder = "Correo electrónico";
+
+    el = root.querySelector(".newsletter-form-button-label");
+    if (el) el.textContent = "Lo quiero";
+    el = root.querySelector(".newsletter-form-button");
+    if (el) el.value = "Lo quiero";
+  }
+
+  traducir();
+})();
+</script>

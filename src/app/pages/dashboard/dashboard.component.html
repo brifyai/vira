@@ -89,7 +89,7 @@
                         <div class="news-list">
                             <div class="news-item" *ngFor="let item of categorySummary">
                                 <div class="news-content">
-                                    <h3 class="news-title">{{ item.category }}</h3>
+                                    <h3 class="news-title">{{ item.category | titlecase }}</h3>
                                     <div class="news-meta">
                                         <span class="news-source">{{ item.count }} noticias</span>
                                     </div>
@@ -185,7 +185,7 @@
                                 <div class="item-content">
                                     <h3 class="item-title">{{ news.title }}</h3>
                                     <p class="item-subtitle">{{ news.source_name || 'Fuente desconocida' }} · {{ news.category || 'general' }}</p>
-                                    <a [href]="news.original_url" target="_blank" rel="noopener" class="item-link">{{ news.original_url }}</a>
+                                    <a [href]="news.original_url" target="_blank" rel="noopener" class="item-link" [title]="news.original_url">Link noticia original</a>
                                 </div>
                             </div>
                             <div class="empty-message" *ngIf="latestScrapeNews.length === 0">
