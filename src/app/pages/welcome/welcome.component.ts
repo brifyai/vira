@@ -17,6 +17,7 @@ export class WelcomeComponent implements OnInit {
     private supabaseService = inject(SupabaseService);
 
     sourcesCount: number | null = null;
+    readonly audioExampleSrc = 'ejemplo/Ejemplo.wav';
 
     get sourcesCountHuman(): string {
         return this.sourcesCount === null ? 'muchas' : String(this.sourcesCount);
@@ -41,4 +42,3 @@ export class WelcomeComponent implements OnInit {
         this.sourcesCount = sources ? sources.length : null;
     }
 }
-
