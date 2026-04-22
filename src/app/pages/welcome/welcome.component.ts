@@ -18,7 +18,8 @@ export class WelcomeComponent implements OnInit {
 
     sourcesCount = 0;
     sourcesCountLoaded = false;
-    readonly audioExampleSrc = 'ejemplo/Ejemplo.wav';
+    readonly audioExampleSrc = './ejemplo/Ejemplo.wav';
+    audioError = false;
 
     get sourcesCountHuman(): string {
         return this.sourcesCountLoaded ? String(this.sourcesCount) : '...';

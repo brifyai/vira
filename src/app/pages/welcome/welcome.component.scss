@@ -353,6 +353,7 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
     margin-top: 12px;
     border-radius: 14px;
+    color-scheme: dark;
 }
 
 .audio-player::-webkit-media-controls-panel {
@@ -365,9 +366,15 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 14px;
 }
 
+.audio-player::-webkit-media-controls-current-time-display,
+.audio-player::-webkit-media-controls-time-remaining-display {
+    color: rgba(255, 255, 255, 0.92);
+}
+
 .audio-player::-webkit-media-controls-timeline {
     margin-left: 10px;
     margin-right: 10px;
+    filter: brightness(1.25) contrast(1.1);
 }
 
 .audio-note {

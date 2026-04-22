@@ -156,14 +156,22 @@
                             <audio
                                 controls
                                 controlsList="nodownload noplaybackrate"
-                                preload="metadata"
+                                preload="auto"
                                 class="audio-player"
                                 (contextmenu)="$event.preventDefault()"
+                                (error)="audioError = true"
+                                (canplay)="audioError = false"
                                 disablePictureInPicture
                             >
                                 <source [src]="audioExampleSrc" type="audio/wav" />
                             </audio>
-                            <div class="audio-note">Descarga deshabilitada en la interfaz.</div>
+                            <div class="audio-note">
+                                <span *ngIf="!audioError">Descarga deshabilitada en la interfaz.</span>
+                                <span *ngIf="audioError">
+                                    No se pudo cargar el audio demo. Si estás en desarrollo, reinicia el servidor para
+                                    que tome los assets.
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </li>
