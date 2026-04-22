@@ -147,12 +147,23 @@
                         </div>
                         <div class="audio-card">
                             <div class="audio-head">
-                                <div class="audio-title">Ejemplo de noticiero (audio)</div>
-                                <a class="audio-download" [href]="audioExampleSrc" download>Descargar</a>
+                                <div class="audio-title">
+                                    <span class="audio-dot" aria-hidden="true"></span>
+                                    Ejemplo de noticiero (audio)
+                                </div>
+                                <div class="audio-badge">Demo</div>
                             </div>
-                            <audio controls preload="none" class="audio-player">
+                            <audio
+                                controls
+                                controlsList="nodownload noplaybackrate"
+                                preload="metadata"
+                                class="audio-player"
+                                (contextmenu)="$event.preventDefault()"
+                                disablePictureInPicture
+                            >
                                 <source [src]="audioExampleSrc" type="audio/wav" />
                             </audio>
+                            <div class="audio-note">Descarga deshabilitada en la interfaz.</div>
                         </div>
                     </div>
                 </li>
