@@ -71,7 +71,9 @@ export class CostosComponent implements OnInit {
         this.cdr.detectChanges();
         try {
             const data = await this.supabaseService.getCostRates();
-            this.rates = (data || []).map((r: any) => ({ ...r }));
+            this.rates = (data || [])
+                .filter((r: any) => r?.action !== 'humanize' && r?.action !== 'broadcast_create')
+                .map((r: any) => ({ ...r }));
         } catch (error) {
             console.error('Error loading rates:', error);
             this.rates = [];
@@ -151,4 +153,3 @@ export class CostosComponent implements OnInit {
         return name || email || 'Usuario';
     }
 }
-

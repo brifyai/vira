@@ -1489,13 +1489,16 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     }
                 }
                 if (geminiTotals.promptTokens > 0) {
+                    const units = geminiTotals.promptTokens / 1000;
                     this.supabaseService.logCostEvent({
                         action: 'humanize_in',
                         module: 'crear-noticiario',
-                        units: geminiTotals.promptTokens,
+                        units,
                         metadata: {
                             model: geminiTotals.model || 'gemini-2.0-flash',
                             requests: geminiTotals.requests,
+                            prompt_tokens: geminiTotals.promptTokens,
+                            output_tokens: geminiTotals.outputTokens,
                             items: this.selectedNews.length,
                             date_filter: this.dateFilter,
                             category_filter: this.categoryFilter,
@@ -1504,13 +1507,16 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     });
                 }
                 if (geminiTotals.outputTokens > 0) {
+                    const units = geminiTotals.outputTokens / 1000;
                     this.supabaseService.logCostEvent({
                         action: 'humanize_out',
                         module: 'crear-noticiario',
-                        units: geminiTotals.outputTokens,
+                        units,
                         metadata: {
                             model: geminiTotals.model || 'gemini-2.0-flash',
                             requests: geminiTotals.requests,
+                            prompt_tokens: geminiTotals.promptTokens,
+                            output_tokens: geminiTotals.outputTokens,
                             items: this.selectedNews.length,
                             date_filter: this.dateFilter,
                             category_filter: this.categoryFilter,
@@ -1579,13 +1585,15 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     return acc + txt.length;
                 }, 0);
             if (ttsChars > 0) {
+                const units = ttsChars / 1000;
                 this.supabaseService.logCostEvent({
                     action: 'tts_generate',
                     module: 'crear-noticiario',
-                    units: ttsChars,
+                    units,
                     metadata: {
                         items: this.timelineEvents.filter(e => e.type !== 'ad').length,
-                        total_news: this.selectedNews.length
+                        total_news: this.selectedNews.length,
+                        tts_chars: ttsChars
                     }
                 });
             }
