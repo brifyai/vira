@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -15,6 +15,7 @@ export class WelcomeComponent implements OnInit {
     private authService = inject(AuthService);
     private router = inject(Router);
     private supabaseService = inject(SupabaseService);
+    private cdr = inject(ChangeDetectorRef);
 
     sourcesCount = 0;
     sourcesCountLoaded = false;
@@ -22,7 +23,7 @@ export class WelcomeComponent implements OnInit {
     audioError = false;
 
     get sourcesCountHuman(): string {
-        return this.sourcesCountLoaded ? String(this.sourcesCount) : '...';
+        return this.sourcesCountLoaded ? String(this.sourcesCount) : '0';
     }
 
     ngOnInit(): void {
@@ -57,8 +58,7 @@ export class WelcomeComponent implements OnInit {
                     const { count, error } = await this.supabaseService
                         .getClient()
                         .from('news_sources')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('is_active', true);
+                        .select('*', { count: 'exact', head: true });
 
                     if (error) throw error;
                     return count ?? null;
@@ -77,9 +77,10 @@ export class WelcomeComponent implements OnInit {
                 0,
                 6000
             );
-            this.sourcesCount = sources ? sources.filter(s => s?.is_active !== false).length : 0;
+            this.sourcesCount = sources ? sources.length : 0;
         } finally {
             this.sourcesCountLoaded = true;
+            this.cdr.detectChanges();
         }
     }
 }
