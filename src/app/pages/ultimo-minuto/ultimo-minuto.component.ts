@@ -444,7 +444,8 @@ export class UltimoMinutoComponent implements OnInit {
         
         item.isHumanizing = true;
         try {
-            item.humanizedText = await this.geminiService.humanizeText(item.originalNews.content);
+            const res = await this.geminiService.humanizeText(item.originalNews.content);
+            item.humanizedText = res.text;
         } catch (error) {
             console.error('Error humanizing news:', error);
             this.snackBar.open('Error al humanizar la noticia', 'Cerrar', { duration: 3000 });

@@ -153,7 +153,7 @@ CREATE POLICY "Super admins can update cost events" ON public.cost_events
 
 INSERT INTO public.cost_rates (action, module, unit_name, unit_cost, currency, is_active)
 VALUES
-    ('broadcast_create', 'crear-noticiario', 'count', 0, 'USD', true),
-    ('humanize', 'crear-noticiario', 'char', 0, 'USD', true),
-    ('tts_generate', 'crear-noticiario', 'second', 0, 'USD', true)
+    ('humanize_in', 'gemini', 'token', 0.10 / 1000000, 'USD', true),
+    ('humanize_out', 'gemini', 'token', 0.40 / 1000000, 'USD', true),
+    ('tts_generate', 'azure-tts', 'char', 15.00 / 1000000, 'USD', true)
 ON CONFLICT (action) DO NOTHING;

@@ -9,8 +9,12 @@ export class GeminiService {
 
   constructor() {}
 
-  private async callGeminiApi(action: string, text: string, params: any = {}): Promise<string> {
-    if (!text) return '';
+  private async callGeminiApi(
+    action: string,
+    text: string,
+    params: any = {}
+  ): Promise<{ text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }> {
+    if (!text) return { text: '' };
 
     try {
       // Ensure apiUrl doesn't have trailing slash if we add one, but config.ts says it removes /api
@@ -40,30 +44,37 @@ export class GeminiService {
       }
 
       const data = await response.json();
-      return data.result;
+      const usage = data?.usage
+        ? {
+            promptTokens: Number(data.usage.promptTokens || 0),
+            outputTokens: Number(data.usage.outputTokens || 0),
+            totalTokens: Number(data.usage.totalTokens || 0)
+          }
+        : undefined;
+      return { text: data.result, model: data.model, usage };
     } catch (error) {
       console.error('Gemini Service Error:', error);
       throw error;
     }
   }
 
-  async humanizeText(text: string): Promise<string> {
+  async humanizeText(text: string): Promise<{ text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }> {
     return this.callGeminiApi('humanize', text);
   }
 
-  async cleanText(text: string): Promise<string> {
+  async cleanText(text: string): Promise<{ text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }> {
     return this.callGeminiApi('clean', text);
   }
 
-  async adjustContentToTime(text: string, targetSeconds: number): Promise<string> {
+  async adjustContentToTime(text: string, targetSeconds: number): Promise<{ text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }> {
     return this.callGeminiApi('adjustTime', text, { targetSeconds });
   }
 
-  async adjustToWordCount(text: string, targetWords: number): Promise<string> {
+  async adjustToWordCount(text: string, targetWords: number): Promise<{ text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }> {
     return this.callGeminiApi('adjustWords', text, { targetWords });
   }
 
-  async humanizeAndAdjustContent(text: string, targetSeconds: number): Promise<string> {
+  async humanizeAndAdjustContent(text: string, targetSeconds: number): Promise<{ text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }> {
     return this.callGeminiApi('humanizeAndAdjust', text, { targetSeconds });
   }
 }

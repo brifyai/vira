@@ -3294,7 +3294,8 @@ app.post('/api/gemini', async (req, res) => {
         }
 
         const genAI = new GoogleGenerativeAI(geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const modelName = 'gemini-2.0-flash';
+        const model = genAI.getGenerativeModel({ model: modelName });
 
         let prompt = '';
 
@@ -3456,7 +3457,29 @@ app.post('/api/gemini', async (req, res) => {
         const response = await result.response;
         const generatedText = response.text();
 
-        res.json({ result: generatedText });
+        const usage = response?.usageMetadata || result?.response?.usageMetadata || null;
+        const promptTokens = Number(
+            usage?.promptTokenCount ?? usage?.prompt_tokens ?? usage?.promptTokens ?? 0
+        );
+        const outputTokens = Number(
+            usage?.candidatesTokenCount ??
+                usage?.outputTokenCount ??
+                usage?.completionTokenCount ??
+                usage?.output_tokens ??
+                usage?.outputTokens ??
+                0
+        );
+        const totalTokens = Number(usage?.totalTokenCount ?? promptTokens + outputTokens);
+
+        res.json({
+            result: generatedText,
+            model: modelName,
+            usage: {
+                promptTokens: Number.isFinite(promptTokens) ? promptTokens : 0,
+                outputTokens: Number.isFinite(outputTokens) ? outputTokens : 0,
+                totalTokens: Number.isFinite(totalTokens) ? totalTokens : 0
+            }
+        });
 
     } catch (error) {
         console.error('Gemini API Error:', error);

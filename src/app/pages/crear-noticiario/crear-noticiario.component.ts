@@ -935,19 +935,6 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             const broadcast = await this.supabaseService.createNewsBroadcast(broadcastData);
             if (!broadcast) throw new Error('Error al crear el noticiero');
 
-            this.supabaseService.logCostEvent({
-                action: 'broadcast_create',
-                module: 'crear-noticiario',
-                units: 1,
-                relatedId: broadcast.id,
-                metadata: {
-                    total_news_count: this.selectedNews.length,
-                    total_reading_time_seconds: this.getTotalReadingTime(),
-                    radio_id: this.selectedRadioId || null,
-                    scheduled_time: this.scheduledTime || null
-                }
-            });
-
             // 2. Create Timeline Items
             this.loadingMessage = 'Guardando bloques y subiendo audios...';
             this.cdr.detectChanges();
@@ -1452,19 +1439,37 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         try {
             // 1. Humanize News
             if (this.selectedNews.length > 0) {
+                const geminiTotals = {
+                    promptTokens: 0,
+                    outputTokens: 0,
+                    model: '',
+                    requests: 0
+                };
                 // Process sequentially to avoid 429 Resource Exhausted errors
                 for (const news of this.selectedNews) {
                     try {
                         // Just humanize style, don't worry about length yet
                         const humanized = await this.geminiService.humanizeText(news.content);
+                        if (humanized?.usage) {
+                            geminiTotals.promptTokens += humanized.usage.promptTokens || 0;
+                            geminiTotals.outputTokens += humanized.usage.outputTokens || 0;
+                        }
+                        if (humanized?.model) geminiTotals.model = humanized.model;
+                        geminiTotals.requests += 1;
                         
                         // Second pass: Clean and proofread (User request: "segunda consulta de ia para limpiar")
-                        const cleaned = await this.geminiService.cleanText(humanized);
+                        const cleaned = await this.geminiService.cleanText(humanized.text);
+                        if (cleaned?.usage) {
+                            geminiTotals.promptTokens += cleaned.usage.promptTokens || 0;
+                            geminiTotals.outputTokens += cleaned.usage.outputTokens || 0;
+                        }
+                        if (cleaned?.model) geminiTotals.model = cleaned.model;
+                        geminiTotals.requests += 1;
 
-                        news.humanizedContent = cleaned;
+                        news.humanizedContent = cleaned.text;
                         
                         // Initial reading time estimate
-                        const words = cleaned.split(/\s+/).length;
+                        const words = cleaned.text.split(/\s+/).length;
                         news.readingTime = Math.ceil((words / 150) * 60);
                         
                         // Reset audio
@@ -1483,25 +1488,36 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         console.error(`Error humanizing news ${news.id}:`, error);
                     }
                 }
-            }
-
-            const humanizedChars = this.selectedNews.reduce((acc, n) => {
-                const txt = String(n.humanizedContent || n.content || '');
-                return acc + txt.length;
-            }, 0);
-
-            if (humanizedChars > 0) {
-                this.supabaseService.logCostEvent({
-                    action: 'humanize',
-                    module: 'crear-noticiario',
-                    units: humanizedChars,
-                    metadata: {
-                        items: this.selectedNews.length,
-                        date_filter: this.dateFilter,
-                        category_filter: this.categoryFilter,
-                        region_filter: this.regionFilter
-                    }
-                });
+                if (geminiTotals.promptTokens > 0) {
+                    this.supabaseService.logCostEvent({
+                        action: 'humanize_in',
+                        module: 'crear-noticiario',
+                        units: geminiTotals.promptTokens,
+                        metadata: {
+                            model: geminiTotals.model || 'gemini-2.0-flash',
+                            requests: geminiTotals.requests,
+                            items: this.selectedNews.length,
+                            date_filter: this.dateFilter,
+                            category_filter: this.categoryFilter,
+                            region_filter: this.regionFilter
+                        }
+                    });
+                }
+                if (geminiTotals.outputTokens > 0) {
+                    this.supabaseService.logCostEvent({
+                        action: 'humanize_out',
+                        module: 'crear-noticiario',
+                        units: geminiTotals.outputTokens,
+                        metadata: {
+                            model: geminiTotals.model || 'gemini-2.0-flash',
+                            requests: geminiTotals.requests,
+                            items: this.selectedNews.length,
+                            date_filter: this.dateFilter,
+                            category_filter: this.categoryFilter,
+                            region_filter: this.regionFilter
+                        }
+                    });
+                }
             }
 
             // 2. Prepare Audio Config for ALL blocks (except ads)
@@ -1552,14 +1568,21 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             await this.generateBatchAudios(0, 100);
             this.audiosReady = true;
 
-            const ttsSeconds = this.timelineEvents
+            const ttsChars = this.timelineEvents
                 .filter(e => e.type !== 'ad')
-                .reduce((acc, e) => acc + Number(e.duration || 0), 0);
-            if (ttsSeconds > 0) {
+                .reduce((acc, e) => {
+                    if (e.type === 'news' && e.originalItem) {
+                        const txt = String(e.originalItem.humanizedContent || e.originalItem.content || '').trim();
+                        return acc + txt.length;
+                    }
+                    const txt = String(e.description || e.title || '').trim();
+                    return acc + txt.length;
+                }, 0);
+            if (ttsChars > 0) {
                 this.supabaseService.logCostEvent({
                     action: 'tts_generate',
                     module: 'crear-noticiario',
-                    units: ttsSeconds,
+                    units: ttsChars,
                     metadata: {
                         items: this.timelineEvents.filter(e => e.type !== 'ad').length,
                         total_news: this.selectedNews.length
