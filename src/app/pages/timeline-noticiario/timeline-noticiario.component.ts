@@ -48,7 +48,9 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     // Selected broadcast
     selectedBroadcast: any = null;
-    private baseBroadcast: any = null;
+    private originalBroadcast: any = null;
+    private editableBroadcast: any = null;
+    isEditingCopy = false;
 
     // Timeline events
     timelineEvents: TimelineEvent[] = [];
@@ -94,6 +96,12 @@ export class TimelineNoticiarioComponent implements OnInit {
         private route: ActivatedRoute
     ) { 
         // Voices will be loaded asynchronously
+    }
+
+    private requireEditing(): boolean {
+        if (this.isEditingCopy) return true;
+        this.snackBar.open('Activa "Guardar como nuevo" para editar sin sobrescribir el original', 'Cerrar', { duration: 3500 });
+        return false;
     }
 
     async playBroadcast(broadcast: any) {
@@ -222,8 +230,12 @@ export class TimelineNoticiarioComponent implements OnInit {
             // Map items to timelineEvents
             this.timelineEvents = items.map((item: any) => {
                 const news = item.humanized_news;
+                const tts = Array.isArray(item.tts_audio_files) && item.tts_audio_files.length > 0
+                    ? [...item.tts_audio_files].sort((a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0]
+                    : null;
                 // Determine duration
                 let duration = Number(item.duration_seconds || 0);
+                if (!duration && tts) duration = Number(tts.audio_duration_seconds || 0);
                 if (!duration) duration = Number(item.reading_time_seconds || 0);
                 if (!duration && news) duration = Number(news.reading_time_seconds || 0);
                 if (!duration) duration = 30;
@@ -236,7 +248,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                     startTime: 0, // Calculated later
                     endTime: 0,
                     duration: duration,
-                    audioUrl: item.audio_url || news?.audio_url,
+                    audioUrl: item.audio_url || tts?.audio_url || news?.audio_url,
                     order: item.order_index,
                     originalItem: item,
                     // Load voice configuration from DB, fallback to defaults if not set
@@ -286,12 +298,14 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     drop(event: CdkDragDrop<any[]>) {
+        if (!this.requireEditing()) return;
         moveItemInArray(this.timelineEvents, event.previousIndex, event.currentIndex);
         this.calculateTimes();
         this.saveOrder();
     }
 
     async saveOrder() {
+        if (!this.requireEditing()) return;
         // Optimistic update already done in UI.
         // Now update DB.
         for (let i = 0; i < this.timelineEvents.length; i++) {
@@ -309,6 +323,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async addBlock(type: 'text' | 'intro' | 'outro') {
+        if (!this.requireEditing()) return;
         if (!this.selectedBroadcast) return;
 
         this.loadingTimeline = true; // Show loading immediately
@@ -370,6 +385,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async deleteBlock(event: any) {
+        if (!this.requireEditing()) return;
         const result = await Swal.fire({
             title: '¿Estás seguro?',
             text: "No podrás revertir esto",
@@ -405,6 +421,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async onFileSelected(event: any) {
+        if (!this.requireEditing()) return;
         const file = event.target.files[0];
         if (!file || !this.selectedBroadcast) return;
 
@@ -534,8 +551,41 @@ export class TimelineNoticiarioComponent implements OnInit {
         this.cdr.detectChanges();
         try {
             const base = await this.supabaseService.getNewsBroadcastById(broadcast.id);
-            this.baseBroadcast = base;
+            this.originalBroadcast = base;
+            this.editableBroadcast = null;
+            this.isEditingCopy = false;
 
+            const mapped = {
+                id: base.id,
+                title: base.title,
+                description: base.description,
+                duration: Math.max(0, Math.round(Number(base.total_reading_time_seconds ?? ((base.duration_minutes || 0) * 60)) / 60)),
+                status: base.status,
+                totalNews: base.total_news_count || 0,
+                totalReadingTime: Number(base.total_reading_time_seconds ?? ((base.duration_minutes || 0) * 60)) || 0,
+                createdAt: new Date(base.created_at),
+                publishedAt: base.published_at ? new Date(base.published_at) : null,
+                createdBy: 'Usuario'
+            };
+            this.selectedBroadcast = mapped;
+            await this.loadTimeline(base.id);
+        } catch (error) {
+            console.error('Error creating editable copy:', error);
+            this.snackBar.open('No se pudo abrir el noticiero para edición', 'Cerrar', { duration: 3500 });
+            this.loadingTimeline = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    async enableEditingByCopy(): Promise<void> {
+        if (!this.originalBroadcast?.id || !this.selectedBroadcast?.id) return;
+        if (this.isEditingCopy) return;
+
+        this.loadingTimeline = true;
+        this.cdr.detectChanges();
+
+        try {
+            const base = this.originalBroadcast;
             const user = await this.supabaseService.getCurrentUser().catch(() => null);
             const now = new Date();
             const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
@@ -555,6 +605,9 @@ export class TimelineNoticiarioComponent implements OnInit {
 
             const baseItems = await this.supabaseService.getBroadcastNewsItems(base.id);
             for (const item of baseItems || []) {
+                const tts = Array.isArray((item as any).tts_audio_files) && (item as any).tts_audio_files.length > 0
+                    ? [...(item as any).tts_audio_files].sort((a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0]
+                    : null;
                 const clone: any = {
                     broadcast_id: created.id,
                     humanized_news_id: item.humanized_news_id || null,
@@ -563,8 +616,8 @@ export class TimelineNoticiarioComponent implements OnInit {
                     type: item.type,
                     custom_title: item.custom_title,
                     custom_content: item.custom_content,
-                    audio_url: item.audio_url,
-                    duration_seconds: item.duration_seconds,
+                    audio_url: item.audio_url || tts?.audio_url || null,
+                    duration_seconds: item.duration_seconds || tts?.audio_duration_seconds || null,
                     voice_id: item.voice_id,
                     voice_speed: item.voice_speed,
                     voice_pitch: item.voice_pitch,
@@ -576,7 +629,9 @@ export class TimelineNoticiarioComponent implements OnInit {
                 await this.supabaseService.createBroadcastNewsItem(clone);
             }
 
-            const mapped = {
+            this.isEditingCopy = true;
+            this.editableBroadcast = created;
+            this.selectedBroadcast = {
                 id: created.id,
                 title: created.title,
                 description: created.description,
@@ -588,14 +643,12 @@ export class TimelineNoticiarioComponent implements OnInit {
                 publishedAt: created.published_at ? new Date(created.published_at) : null,
                 createdBy: 'Usuario'
             };
-            this.broadcasts = [mapped, ...this.broadcasts];
-            this.selectedBroadcast = mapped;
 
-            this.snackBar.open('Editando una copia (no se sobrescribe el original)', 'Cerrar', { duration: 3500 });
+            this.snackBar.open('Edición habilitada: guardando cambios en una copia', 'Cerrar', { duration: 3500 });
             await this.loadTimeline(created.id);
         } catch (error) {
-            console.error('Error creating editable copy:', error);
-            this.snackBar.open('No se pudo abrir el noticiero para edición', 'Cerrar', { duration: 3500 });
+            console.error('Error enabling editing by copy:', error);
+            this.snackBar.open('No se pudo crear la copia para edición', 'Cerrar', { duration: 3500 });
             this.loadingTimeline = false;
             this.cdr.detectChanges();
         }
@@ -603,7 +656,8 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     closeTimeline() {
         this.selectedBroadcast = null;
-        this.baseBroadcast = null;
+        this.originalBroadcast = null;
+        this.editableBroadcast = null;
         this.timelineEvents = [];
     }
 
@@ -715,9 +769,11 @@ export class TimelineNoticiarioComponent implements OnInit {
 
 
     async updateBlockText(event: TimelineEvent, newText: string) {
+        if (!this.requireEditing()) return;
         event.description = newText;
         try {
             await this.supabaseService.updateBroadcastNewsItem(event.id, { custom_content: newText });
+            await this.syncBroadcastTotals();
         } catch (error) {
             console.error('Error updating block text:', error);
             this.snackBar.open('Error al guardar el texto', 'Cerrar', { duration: 3000 });
@@ -725,6 +781,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async updateBlockVoice(event: TimelineEvent) {
+        if (!this.requireEditing()) return;
         if (!event.id) return;
         
         // Find selected voice to get default settings if available
@@ -744,6 +801,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             if (updates.voice_pitch) event.pitch = updates.voice_pitch;
             
             this.snackBar.open('Voz actualizada', 'Cerrar', { duration: 2000 });
+            await this.syncBroadcastTotals();
         } catch (error) {
             console.error('Error updating block voice:', error);
             this.snackBar.open('Error al actualizar voz', 'Cerrar', { duration: 3000 });
@@ -751,6 +809,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async updateBlockMusic(event: TimelineEvent) {
+        if (!this.requireEditing()) return;
         if (!event.id) return;
 
         // Find music resource to get URL
@@ -787,6 +846,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         event.showOriginalText = !event.showOriginalText;
     }
     async generateBlockAudio(event: TimelineEvent) {
+        if (!this.requireEditing()) return;
         const textToSpeak = event.description || event.title;
         if (!textToSpeak) return;
         this.isGeneratingAudio = true;

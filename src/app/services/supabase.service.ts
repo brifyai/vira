@@ -846,26 +846,33 @@ export class SupabaseService {
             await deleteWithRetry('timeline_events', 'broadcast_id', id);
 
             // 3. Delete broadcast news items (and their related TTS files)
-            const { data: items } = await this.supabase
+            const { data: items, error: itemsError } = await this.supabase
                 .from('broadcast_news_items')
                 .select('id')
                 .eq('broadcast_id', id);
+            if (itemsError) throw itemsError;
             
-            if (items && items.length > 0) {
-                const itemIds = items.map(i => i.id);
-                
-                // Delete tts_audio_files referencing these items
-                if (itemIds.length > 0) {
-                     await deleteWithRetry('tts_audio_files', 'broadcast_news_item_id', itemIds, true);
-                }
+            const itemIds = (items || []).map(i => i.id);
 
-                // Now delete items
-                await deleteWithRetry('broadcast_news_items', 'broadcast_id', id);
+            if (itemIds.length > 0) {
+                await deleteWithRetry('tts_audio_files', 'broadcast_news_item_id', itemIds, true);
             }
+
+            await deleteWithRetry('broadcast_news_items', 'broadcast_id', id);
 
             // 4. Finally delete the broadcast
             await deleteWithRetry('news_broadcasts', 'id', id);
 
+            const { data: remaining, error: remainingError } = await this.supabase
+                .from('news_broadcasts')
+                .select('id')
+                .eq('id', id)
+                .maybeSingle();
+
+            if (remainingError) throw remainingError;
+            if (remaining) {
+                throw new Error('No se pudo eliminar el noticiero. Intenta nuevamente.');
+            }
         } catch (error) {
             console.error('Final error deleting broadcast:', error);
             throw error;
@@ -879,7 +886,7 @@ export class SupabaseService {
     async getBroadcastNewsItems(broadcastId: string) {
         const { data, error } = await this.supabase
             .from('broadcast_news_items')
-            .select('*, humanized_news(*)')
+            .select('*, humanized_news(*), tts_audio_files(*)')
             .eq('broadcast_id', broadcastId)
             .order('order_index', { ascending: true });
 

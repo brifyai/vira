@@ -189,17 +189,20 @@
             </div>
             
             <div class="timeline-actions">
-                <button class="tool-btn" (click)="addBlock('intro')">
+                <button class="tool-btn" *ngIf="!isEditingCopy" (click)="enableEditingByCopy()">
+                    Guardar como nuevo
+                </button>
+                <button class="tool-btn" (click)="addBlock('intro')" [disabled]="!isEditingCopy">
                     <span class="icon">+</span> Intro
                 </button>
-                <button class="tool-btn" (click)="addBlock('text')">
+                <button class="tool-btn" (click)="addBlock('text')" [disabled]="!isEditingCopy">
                     <span class="icon">+</span> Texto
                 </button>
-                <button class="tool-btn" (click)="fileInput.click()">
+                <button class="tool-btn" (click)="fileInput.click()" [disabled]="!isEditingCopy">
                     <span class="icon">+</span> Audio/Ad
                 </button>
                 <input #fileInput type="file" (change)="onFileSelected($event)" accept="audio/*" hidden>
-                <button class="tool-btn" (click)="addBlock('outro')">
+                <button class="tool-btn" (click)="addBlock('outro')" [disabled]="!isEditingCopy">
                     <span class="icon">+</span> Cierre
                 </button>
                 <button class="export-btn" (click)="exportTimeline()">
@@ -221,8 +224,8 @@
 
         <!-- Timeline Content -->
         <div class="timeline-content" *ngIf="!loadingTimeline">
-            <div class="timeline-list" cdkDropList (cdkDropListDropped)="drop($event)">
-                <div class="timeline-item" *ngFor="let event of timelineEvents" cdkDrag [class]="getEventTypeClass(event.type)">
+            <div class="timeline-list" cdkDropList [cdkDropListDisabled]="!isEditingCopy" (cdkDropListDropped)="drop($event)">
+                <div class="timeline-item" *ngFor="let event of timelineEvents" cdkDrag [cdkDragDisabled]="!isEditingCopy" [class]="getEventTypeClass(event.type)">
                     
                     <div class="item-handle" cdkDragHandle>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -249,7 +252,7 @@
                                 <div class="controls-row">
                                     <div class="control-group">
                                         <label class="control-label">Voz:</label>
-                                        <select class="control-select" [(ngModel)]="event.voice" (change)="updateBlockVoice(event)">
+                                        <select class="control-select" [(ngModel)]="event.voice" (change)="updateBlockVoice(event)" [disabled]="!isEditingCopy">
                                             <option *ngFor="let voice of availableVoices" [value]="voice.name">
                                                 {{ voice.label }}
                                             </option>
@@ -262,7 +265,7 @@
                                     <div class="controls-row">
                                         <div class="control-group">
                                             <label class="control-label">Música de Fondo:</label>
-                                            <select class="control-select" [(ngModel)]="event.musicUrl" (change)="updateBlockMusic(event)">
+                                            <select class="control-select" [(ngModel)]="event.musicUrl" (change)="updateBlockMusic(event)" [disabled]="!isEditingCopy">
                                                 <option [ngValue]="undefined">Sin música</option>
                                                 <option *ngFor="let music of musicResources" [value]="music.url">
                                                     {{ music.name }}
@@ -276,13 +279,13 @@
                                             <label class="control-label">Volumen Música ({{ (event.musicVolume || 0.5) * 100 | number:'1.0-0' }}%):</label>
                                             <input class="control-range" type="range" min="0" max="1" step="0.1"
                                                 [(ngModel)]="event.musicVolume"
-                                                (change)="updateBlockMusic(event)">
+                                                (change)="updateBlockMusic(event)" [disabled]="!isEditingCopy">
                                         </div>
                                         <div class="control-group">
                                             <label class="control-label">Inicio Voz ({{ event.voiceDelay || 0 }}s):</label>
                                             <input class="control-range" type="range" min="0" max="10" step="0.5"
                                                 [(ngModel)]="event.voiceDelay"
-                                                (change)="updateBlockMusic(event)">
+                                                (change)="updateBlockMusic(event)" [disabled]="!isEditingCopy">
                                         </div>
                                     </div>
                                 </div>
@@ -292,6 +295,7 @@
                                     (blur)="updateBlockText(event, event.description)"
                                     placeholder="Escribe el texto aquí..."
                                     class="block-editor"
+                                    [readonly]="!isEditingCopy"
                                     rows="3"></textarea>
                             </div>
 
@@ -300,7 +304,7 @@
                                 <div class="controls-row">
                                     <div class="control-group">
                                         <label class="control-label">Voz:</label>
-                                        <select class="control-select" [(ngModel)]="event.voice" (change)="updateBlockVoice(event)">
+                                        <select class="control-select" [(ngModel)]="event.voice" (change)="updateBlockVoice(event)" [disabled]="!isEditingCopy">
                                             <option *ngFor="let voice of availableVoices" [value]="voice.name">
                                                 {{ voice.label }}
                                             </option>
@@ -328,7 +332,7 @@
                             </p>
                             
                             <div class="audio-player" *ngIf="event.audioUrl">
-                                <audio [src]="event.audioUrl" controls controlsList="nodownload"></audio>
+                                <audio class="audio-slim" [src]="event.audioUrl" controls controlsList="nodownload"></audio>
                             </div>
                         </div>
                     </div>
@@ -337,7 +341,7 @@
                         <button class="action-btn" 
                                 *ngIf="['intro', 'outro', 'text'].includes(event.type)" 
                                 (click)="generateBlockAudio(event)" 
-                                [disabled]="isGeneratingAudio"
+                                [disabled]="isGeneratingAudio || !isEditingCopy"
                                 [title]="event.audioUrl ? 'Regenerar Audio' : 'Generar Audio'">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -347,7 +351,7 @@
                             </svg>
                         </button>
 
-                        <button class="delete-btn" (click)="deleteBlock(event)" title="Eliminar bloque">
+                        <button class="delete-btn" (click)="deleteBlock(event)" [disabled]="!isEditingCopy" title="Eliminar bloque">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -368,6 +372,9 @@
                 <div class="summary-item">
                     <span class="summary-label">Bloques:</span>
                     <span class="summary-value">{{ timelineEvents.length }}</span>
+                </div>
+                <div class="summary-item" *ngIf="!isEditingCopy">
+                    <button class="export-btn" (click)="enableEditingByCopy()">Guardar como nuevo</button>
                 </div>
             </div>
         </div>

@@ -17,6 +17,7 @@ import Swal from 'sweetalert2';
 export class MisNoticierosComponent implements OnInit {
   broadcasts: any[] = [];
   loading = false;
+  private deletingIds = new Set<string>();
 
   constructor(
     private supabaseService: SupabaseService,
@@ -70,24 +71,41 @@ export class MisNoticierosComponent implements OnInit {
   }
 
   async deleteBroadcast(id: string) {
+    if (!id || this.deletingIds.has(id)) return;
+
+    const scrollY = window.scrollY;
+
     const result = await Swal.fire({
-      title: '¿Estás seguro?',
-      text: "Se eliminará el noticiero y todos sus archivos asociados.",
+      title: '¿Eliminar?',
+      text: 'Esta acción no se puede revertir. Se eliminará el noticiero y su timeline.',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar'
+      confirmButtonColor: '#8833ff',
+      cancelButtonColor: '#2a2d44',
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      background: '#141628',
+      color: '#e8e8ff',
+      heightAuto: false,
+      returnFocus: false,
+      focusConfirm: false
+    }).finally(() => {
+      window.scrollTo({ top: scrollY });
     });
 
     if (!result.isConfirmed) return;
 
-    // Show loading state
+    this.deletingIds.add(id);
+    this.cdr.detectChanges();
+
     Swal.fire({
       title: 'Eliminando...',
-      text: 'Por favor espere mientras se elimina el noticiero y sus archivos.',
+      text: 'Por favor espera mientras se elimina el noticiero y su timeline.',
       allowOutsideClick: false,
+      background: '#141628',
+      color: '#e8e8ff',
+      heightAuto: false,
+      returnFocus: false,
       didOpen: () => {
         Swal.showLoading();
       }
@@ -96,10 +114,36 @@ export class MisNoticierosComponent implements OnInit {
     try {
       await this.supabaseService.deleteNewsBroadcast(id);
       this.broadcasts = this.broadcasts.filter(b => b.id !== id);
-      Swal.fire('Eliminado!', 'El noticiero ha sido eliminado.', 'success');
+      this.cdr.detectChanges();
+      await Swal.fire({
+        title: 'Eliminado',
+        text: 'El noticiero fue eliminado correctamente.',
+        icon: 'success',
+        confirmButtonColor: '#8833ff',
+        background: '#141628',
+        color: '#e8e8ff',
+        heightAuto: false,
+        returnFocus: false,
+        focusConfirm: false
+      });
+      await this.loadBroadcasts();
     } catch (error) {
       console.error('Error deleting broadcast:', error);
-      Swal.fire('Error', 'No se pudo eliminar el noticiero. Por favor intente nuevamente.', 'error');
+      await Swal.fire({
+        title: 'Error',
+        text: 'No se pudo eliminar el noticiero. Intenta nuevamente.',
+        icon: 'error',
+        confirmButtonColor: '#8833ff',
+        background: '#141628',
+        color: '#e8e8ff',
+        heightAuto: false,
+        returnFocus: false,
+        focusConfirm: false
+      });
+    }
+    finally {
+      this.deletingIds.delete(id);
+      this.cdr.detectChanges();
     }
   }
 }
