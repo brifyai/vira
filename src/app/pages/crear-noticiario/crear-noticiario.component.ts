@@ -112,6 +112,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     duration = 15;
     selectedNews: ScrapedNews[] = [];
     timelineEvents: TimelineEvent[] = []; // Timeline structure
+    showBroadcastDescriptionField = false;
+    showRadioField = false;
 
     // Available news
     availableNews: ScrapedNews[] = [];
@@ -177,13 +179,21 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     }
 
     async ngOnInit(): Promise<void> {
-        await Promise.all([
+        const tasks: Array<Promise<void>> = [
             this.loadSources(),
-            this.loadRadios(),
             this.loadCustomVoices(),
             this.loadMusicResources()
-        ]);
+        ];
+        if (this.showRadioField) {
+            tasks.push(this.loadRadios());
+        }
+        await Promise.all(tasks);
         await this.loadAvailableNews();
+    }
+
+    onScheduledTimeChange(): void {
+        if (!this.showRadioField) return;
+        this.onRadioSelect();
     }
 
     ngOnDestroy(): void {

@@ -15,13 +15,13 @@
                     placeholder="Ej: Noticiero Matutino">
             </div>
 
-            <div class="form-group">
+            <div class="form-group" *ngIf="showBroadcastDescriptionField">
                 <label for="description">Descripción</label>
                 <textarea id="description" class="form-textarea" [(ngModel)]="broadcastDescription"
                     placeholder="Describe el contenido del noticiero..." rows="3"></textarea>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" *ngIf="showRadioField">
                 <label for="radio">Radio *</label>
                 <select id="radio" class="form-select" [(ngModel)]="selectedRadioId" (change)="onRadioSelect()">
                     <option value="" disabled selected>Seleccionar Radio</option>
@@ -31,7 +31,7 @@
 
             <div class="form-group">
                 <label for="scheduledTime">Horario de Emisión *</label>
-                <input type="time" id="scheduledTime" class="form-input" [(ngModel)]="scheduledTime" (change)="onRadioSelect()">
+                <input type="time" id="scheduledTime" class="form-input" [(ngModel)]="scheduledTime" (change)="onScheduledTimeChange()">
             </div>
 
             <div class="form-group">
