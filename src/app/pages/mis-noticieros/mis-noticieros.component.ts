@@ -44,7 +44,8 @@ export class MisNoticierosComponent implements OnInit {
         return {
           ...b,
           audio_url: generated && generated.length > 0 ? generated[0].audio_url : null,
-          generated_id: generated && generated.length > 0 ? generated[0].id : null
+          generated_id: generated && generated.length > 0 ? generated[0].id : null,
+          generated_duration_seconds: generated && generated.length > 0 ? Number(generated[0].duration_seconds || 0) : 0
         };
       }));
     } catch (error) {

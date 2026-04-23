@@ -43,7 +43,7 @@
             <div class="card-body">
                 <div class="info-row">
                     <span class="label">Duración:</span>
-                    <span class="value">{{ formatDuration(broadcast.total_reading_time_seconds) }}</span>
+                    <span class="value">{{ formatDuration(broadcast.generated_duration_seconds || broadcast.total_reading_time_seconds) }}</span>
                 </div>
                 
                 <div class="audio-player-container" *ngIf="broadcast.audio_url">

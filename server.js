@@ -3635,8 +3635,17 @@ app.post('/api/gemini', async (req, res) => {
                 error: 'Configuración incorrecta de API Key: Por favor elimina las restricciones de "Sitios web" (HTTP Referrer) en la consola de Google. Al usar la API desde el servidor, estas restricciones bloquean la petición.' 
             });
         }
+
+        const msg = String(error?.message || 'Internal Server Error');
+        if (/429|too many requests|resource exhausted/i.test(msg)) {
+            res.setHeader('Retry-After', '10');
+            return res.status(429).json({ error: msg, retryAfterSeconds: 10 });
+        }
+        if (/403|permission_denied|unregistered callers/i.test(msg)) {
+            return res.status(403).json({ error: msg });
+        }
         
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: msg });
     }
 });
 

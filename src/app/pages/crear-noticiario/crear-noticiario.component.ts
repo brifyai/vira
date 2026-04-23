@@ -1455,6 +1455,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     model: '',
                     requests: 0
                 };
+                let ok = 0;
+                let failed = 0;
+                let stoppedByRateLimit = false;
                 // Process sequentially to avoid 429 Resource Exhausted errors
                 for (const news of this.selectedNews) {
                     try {
@@ -1493,9 +1496,17 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         
                         // Small delay to be gentle on the API
                         await new Promise(resolve => setTimeout(resolve, 1000));
+                        ok += 1;
 
-                    } catch (error) {
+                    } catch (error: any) {
                         console.error(`Error humanizing news ${news.id}:`, error);
+                        failed += 1;
+                        const status = error?.status;
+                        const msg = String(error?.message || '');
+                        if (status === 429 || /429|too many requests|resource exhausted/i.test(msg)) {
+                            stoppedByRateLimit = true;
+                            break;
+                        }
                     }
                 }
                 if (geminiTotals.promptTokens > 0) {
@@ -1532,6 +1543,17 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             category_filter: this.categoryFilter,
                             region_filter: this.regionFilter
                         }
+                    });
+                }
+                if (stoppedByRateLimit) {
+                    this.snackBar.open(`Límite de Gemini (429). Humanizadas ${ok}/${this.selectedNews.length}. Reintenta en unos minutos.`, 'Cerrar', {
+                        duration: 6000,
+                        panelClass: ['error-snackbar']
+                    });
+                } else if (failed > 0) {
+                    this.snackBar.open(`Humanización completada con errores: ${ok} ok · ${failed} fallidas.`, 'Cerrar', {
+                        duration: 5000,
+                        panelClass: ['error-snackbar']
                     });
                 }
             }

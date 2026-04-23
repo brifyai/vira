@@ -48,6 +48,7 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     // Selected broadcast
     selectedBroadcast: any = null;
+    private baseBroadcast: any = null;
 
     // Timeline events
     timelineEvents: TimelineEvent[] = [];
@@ -194,10 +195,10 @@ export class TimelineNoticiarioComponent implements OnInit {
                 id: b.id,
                 title: b.title,
                 description: b.description,
-                duration: b.duration_minutes || 0,
+                duration: Math.max(0, Math.round(Number(b.total_reading_time_seconds ?? ((b.duration_minutes || 0) * 60)) / 60)),
                 status: b.status,
                 totalNews: b.total_news_count || 0,
-                totalReadingTime: (b.duration_minutes || 0) * 60,
+                totalReadingTime: Number(b.total_reading_time_seconds ?? ((b.duration_minutes || 0) * 60)) || 0,
                 createdAt: new Date(b.created_at),
                 publishedAt: b.published_at ? new Date(b.published_at) : null,
                 createdBy: 'Usuario' // TODO: Get creator name
@@ -222,11 +223,10 @@ export class TimelineNoticiarioComponent implements OnInit {
             this.timelineEvents = items.map((item: any) => {
                 const news = item.humanized_news;
                 // Determine duration
-                let duration = item.duration_seconds || 0;
-                if (!duration && news) {
-                    duration = news.reading_time_seconds || 60;
-                }
-                if (!duration) duration = 30; // Default
+                let duration = Number(item.duration_seconds || 0);
+                if (!duration) duration = Number(item.reading_time_seconds || 0);
+                if (!duration && news) duration = Number(news.reading_time_seconds || 0);
+                if (!duration) duration = 30;
 
                 return {
                     id: item.id,
@@ -260,6 +260,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             // But let's assume getBroadcastNewsItems returns what we have.
             
             this.calculateTimes();
+            this.hydrateDurationsFromAudioUrls(broadcastId);
 
         } catch (error) {
             console.error('Error loading timeline:', error);
@@ -281,6 +282,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             event.endTime = currentTime + event.duration;
             currentTime += event.duration;
         });
+        this.totalDuration = currentTime;
     }
 
     drop(event: CdkDragDrop<any[]>) {
@@ -386,6 +388,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             // Remove locally
             this.timelineEvents = this.timelineEvents.filter(e => e.id !== event.id);
             this.calculateTimes();
+            await this.syncBroadcastTotals();
             Swal.fire({
                 title: 'Eliminado!',
                 text: 'El bloque ha sido eliminado.',
@@ -459,13 +462,148 @@ export class TimelineNoticiarioComponent implements OnInit {
         });
     }
 
-    selectBroadcast(broadcast: any) {
-        this.selectedBroadcast = broadcast;
-        this.loadTimeline(broadcast.id);
+    private getAudioDurationFromUrl(url: string, timeoutMs = 15000): Promise<number> {
+        return new Promise((resolve) => {
+            if (!url) return resolve(0);
+            const audio = new Audio();
+            let done = false;
+            const finish = (value: number) => {
+                if (done) return;
+                done = true;
+                try {
+                    audio.pause();
+                    audio.src = '';
+                } catch {}
+                resolve(value);
+            };
+            const timer = window.setTimeout(() => finish(0), timeoutMs);
+            audio.preload = 'metadata';
+            (audio as any).crossOrigin = 'anonymous';
+            audio.onloadedmetadata = () => {
+                window.clearTimeout(timer);
+                const d = Number.isFinite(audio.duration) ? Math.ceil(audio.duration) : 0;
+                finish(d);
+            };
+            audio.onerror = () => {
+                window.clearTimeout(timer);
+                finish(0);
+            };
+            audio.src = url;
+        });
+    }
+
+    private async hydrateDurationsFromAudioUrls(broadcastId: string): Promise<void> {
+        const currentId = this.selectedBroadcast?.id;
+        if (!broadcastId || !currentId || broadcastId !== currentId) return;
+
+        const events = this.timelineEvents.slice();
+        for (const ev of events) {
+            if (!this.selectedBroadcast || this.selectedBroadcast.id !== broadcastId) return;
+            if (!ev.audioUrl) continue;
+            const duration = await this.getAudioDurationFromUrl(ev.audioUrl, 15000);
+            if (!duration) continue;
+            if (Math.abs(duration - ev.duration) < 2) continue;
+            ev.duration = duration;
+            try {
+                await this.supabaseService.updateBroadcastNewsItem(ev.id, { duration_seconds: duration });
+            } catch (e) {}
+            this.calculateTimes();
+            this.cdr.detectChanges();
+        }
+        await this.syncBroadcastTotals();
+    }
+
+    private async syncBroadcastTotals(): Promise<void> {
+        if (!this.selectedBroadcast?.id) return;
+        const totalSeconds = this.timelineEvents.reduce((acc, e) => acc + (Number(e.duration) || 0), 0);
+        const totalNews = this.timelineEvents.filter(e => e.type === 'news').length;
+        try {
+            await this.supabaseService.updateNewsBroadcast(this.selectedBroadcast.id, {
+                total_reading_time_seconds: totalSeconds,
+                total_news_count: totalNews
+            });
+            this.selectedBroadcast.totalReadingTime = totalSeconds;
+            this.selectedBroadcast.totalNews = totalNews;
+            this.selectedBroadcast.duration = Math.max(0, Math.round(totalSeconds / 60));
+        } catch (e) {}
+    }
+
+    async selectBroadcast(broadcast: any) {
+        if (!broadcast?.id) return;
+        this.loadingTimeline = true;
+        this.cdr.detectChanges();
+        try {
+            const base = await this.supabaseService.getNewsBroadcastById(broadcast.id);
+            this.baseBroadcast = base;
+
+            const user = await this.supabaseService.getCurrentUser().catch(() => null);
+            const now = new Date();
+            const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+            const copyTitle = `${base.title} (copia ${stamp})`;
+
+            const created = await this.supabaseService.createNewsBroadcast({
+                title: copyTitle,
+                description: base.description,
+                duration_minutes: base.duration_minutes,
+                status: 'draft',
+                total_news_count: base.total_news_count,
+                total_reading_time_seconds: base.total_reading_time_seconds,
+                created_by: user?.id || null,
+                radio_id: base.radio_id || null,
+                scheduled_time: base.scheduled_time || null
+            });
+
+            const baseItems = await this.supabaseService.getBroadcastNewsItems(base.id);
+            for (const item of baseItems || []) {
+                const clone: any = {
+                    broadcast_id: created.id,
+                    humanized_news_id: item.humanized_news_id || null,
+                    order_index: item.order_index,
+                    reading_time_seconds: item.reading_time_seconds,
+                    type: item.type,
+                    custom_title: item.custom_title,
+                    custom_content: item.custom_content,
+                    audio_url: item.audio_url,
+                    duration_seconds: item.duration_seconds,
+                    voice_id: item.voice_id,
+                    voice_speed: item.voice_speed,
+                    voice_pitch: item.voice_pitch,
+                    music_url: (item as any).music_url,
+                    music_resource_id: item.music_resource_id,
+                    voice_delay: item.voice_delay,
+                    music_volume: item.music_volume
+                };
+                await this.supabaseService.createBroadcastNewsItem(clone);
+            }
+
+            const mapped = {
+                id: created.id,
+                title: created.title,
+                description: created.description,
+                duration: Math.max(0, Math.round(Number(created.total_reading_time_seconds ?? ((created.duration_minutes || 0) * 60)) / 60)),
+                status: created.status,
+                totalNews: created.total_news_count || 0,
+                totalReadingTime: Number(created.total_reading_time_seconds ?? ((created.duration_minutes || 0) * 60)) || 0,
+                createdAt: new Date(created.created_at),
+                publishedAt: created.published_at ? new Date(created.published_at) : null,
+                createdBy: 'Usuario'
+            };
+            this.broadcasts = [mapped, ...this.broadcasts];
+            this.selectedBroadcast = mapped;
+
+            this.snackBar.open('Editando una copia (no se sobrescribe el original)', 'Cerrar', { duration: 3500 });
+            await this.loadTimeline(created.id);
+        } catch (error) {
+            console.error('Error creating editable copy:', error);
+            this.snackBar.open('No se pudo abrir el noticiero para edición', 'Cerrar', { duration: 3500 });
+            this.loadingTimeline = false;
+            this.cdr.detectChanges();
+        }
     }
 
     closeTimeline() {
         this.selectedBroadcast = null;
+        this.baseBroadcast = null;
         this.timelineEvents = [];
     }
 
@@ -636,9 +774,9 @@ export class TimelineNoticiarioComponent implements OnInit {
 
         try {
             await this.supabaseService.updateBroadcastNewsItem(event.id, updates);
-            // Invalidate generated audio if any
-            event.audioUrl = undefined;
             this.snackBar.open('Configuración de música actualizada', 'Cerrar', { duration: 2000 });
+            this.calculateTimes();
+            await this.syncBroadcastTotals();
         } catch (error) {
             console.error('Error updating block music:', error);
             this.snackBar.open('Error al actualizar música', 'Cerrar', { duration: 3000 });
@@ -713,6 +851,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                  event.duration = duration;
                  await this.supabaseService.updateBroadcastNewsItem(event.id, { duration_seconds: duration });
                  this.calculateTimes();
+                 await this.syncBroadcastTotals();
             };
 
         } catch (error) {
@@ -732,22 +871,34 @@ export class TimelineNoticiarioComponent implements OnInit {
         try {
             const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
             const audioBuffers: AudioBuffer[] = [];
+            let missingAudioCount = 0;
+            let failedAudioCount = 0;
             
             // 1. Fetch and decode all audio files
             for (const event of this.timelineEvents) {
-                if (event.audioUrl) {
-                    try {
-                        const response = await fetch(event.audioUrl);
-                        const arrayBuffer = await response.arrayBuffer();
-                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                        audioBuffers.push(audioBuffer);
-                    } catch (e) {
-                        console.error(`Error loading audio for event ${event.id}:`, e);
-                    }
+                const targetSeconds = Math.max(0, Number(event.duration) || 0);
+                if (!event.audioUrl) {
+                    missingAudioCount += 1;
+                    const length = Math.max(1, Math.ceil(audioContext.sampleRate * targetSeconds));
+                    audioBuffers.push(audioContext.createBuffer(2, length, audioContext.sampleRate));
+                    continue;
+                }
+
+                try {
+                    const response = await fetch(event.audioUrl);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    audioBuffers.push(audioBuffer);
+                } catch (e) {
+                    console.error(`Error loading audio for event ${event.id}:`, e);
+                    failedAudioCount += 1;
+                    const length = Math.max(1, Math.ceil(audioContext.sampleRate * targetSeconds));
+                    audioBuffers.push(audioContext.createBuffer(2, length, audioContext.sampleRate));
                 }
             }
 
-            if (audioBuffers.length === 0) {
+            const hasAnyRealAudio = this.timelineEvents.some(e => !!e.audioUrl);
+            if (!hasAnyRealAudio) {
                 Swal.fire('Atención', 'No hay audios para exportar.', 'warning');
                 return;
             }
@@ -798,10 +949,15 @@ export class TimelineNoticiarioComponent implements OnInit {
                     audio_url: publicUrl,
                     duration_seconds: Math.ceil(renderedBuffer.duration)
                 });
+                await this.supabaseService.updateNewsBroadcast(this.selectedBroadcast.id, {
+                    total_reading_time_seconds: Math.ceil(renderedBuffer.duration)
+                });
 
                 Swal.fire({
                     title: 'Exportación Exitosa',
-                    text: 'El noticiero se ha exportado y guardado en "Mis Noticieros".',
+                    text: missingAudioCount > 0 || failedAudioCount > 0
+                        ? `Exportado y guardado. Bloques sin audio: ${missingAudioCount} · Fallos al cargar audio: ${failedAudioCount}`
+                        : 'El noticiero se ha exportado y guardado en "Mis Noticieros".',
                     icon: 'success',
                     timer: 2000,
                     showConfirmButton: false
