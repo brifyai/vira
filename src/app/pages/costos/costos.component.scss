@@ -232,22 +232,19 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
 .rate-row {
     display: grid;
-    grid-template-columns: 1.2fr 1.1fr 0.9fr 0.9fr 0.6fr 0.55fr 0.7fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
     padding: 12px;
     border: 1px solid rgba(51, 65, 85, 0.6);
     border-radius: 12px;
     background: rgba(15, 23, 42, 0.35);
-
-    @media (max-width: 1200px) {
-        grid-template-columns: 1fr 1fr;
-    }
 }
 
 .rate-col {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    min-width: 0;
 
     label {
         font-size: 11px;
@@ -257,6 +254,8 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     input[type='text'],
     input[type='number'] {
+        width: 100%;
+        min-width: 0;
         padding: 10px 12px;
         background: rgba(15, 23, 42, 0.5);
         border: 1px solid $dark-border;
@@ -287,6 +286,7 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .rate-col.actions {
+    grid-column: 1 / -1;
     justify-content: flex-end;
 }
 
@@ -347,4 +347,3 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         transform: rotate(360deg);
     }
 }
-
