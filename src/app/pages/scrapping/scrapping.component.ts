@@ -131,17 +131,45 @@ export class ScrappingComponent implements OnInit {
       // Usamos EventSource para recibir el progreso en tiempo real
       const url = `${config.apiUrl}/api/admin/scraping/run?token=${token}`;
       const eventSource = new EventSource(url);
+      let lastUpdateAt = Date.now();
+      const watchdog = window.setInterval(() => {
+        const idleMs = Date.now() - lastUpdateAt;
+        if (!this.running) return;
+        if (idleMs < 45000) return;
+        try {
+          eventSource.close();
+        } catch {}
+        window.clearInterval(watchdog);
+        this.running = false;
+        this.runMessage = 'Sin actualizaciones del servidor. Revisa ejecuciones recientes.';
+        this.snackBar.open('Scraping sin respuesta. Revisa el estado.', 'Cerrar', { duration: 4000 });
+        this.loadStatus();
+        this.cdr.detectChanges();
+      }, 5000);
 
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          lastUpdateAt = Date.now();
           if (data.type === 'progress') {
-            this.runPercent = data.percent;
-            this.runMessage = data.message;
+            if (typeof data.percent === 'number') this.runPercent = data.percent;
+            if (typeof data.message === 'string') this.runMessage = data.message;
           } else if (data.type === 'saving') {
-            this.runMessage = data.message;
+            if (typeof data.message === 'string') this.runMessage = data.message;
+          } else if (data.type === 'warning') {
+            if (typeof data.message === 'string') this.runMessage = data.message;
           } else if (data.type === 'complete' || data.success) {
-            this.snackBar.open('Scrapping completado con éxito', 'Cerrar', { duration: 3000 });
+            const terminatedEarly = !!data?.result?.report?.terminatedEarly;
+            const terminateReason = data?.result?.report?.terminateReason;
+            if (terminatedEarly) {
+              const msg = terminateReason === 'out_of_credits'
+                ? 'Scraping finalizado por falta de créditos'
+                : 'Scraping finalizado con advertencias';
+              this.snackBar.open(msg, 'Cerrar', { duration: 4000 });
+            } else {
+              this.snackBar.open('Scrapping completado con éxito', 'Cerrar', { duration: 3000 });
+            }
+            window.clearInterval(watchdog);
             eventSource.close();
             this.running = false;
             this.loadStatus();
@@ -151,6 +179,7 @@ export class ScrappingComponent implements OnInit {
           this.cdr.detectChanges();
         } catch (e: any) {
           this.snackBar.open(e?.message || 'Error en el proceso', 'Cerrar', { duration: 5000 });
+          window.clearInterval(watchdog);
           eventSource.close();
           this.running = false;
           this.cdr.detectChanges();
@@ -160,12 +189,13 @@ export class ScrappingComponent implements OnInit {
       eventSource.onerror = (err) => {
         console.error('EventSource error:', err);
         eventSource.close();
-        // No marcamos running=false inmediatamente porque a veces el cierre es al final del stream
-        if (this.runPercent < 100 && this.running) {
-           this.snackBar.open('Conexión perdida o finalizada', 'Cerrar', { duration: 3000 });
-           this.running = false;
-           this.loadStatus();
-        }
+        window.clearInterval(watchdog);
+        if (!this.running) return;
+        this.snackBar.open('Conexión perdida. Revisa ejecuciones recientes.', 'Cerrar', { duration: 3500 });
+        this.runMessage = 'Conexión perdida. Revisa ejecuciones recientes.';
+        this.running = false;
+        this.loadStatus();
+        this.cdr.detectChanges();
       };
 
     } catch (e: any) {

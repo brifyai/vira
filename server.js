@@ -62,20 +62,50 @@ function escapeXml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-// Helper for fetching with timeout
+const withTimeout = async (promise, timeoutMs, reason = 'timeout') => {
+    const ms = Number.isFinite(Number(timeoutMs)) ? Math.max(1, Number(timeoutMs)) : 1;
+    let t;
+    const timeout = new Promise((_, reject) => {
+        t = setTimeout(() => reject(new Error(reason)), ms);
+    });
+    try {
+        return await Promise.race([promise, timeout]);
+    } finally {
+        if (t) clearTimeout(t);
+    }
+};
+
 const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
+
+    const externalSignal = options?.signal;
+    let onAbort;
+    if (externalSignal) {
+        if (externalSignal.aborted) {
+            controller.abort(externalSignal.reason);
+        } else {
+            onAbort = () => controller.abort(externalSignal.reason);
+            try {
+                externalSignal.addEventListener('abort', onAbort, { once: true });
+            } catch (e) {}
+        }
+    }
+
     try {
-        const response = await fetch(url, {
-            ...options,
-            signal: controller.signal
-        });
+        const { signal: _ignored, ...rest } = options || {};
+        const response = await fetch(url, { ...rest, signal: controller.signal });
         clearTimeout(id);
         return response;
     } catch (error) {
         clearTimeout(id);
         throw error;
+    } finally {
+        if (externalSignal && onAbort) {
+            try {
+                externalSignal.removeEventListener('abort', onAbort);
+            } catch (e) {}
+        }
     }
 };
 
@@ -507,8 +537,17 @@ const scrapeHandler = async (req, res) => {
     const startTime = Date.now();
 
     const sendUpdate = typeof req?.onScrapeUpdate === 'function' ? req.onScrapeUpdate : () => {};
+    const signal = req?.abortSignal || req?.signal;
+    const ensureNotAborted = () => {
+        if (signal?.aborted) {
+            const err = new Error('aborted');
+            err.name = 'AbortError';
+            throw err;
+        }
+    };
 
     try {
+        ensureNotAborted();
         const { sources, runId, concurrency, articlesPerSource, articles_per_source, dedupGlobalLimit, dedup_global_limit } = req.body || {};
 
         if (!sources || !Array.isArray(sources) || sources.length === 0) {
@@ -541,10 +580,58 @@ const scrapeHandler = async (req, res) => {
         const scrapedNews = [];
         const perSource = [];
         let processedCount = 0;
+        let savedCount = 0;
+        let creditsUsed = null;
+        let creditsRemaining = null;
+        let creditsDepleted = false;
         const globalSeenUrls = new Set();
         const globalExistingUrls = new Set();
+        const parseCreditNumber = (value) => {
+            if (value === null || value === undefined) return null;
+            const n = Number(String(value).trim());
+            return Number.isFinite(n) ? n : null;
+        };
+        const updateCreditsFromResponse = (resp) => {
+            try {
+                if (!resp || !resp.headers) return;
+                const used = parseCreditNumber(resp.headers.get('Spb-Used-Credits'));
+                const remaining = parseCreditNumber(resp.headers.get('Spb-Remaining-Credits'));
+                if (used !== null) creditsUsed = used;
+                if (remaining !== null) creditsRemaining = remaining;
+                if (creditsRemaining !== null && creditsRemaining <= 0) creditsDepleted = true;
+            } catch (e) {}
+        };
+        const markCreditsDepleted = (reason) => {
+            if (creditsDepleted) return;
+            creditsDepleted = true;
+            sendUpdate({ type: 'warning', message: `Scraping finaliza por falta de créditos (${reason || 'sin_detalle'}).` });
+        };
+        const safeInsertScrapedNews = async (items) => {
+            const rows = Array.isArray(items) ? items.filter(Boolean) : [];
+            if (!rows.length) return 0;
+            ensureNotAborted();
+            try {
+                const { error } = await supabase.from('scraped_news').insert(rows);
+                if (error) throw error;
+                return rows.length;
+            } catch (e) {
+                let ok = 0;
+                for (const row of rows) {
+                    ensureNotAborted();
+                    try {
+                        const { error } = await supabase.from('scraped_news').insert(row);
+                        if (error) throw error;
+                        ok += 1;
+                    } catch (inner) {
+                        sendUpdate({ type: 'warning', message: 'No se pudo guardar una noticia. Se omite.' });
+                    }
+                }
+                return ok;
+            }
+        };
 
         try {
+            ensureNotAborted();
             const rawLimit = dedupGlobalLimit ?? dedup_global_limit;
             const globalLimit = Number.isFinite(Number(rawLimit)) ? Math.max(200, Math.min(20000, Number(rawLimit))) : 5000;
             const { data: recentGlobal } = await supabase
@@ -563,6 +650,20 @@ const scrapeHandler = async (req, res) => {
         const processSource = async (source) => {
             // ... (existing scraping logic)
             // console.log(`[START] Scraping source: ${source.name} (${source.url})`);
+            if (creditsDepleted) {
+                const report = {
+                    source_id: source.id,
+                    name: source.name,
+                    url: source.url,
+                    status: 'skipped_no_credits',
+                    error: 'out_of_credits',
+                    links_found: 0,
+                    articles_extracted: 0,
+                    duration_ms: 0
+                };
+                perSource.push(report);
+                return { items: [], report };
+            }
             sendUpdate({ type: 'progress', message: `Contactando ScrapingBee para: ${source.name}...` });
             const report = {
                 source_id: source.id,
@@ -577,37 +678,41 @@ const scrapeHandler = async (req, res) => {
             const startedAt = Date.now();
             
             try {
+                ensureNotAborted();
                 // Get HTML with render_js enabled and block unnecessary resources for speed
                 const sbUrl = `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(source.url)}&render_js=true&block_ads=true&block_resources=false&wait=1500&window_width=1920&window_height=1080`;
                 
-                const response = await fetchWithTimeout(sbUrl, {}, 45000); // Increased timeout
+                const response = await fetchWithTimeout(sbUrl, { signal }, 45000);
 
-                // Check for ScrapingBee specific headers if possible (usually in response headers)
-                const usedCredits = response.headers.get('Spb-Used-Credits');
-                const remainingCredits = response.headers.get('Spb-Remaining-Credits');
-                if (usedCredits) // console.log(`[INFO] ScrapingBee Credits - Used: ${usedCredits}, Remaining: ${remainingCredits}`);
+                updateCreditsFromResponse(response);
+                if (creditsRemaining !== null && creditsRemaining <= 0) {
+                    markCreditsDepleted('remaining_0');
+                    report.status = 'skipped_no_credits';
+                    report.error = 'out_of_credits';
+                    return { items: [], report };
+                }
 
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error(`[ERROR] Failed to scrape ${source.name}: ${response.status} ${response.statusText} - Body: ${errorText}`);
-                    sendUpdate({ type: 'error', error: `Error ScrapingBee (${response.status}): ${source.name}` });
+                    if (response.status === 402) {
+                        markCreditsDepleted('http_402');
+                        report.status = 'skipped_no_credits';
+                        report.error = 'out_of_credits';
+                        return { items: [], report };
+                    }
+                    sendUpdate({ type: 'warning', message: `Error ScrapingBee (${response.status}) en ${source.name}. Se omite la fuente.` });
                     report.status = 'failed';
                     report.error = `scrapingbee_http_${response.status}`;
                     return { items: [], report };
-                        candidates.push({
-                            title: linkText,
-                            url: fullUrl,
-                            score: score
-                        });
-                        validLinksCount++;
-                    }
+                }
 
                 const html = await response.text();
                 // console.log(`[INFO] HTML content length for ${source.name}: ${html.length}`);
                 
                 if (html.length < 1000) {
                      console.warn(`[WARN] HTML content too short for ${source.name}. Possible bot detection or empty page.`);
-                     sendUpdate({ type: 'error', error: `Contenido vacío/corto para: ${source.name}` });
+                     sendUpdate({ type: 'warning', message: `Contenido vacío/corto para ${source.name}. Se omite la fuente.` });
                      report.status = 'failed';
                      report.error = 'html_too_short';
                 }
@@ -620,6 +725,7 @@ const scrapeHandler = async (req, res) => {
                 const seenUrls = new Set();
                 
                 // Fetch existing URLs for this source from Supabase to avoid duplicates
+                ensureNotAborted();
                 const { data: existingNews } = await supabase
                     .from('scraped_news')
                     .select('original_url')
@@ -841,14 +947,21 @@ const scrapeHandler = async (req, res) => {
                 const articlePromises = newsArticles.map(async (article, idx) => {
                     sendUpdate({ type: 'progress', message: `Extrayendo (${idx+1}/${newsArticles.length}): ${article.title.substring(0, 30)}...` });
                     try {
+                        if (creditsDepleted) return null;
+                        ensureNotAborted();
                         // Use block_resources=false to ensure images are present for extraction
                         const articleResponse = await fetchWithTimeout(
                             `https://app.scrapingbee.com/api/v1/?api_key=${scrapingBeeApiKey}&url=${encodeURIComponent(article.url)}&render_js=true&block_ads=true&block_resources=false&wait=1000`,
-                            {},
+                            { signal },
                             20000
                         );
+                        updateCreditsFromResponse(articleResponse);
 
                         if (!articleResponse.ok) {
+                            if (articleResponse.status === 402) {
+                                markCreditsDepleted('http_402');
+                                return null;
+                            }
                             console.warn(`Skipping ${article.url} due to connection error`);
                             return null;
                         }
@@ -899,7 +1012,7 @@ const scrapeHandler = async (req, res) => {
                                  sendUpdate({ type: 'progress', message: `Intentando extraer texto de imagen para: ${article.title.substring(0, 20)}...` });
                                  
                                  try {
-                                     const imageText = await processImageWithGemini(imageUrl);
+                                     const imageText = await withTimeout(processImageWithGemini(imageUrl, { signal }), 25000, 'image_ocr_timeout');
                                      if (imageText && imageText.length > 100) {
                                          fullContent = imageText + "\n\n[Nota: Contenido extraído automáticamente de la imagen principal]";
                                          console.log(`[SUCCESS] Extracted ${fullContent.length} chars from image for ${article.url}`);
@@ -949,6 +1062,9 @@ const scrapeHandler = async (req, res) => {
                                 }
                         };
                     } catch (error) {
+                        if (error && (error.name === 'AbortError' || String(error?.message || '').toLowerCase().includes('aborted'))) {
+                            return null;
+                        }
                         console.warn(`Skipping ${article.url} due to exception:`, error);
                         return null;
                     }
@@ -988,17 +1104,28 @@ const scrapeHandler = async (req, res) => {
 
         // Process sources in chunks
         for (let i = 0; i < sourcesData.length; i += CONCURRENT_SOURCES) {
+            ensureNotAborted();
+            if (creditsDepleted) break;
             const chunk = sourcesData.slice(i, i + CONCURRENT_SOURCES);
             
             const chunkPromises = chunk.map(source => processSource(source));
             const chunkResults = await Promise.all(chunkPromises);
             
+            const chunkItems = [];
             chunkResults.forEach(r => {
                 const items = r?.items || [];
                 if (items.length > 0) {
                     scrapedNews.push(...items);
+                    chunkItems.push(...items);
                 }
             });
+
+            if (chunkItems.length > 0) {
+                sendUpdate({ type: 'saving', message: `Guardando ${chunkItems.length} noticias...` });
+                const savedNow = await safeInsertScrapedNews(chunkItems);
+                savedCount += savedNow;
+                sendUpdate({ type: 'saving', message: `Guardadas ${savedCount} noticias (acumulado)` });
+            }
 
             processedCount += chunk.length;
             const percent = Math.round((processedCount / sourcesData.length) * 100);
@@ -1009,39 +1136,43 @@ const scrapeHandler = async (req, res) => {
             });
         }
 
-        // Insert scraped news into Supabase
-        if (scrapedNews.length > 0) {
-            sendUpdate({ type: 'saving', message: 'Guardando noticias en base de datos...' });
-            const { error: insertError } = await supabase
-                .from('scraped_news')
-                .insert(scrapedNews);
-
-            if (insertError) {
-                console.error('Error inserting scraped news:', insertError);
-                throw insertError;
-            }
-        }
-
         const duration = (Date.now() - startTime) / 1000;
         // console.log(`[COMPLETE] Scraped ${scrapedNews.length} news in ${duration}s`);
         const failed = perSource.filter(s => s.status === 'failed');
         const withNews = perSource.filter(s => (s.articles_extracted || 0) > 0);
+        const skippedNoCredits = perSource.filter(s => s.status === 'skipped_no_credits');
+        const terminatedEarly = creditsDepleted;
+        const terminateReason = creditsDepleted ? 'out_of_credits' : null;
         
         res.json({
             success: true,
-            count: scrapedNews.length,
-            message: `Actualización completada: ${scrapedNews.length} noticias nuevas en ${duration}s`,
+            count: savedCount,
+            message: terminatedEarly
+                ? `Proceso finalizado por falta de créditos: ${savedCount} noticias guardadas en ${duration}s`
+                : `Actualización completada: ${savedCount} noticias nuevas en ${duration}s`,
             report: {
                 sourcesTotal: sourcesData.length,
+                sourcesProcessed: processedCount,
+                sourcesUnprocessed: Math.max(0, sourcesData.length - processedCount),
                 sourcesWithNews: withNews.length,
                 sourcesFailed: failed.length,
-                sourcesNoNews: sourcesData.length - withNews.length - failed.length,
+                sourcesNoNews: Math.max(0, processedCount - withNews.length - failed.length - skippedNoCredits.length),
+                sourcesSkippedNoCredits: skippedNoCredits.length,
+                terminatedEarly,
+                terminateReason,
+                credits: {
+                    used: creditsUsed,
+                    remaining: creditsRemaining
+                },
                 perSource
             },
             data: scrapedNews
         });
 
     } catch (error) {
+        if (error && (error.name === 'AbortError' || String(error?.message || '').toLowerCase().includes('aborted'))) {
+            return res.status(499).json({ error: 'aborted' });
+        }
         console.error('Error in scrape endpoint:', error);
         res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error occurred' });
     }
@@ -1498,7 +1629,7 @@ async function setSetting(key, value) {
     if (error) throw error;
 }
 
-async function runScrapeWithHandler(sourceIds, { runId, concurrency, articlesPerSource, dedupGlobalLimit, onUpdate } = {}) {
+async function runScrapeWithHandler(sourceIds, { runId, concurrency, articlesPerSource, dedupGlobalLimit, onUpdate, signal } = {}) {
     const fakeReq = {
         body: {
             sources: sourceIds,
@@ -1508,7 +1639,8 @@ async function runScrapeWithHandler(sourceIds, { runId, concurrency, articlesPer
             dedupGlobalLimit
         },
         headers: {},
-        onScrapeUpdate: typeof onUpdate === 'function' ? onUpdate : undefined
+        onScrapeUpdate: typeof onUpdate === 'function' ? onUpdate : undefined,
+        abortSignal: signal
     };
     return await new Promise((resolve) => {
         const fakeRes = {
@@ -1636,14 +1768,13 @@ app.get('/api/admin/scraping/run', async (req, res) => {
 
     let closed = false;
     let currentRunId = null;
+    let heartbeat = null;
     req.on('close', () => {
         closed = true;
-        if (!currentRunId) return;
-        supabase.from('automation_runs').update({
-            status: 'failed',
-            completed_at: new Date().toISOString(),
-            error_message: 'client_disconnected'
-        }).eq('id', currentRunId).eq('status', 'running');
+        if (heartbeat) {
+            clearInterval(heartbeat);
+            heartbeat = null;
+        }
     });
 
     const send = (data) => {
@@ -1652,6 +1783,11 @@ app.get('/api/admin/scraping/run', async (req, res) => {
     };
 
     try {
+        heartbeat = setInterval(() => {
+            if (closed) return;
+            res.write(`: heartbeat\n\n`);
+        }, 15000);
+
         const asset = await ensureScrapingAsset();
         const cfg = asset?.config || {};
 
@@ -1662,6 +1798,7 @@ app.get('/api/admin/scraping/run', async (req, res) => {
 
         if (sourcesError) {
             send({ type: 'error', message: sourcesError.message });
+            if (heartbeat) clearInterval(heartbeat);
             res.end();
             return;
         }
@@ -1669,6 +1806,7 @@ app.get('/api/admin/scraping/run', async (req, res) => {
         const ids = (sourcesData || []).map(s => s.id).filter(Boolean);
         if (ids.length === 0) {
             send({ type: 'error', message: 'No hay fuentes activas' });
+            if (heartbeat) clearInterval(heartbeat);
             res.end();
             return;
         }
@@ -1726,6 +1864,7 @@ app.get('/api/admin/scraping/run', async (req, res) => {
                 created_by: profile.id
             }).eq('id', run.id);
             send({ type: 'error', message: result.payload?.error || 'Scraping falló', runId: run.id });
+            if (heartbeat) clearInterval(heartbeat);
             res.end();
             return;
         }
@@ -1758,10 +1897,12 @@ app.get('/api/admin/scraping/run', async (req, res) => {
                 report: result.payload?.report ?? null
             }
         });
+        if (heartbeat) clearInterval(heartbeat);
         res.end();
     } catch (error) {
         console.error('Admin scraping run (SSE) error:', error);
         send({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' });
+        if (heartbeat) clearInterval(heartbeat);
         res.end();
     }
 });
@@ -2419,7 +2560,7 @@ function extractImage(html, url) {
 }
 
 // Helper to process image with Gemini Vision
-async function processImageWithGemini(imageUrl) {
+async function processImageWithGemini(imageUrl, { signal } = {}) {
     const geminiApiKey = process.env.geminiApiKey || process.env.GEMINI_API_KEY;
     if (!geminiApiKey) {
         console.warn("[WARN] Gemini API Key missing for image processing");
@@ -2428,7 +2569,7 @@ async function processImageWithGemini(imageUrl) {
 
     try {
         // Fetch the image
-        const imgResponse = await fetchWithTimeout(imageUrl, {}, 15000);
+        const imgResponse = await fetchWithTimeout(imageUrl, { signal }, 15000);
         if (!imgResponse.ok) throw new Error(`Failed to fetch image: ${imgResponse.statusText}`);
         
         const arrayBuffer = await imgResponse.arrayBuffer();
@@ -2441,15 +2582,19 @@ async function processImageWithGemini(imageUrl) {
 
         const prompt = "Analiza esta imagen que corresponde a una noticia. Extrae el texto principal, titulares y cualquier información textual relevante. Si es una infografía o un comunicado, transcribe el contenido completo. Si es solo una foto decorativa, describe brevemente el contexto visual relevante para una noticia de radio. Devuelve un texto coherente en español.";
 
-        const result = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: base64Image,
-                    mimeType: mimeType
+        const result = await withTimeout(
+            model.generateContent([
+                prompt,
+                {
+                    inlineData: {
+                        data: base64Image,
+                        mimeType: mimeType
+                    }
                 }
-            }
-        ]);
+            ]),
+            20000,
+            'gemini_vision_timeout'
+        );
 
         const response = await result.response;
         const text = response.text();
