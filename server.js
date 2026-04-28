@@ -27,8 +27,17 @@ app.use(express.json({ limit: '50mb' })); // Increased limit for voice cloning a
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Initialize Supabase client
-const supabaseUrl = 'https://themdawboacvgyyaftus.supabase.co';
-const supabaseKey = process.env.SUPABASE_KEY || process.env.supabaseAnonKey || 'YOUR_SUPABASE_KEY';
+const supabaseUrl =
+  getEnvValue('SUPABASE_URL') ||
+  getEnvValue('supabaseUrl') ||
+  'https://themdawboacvgyyaftus.supabase.co';
+
+const supabaseKey =
+  getEnvValue('SUPABASE_SERVICE_ROLE_KEY') ||
+  getEnvValue('SUPABASE_KEY') ||
+  getEnvValue('SUPABASE_ANON_KEY') ||
+  getEnvValue('supabaseAnonKey') ||
+  'YOUR_SUPABASE_KEY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const scrapingBeeApiKey =
