@@ -1,5 +1,4 @@
 require('dotenv').config();
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
@@ -52,6 +51,8 @@ const AZURE_API_KEY = process.env.AZURE_API_KEY || 'TU_API_KEY_AZURE'; // Config
 const AZURE_REGION = process.env.AZURE_REGION || 'eastus'; // Configurar en Vercel Environment Variables
 const RUNPOD_API_KEY = getEnvValue('RUNPOD') || getEnvValue('RUNPOD_API_KEY');
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || 'YOUR_QWEN_API_KEY';
+const MINIMAX_API_KEY = getEnvValue('REACT_MINIMAX_API_KEY');
+const GROQ_API_KEY = getEnvValue('REACT_GROQ_API_KEY');
 const CHATTERBOX_DEBUG = ['1', 'true', 'yes', 'on'].includes(getEnvValue('CHATTERBOX_DEBUG').toLowerCase());
 const CRON_SECRET = getEnvValue('CRON_SECRET');
 
@@ -61,7 +62,8 @@ console.log('[Server] Environment Check:');
 console.log(`- NODE_ENV: ${process.env.NODE_ENV}`);
 console.log(`- AZURE_API_KEY Present: ${!!process.env.AZURE_API_KEY && process.env.AZURE_API_KEY !== 'TU_API_KEY_AZURE'}`);
 console.log(`- AZURE_REGION: ${AZURE_REGION}`);
-console.log(`- GEMINI_API_KEY Present: ${!!(process.env.GEMINI_API_KEY || process.env.geminiApiKey)}`);
+console.log(`- REACT_MINIMAX_API_KEY Present: ${!!MINIMAX_API_KEY}`);
+console.log(`- REACT_GROQ_API_KEY Present: ${!!GROQ_API_KEY}`);
 console.log(`- RUNPOD_API_KEY Present: ${!!RUNPOD_API_KEY}`);
 console.log(`- CRON_SECRET Present: ${!!CRON_SECRET}`);
 // ----------------------------------------------
@@ -1021,12 +1023,12 @@ const scrapeHandler = async (req, res) => {
                                  sendUpdate({ type: 'progress', message: `Intentando extraer texto de imagen para: ${article.title.substring(0, 20)}...` });
                                  
                                  try {
-                                     const imageText = await withTimeout(processImageWithGemini(imageUrl, { signal }), 25000, 'image_ocr_timeout');
+                                     const imageText = await withTimeout(processImageWithGroq(imageUrl, { signal }), 25000, 'image_ocr_timeout');
                                      if (imageText && imageText.length > 100) {
                                          fullContent = imageText + "\n\n[Nota: Contenido extraído automáticamente de la imagen principal]";
                                          console.log(`[SUCCESS] Extracted ${fullContent.length} chars from image for ${article.url}`);
                                      } else {
-                                         console.warn(`[WARN] Gemini could not extract sufficient text from image for ${article.url}`);
+                                         console.warn(`[WARN] Groq could not extract sufficient text from image for ${article.url}`);
                                      }
                                  } catch (imgError) {
                                      console.error(`[ERROR] Failed to extract text from image for ${article.url}:`, imgError);
@@ -1369,12 +1371,14 @@ function guessListContainerCandidates(html, baseUrl) {
 }
 
 async function runGeminiForJson(prompt) {
-    const geminiApiKey = process.env.geminiApiKey || process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) return null;
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const result = await model.generateContent(prompt);
-    const text = await result.response.text();
+    if (!MINIMAX_API_KEY) return null;
+    const text = await callMiniMaxText({
+        apiKey: MINIMAX_API_KEY,
+        model: 'MiniMax-M2.7',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 900,
+        temperature: 0
+    });
     return safeParseFirstJsonObject(text);
 }
 
@@ -2568,49 +2572,195 @@ function extractImage(html, url) {
     return null;
 }
 
-// Helper to process image with Gemini Vision
-async function processImageWithGemini(imageUrl, { signal } = {}) {
-    const geminiApiKey = process.env.geminiApiKey || process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-        console.warn("[WARN] Gemini API Key missing for image processing");
+function safeJoinAnthropicText(content) {
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return '';
+    return content
+        .map((p) => {
+            if (!p) return '';
+            if (typeof p === 'string') return p;
+            if (typeof p?.text === 'string') return p.text;
+            return '';
+        })
+        .join('');
+}
+
+function countWords(input) {
+    const s = String(input || '').trim();
+    if (!s) return 0;
+    return s.split(/\s+/).filter(Boolean).length;
+}
+
+function clamp(n, min, max) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return min;
+    return Math.min(max, Math.max(min, x));
+}
+
+async function callMiniMaxRaw({ apiKey, body, signal, timeoutMs = 25000 }) {
+    const resp = await fetchWithTimeout(
+        'https://api.minimax.io/anthropic/v1/messages',
+        {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body),
+            signal
+        },
+        timeoutMs
+    );
+
+    const raw = await resp.text().catch(() => '');
+    let json;
+    try {
+        json = raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        json = null;
+    }
+
+    if (!resp.ok) {
+        const msg =
+            (json && (json.error?.message || json.message)) ||
+            raw ||
+            `MiniMax error (${resp.status})`;
+        const err = new Error(String(msg));
+        err.status = resp.status;
+        err.details = json || raw;
+        throw err;
+    }
+
+    return json || {};
+}
+
+async function callMiniMaxText({ apiKey, model, messages, maxTokens, temperature, signal }) {
+    const json = await callMiniMaxRaw({
+        apiKey,
+        body: {
+            model,
+            max_tokens: maxTokens,
+            temperature,
+            messages
+        },
+        signal
+    });
+    return safeJoinAnthropicText(json?.content);
+}
+
+async function generateMiniMaxWithContinuation({ apiKey, model, prompt, maxTokens, temperature, signal }) {
+    const baseMessages = [{ role: 'user', content: prompt }];
+    let out = '';
+    let messages = baseMessages.slice();
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+        const json = await callMiniMaxRaw({
+            apiKey,
+            body: {
+                model,
+                max_tokens: maxTokens,
+                temperature,
+                messages
+            },
+            signal
+        });
+
+        const chunk = safeJoinAnthropicText(json?.content);
+        out += chunk || '';
+
+        const stopReason = String(json?.stop_reason || json?.stopReason || '').toLowerCase();
+        const stoppedByMaxTokens =
+            stopReason.includes('max') ||
+            stopReason.includes('length') ||
+            stopReason === 'max_tokens' ||
+            stopReason === 'length';
+        if (!stoppedByMaxTokens) break;
+
+        messages = [
+            ...baseMessages,
+            { role: 'assistant', content: out },
+            {
+                role: 'user',
+                content:
+                    'Continúa exactamente desde donde te quedaste. No repitas nada. No agregues introducciones. Solo continúa el texto.'
+            }
+        ];
+    }
+
+    return out.trim();
+}
+
+// Helper to process image with Groq Vision (OCR)
+async function processImageWithGroq(imageUrl, { signal } = {}) {
+    if (!GROQ_API_KEY) {
+        console.warn('[WARN] REACT_GROQ_API_KEY missing for image processing');
         return null;
     }
 
     try {
-        // Fetch the image
         const imgResponse = await fetchWithTimeout(imageUrl, { signal }, 15000);
         if (!imgResponse.ok) throw new Error(`Failed to fetch image: ${imgResponse.statusText}`);
-        
+
         const arrayBuffer = await imgResponse.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const base64Image = buffer.toString('base64');
         const mimeType = imgResponse.headers.get('content-type') || 'image/jpeg';
 
-        const genAI = new GoogleGenerativeAI(geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const prompt =
+            'Analiza esta imagen que corresponde a una noticia. Extrae el texto principal, titulares y cualquier información textual relevante. ' +
+            'Si es una infografía o un comunicado, transcribe el contenido completo. ' +
+            'Si es solo una foto decorativa, describe brevemente el contexto visual relevante para una noticia de radio. ' +
+            'Devuelve un texto coherente en español.';
 
-        const prompt = "Analiza esta imagen que corresponde a una noticia. Extrae el texto principal, titulares y cualquier información textual relevante. Si es una infografía o un comunicado, transcribe el contenido completo. Si es solo una foto decorativa, describe brevemente el contexto visual relevante para una noticia de radio. Devuelve un texto coherente en español.";
-
-        const result = await withTimeout(
-            model.generateContent([
-                prompt,
+        const body = {
+            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            temperature: 0.2,
+            max_completion_tokens: 1200,
+            messages: [
                 {
-                    inlineData: {
-                        data: base64Image,
-                        mimeType: mimeType
-                    }
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: prompt },
+                        {
+                            type: 'image_url',
+                            image_url: {
+                                url: `data:${mimeType};base64,${base64Image}`
+                            }
+                        }
+                    ]
                 }
-            ]),
-            20000,
-            'gemini_vision_timeout'
+            ]
+        };
+
+        const resp = await withTimeout(
+            fetchWithTimeout(
+                'https://api.groq.com/openai/v1/chat/completions',
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${GROQ_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body),
+                    signal
+                },
+                20000
+            ),
+            22000,
+            'groq_vision_timeout'
         );
 
-        const response = await result.response;
-        const text = response.text();
-        return text;
+        const raw = await resp.text().catch(() => '');
+        const json = raw ? JSON.parse(raw) : null;
+        if (!resp.ok) {
+            const msg = json?.error?.message || json?.message || raw || `Groq error (${resp.status})`;
+            throw new Error(String(msg));
+        }
 
+        const text = String(json?.choices?.[0]?.message?.content || '').trim();
+        return text || null;
     } catch (error) {
-        console.error("[ERROR] processImageWithGemini failed:", error);
+        console.error('[ERROR] processImageWithGroq failed:', error);
         return null;
     }
 }
@@ -3437,21 +3587,18 @@ async function downloadAndSendAudio(url, res) {
 app.post('/api/gemini', async (req, res) => {
     try {
         const { action, text, targetSeconds, targetWords } = req.body;
-        const geminiApiKey = process.env.geminiApiKey || process.env.GEMINI_API_KEY;
+        const minimaxApiKey = MINIMAX_API_KEY;
 
-        if (!geminiApiKey) {
-            return res.status(500).json({ error: 'Gemini API Key not configured on server' });
+        if (!minimaxApiKey) {
+            return res.status(500).json({ error: 'REACT_MINIMAX_API_KEY not configured on server' });
         }
 
         if (!text) {
             return res.status(400).json({ error: 'Text is required' });
         }
 
-        const genAI = new GoogleGenerativeAI(geminiApiKey);
-        const modelName = 'gemini-2.0-flash';
-        const model = genAI.getGenerativeModel({ model: modelName });
-
         let prompt = '';
+        let desiredWords = countWords(text);
 
         switch (action) {
             case 'humanize':
@@ -3502,6 +3649,7 @@ app.post('/api/gemini', async (req, res) => {
             case 'adjustTime':
                 if (!targetSeconds) return res.status(400).json({ error: 'targetSeconds required for adjustTime' });
                 const targetWordsTime = Math.round((targetSeconds * 150) / 60); // 150 words per minute
+                desiredWords = targetWordsTime;
         
                 prompt = `Actúa como un editor de noticias experto.
         
@@ -3528,6 +3676,7 @@ app.post('/api/gemini', async (req, res) => {
                 const currentWords = text.split(/\s+/).length;
                 const minWords = Math.floor(targetWords * 0.95); // 5% margin down
                 const maxWords = Math.ceil(targetWords * 1.05);  // 5% margin up
+                desiredWords = targetWords;
 
                 prompt = `Actúa como un editor de noticias experto.
 
@@ -3555,6 +3704,7 @@ app.post('/api/gemini', async (req, res) => {
                  if (!targetSeconds) return res.status(400).json({ error: 'targetSeconds required for humanizeAndAdjust' });
                  const currentWords2 = text.split(/\s+/).length;
                  const targetWords2 = Math.round((targetSeconds * 150) / 60); // 150 words per minute
+                 desiredWords = targetWords2;
                  
                  // Stricter limits to avoid overshooting (User feedback: prefers under than over)
                  const minWords2 = Math.floor(targetWords2 * 0.90); // -10%
@@ -3607,43 +3757,31 @@ app.post('/api/gemini', async (req, res) => {
                 return res.status(400).json({ error: 'Invalid action' });
         }
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const generatedText = response.text();
+        const modelName = 'MiniMax-M2.7';
+        const maxTokens = clamp(Math.ceil(desiredWords * 2.2), 700, 2600);
+        const temperature =
+            action === 'clean' ? 0.2 : action === 'adjustWords' || action === 'adjustTime' ? 0.35 : 0.45;
 
-        const usage = response?.usageMetadata || result?.response?.usageMetadata || null;
-        const promptTokens = Number(
-            usage?.promptTokenCount ?? usage?.prompt_tokens ?? usage?.promptTokens ?? 0
-        );
-        const outputTokens = Number(
-            usage?.candidatesTokenCount ??
-                usage?.outputTokenCount ??
-                usage?.completionTokenCount ??
-                usage?.output_tokens ??
-                usage?.outputTokens ??
-                0
-        );
-        const totalTokens = Number(usage?.totalTokenCount ?? promptTokens + outputTokens);
+        const generatedText = await generateMiniMaxWithContinuation({
+            apiKey: minimaxApiKey,
+            model: modelName,
+            prompt,
+            maxTokens,
+            temperature
+        });
 
         res.json({
             result: generatedText,
             model: modelName,
             usage: {
-                promptTokens: Number.isFinite(promptTokens) ? promptTokens : 0,
-                outputTokens: Number.isFinite(outputTokens) ? outputTokens : 0,
-                totalTokens: Number.isFinite(totalTokens) ? totalTokens : 0
+                promptTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0
             }
         });
 
     } catch (error) {
-        console.error('Gemini API Error:', error);
-        
-        // Detect specific Google API configuration errors
-        if (error.message && error.message.includes('API_KEY_HTTP_REFERRER_BLOCKED')) {
-            return res.status(500).json({ 
-                error: 'Configuración incorrecta de API Key: Por favor elimina las restricciones de "Sitios web" (HTTP Referrer) en la consola de Google. Al usar la API desde el servidor, estas restricciones bloquean la petición.' 
-            });
-        }
+        console.error('MiniMax API Error:', error);
 
         const msg = String(error?.message || 'Internal Server Error');
         if (/429|too many requests|resource exhausted/i.test(msg)) {
@@ -3655,86 +3793,6 @@ app.post('/api/gemini', async (req, res) => {
         }
         
         res.status(500).json({ error: msg });
-    }
-});
-
-// Gemini TTS Endpoint
-app.post('/api/gemini-tts', async (req, res) => {
-    try {
-        const { text, voice, speed, pitch } = req.body;
-        const geminiApiKey = process.env.geminiApiKey || process.env.GEMINI_API_KEY;
-
-        if (!geminiApiKey) {
-            return res.status(500).json({ error: 'Gemini API Key not configured on server' });
-        }
-
-        if (!text) {
-            return res.status(400).json({ error: 'Text is required' });
-        }
-
-        const genAI = new GoogleGenerativeAI(geminiApiKey);
-        // Use preview model for TTS as per original code
-        const model = genAI.getGenerativeModel({ 
-            model: 'gemini-2.0-flash-exp', // Updated model name for better performance/stability
-            generationConfig: {
-                responseModalities: ["AUDIO"],
-                speechConfig: {
-                  voiceConfig: {
-                    prebuiltVoiceConfig: {
-                      voiceName: voice || "Puck",
-                    },
-                  },
-                },
-            }
-        });
-
-        // Construct prompt with instructions
-        const speedDesc = (speed || 1) < 0.8 ? "muy lenta" : (speed || 1) < 1.0 ? "lenta" : (speed || 1) > 1.5 ? "muy rápida" : (speed || 1) > 1.2 ? "rápida" : "normal";
-        const pitchDesc = (pitch || 1) < -5 ? "muy grave" : (pitch || 1) < 0 ? "grave" : (pitch || 1) > 5 ? "muy aguda" : (pitch || 1) > 0 ? "aguda" : "neutra";
-        
-        const textPrompt = `
-        Instrucciones:
-        - Idioma: Español.
-        - Acento: Fuertemente CHILENO (usa modismos si aplica).
-        - Velocidad: ${speedDesc}.
-        - Tono: ${pitchDesc}.
-        - Efectos: Interpreta [risa], [grito], [llanto], [pausa] (silencio 2s) como acciones sonoras, NO leas las etiquetas.
-        
-        Di lo siguiente:
-        ${text}
-        `;
-
-        const result = await model.generateContent({
-            contents: [{ parts: [{ text: textPrompt }] }],
-        });
-
-        const response = await result.response;
-        
-        // Extract audio data
-        // The structure depends on the library version, but typically it's in candidates[0].content.parts[0].inlineData
-        // However, the library helper might provide it differently.
-        // Let's check how the library returns it. 
-        // Based on documentation, we might need to handle the response carefully.
-        
-        // For server-side generation, we might receive base64 or buffer.
-        // Let's try to get the audio content.
-        
-        if (!response.candidates || !response.candidates[0] || !response.candidates[0].content || !response.candidates[0].content.parts || !response.candidates[0].content.parts[0].inlineData) {
-             throw new Error("No audio generated in response");
-        }
-        
-        const audioData = response.candidates[0].content.parts[0].inlineData.data;
-        const mimeType = response.candidates[0].content.parts[0].inlineData.mimeType || 'audio/wav';
-
-        // Convert base64 to buffer
-        const buffer = Buffer.from(audioData, 'base64');
-
-        res.set('Content-Type', mimeType);
-        res.send(buffer);
-
-    } catch (error) {
-        console.error('Gemini TTS API Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
     }
 });
 

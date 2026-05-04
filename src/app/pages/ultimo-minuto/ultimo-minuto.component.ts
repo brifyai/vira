@@ -6,7 +6,6 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { config } from '../../core/config';
 import { GeminiService } from '../../services/gemini.service';
 import { GoogleTtsService } from '../../services/google-tts.service';
-import { GeminiTtsService } from '../../services/gemini-tts.service';
 import { AzureTtsService } from '../../services/azure-tts.service';
 
 interface ExpressNewsItem {
@@ -81,7 +80,6 @@ export class UltimoMinutoComponent implements OnInit {
         private cdr: ChangeDetectorRef,
         private geminiService: GeminiService,
         private googleTtsService: GoogleTtsService,
-        private geminiTtsService: GeminiTtsService,
         private azureTtsService: AzureTtsService
     ) {
         this.azureVoices = this.azureTtsService.getVoices();

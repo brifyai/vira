@@ -19,15 +19,16 @@ export class GeminiTtsService {
 
   async generateSpeech(params: VoiceParams): Promise<string> {
     const cleanText = this.stripMarkdown(params.text);
+    const azureVoice = this.mapVoiceNameToAzureVoice(params.voiceName);
     
     // Check if text is long and needs chunking
     if (cleanText.length > 300) {
       // console.log('Texto largo detectado, usando chunking...');
-      return this.processLongText(cleanText, params.voiceName, params.speed, params.pitch);
+      return this.processLongText(cleanText, azureVoice, params.speed, params.pitch);
     }
 
     try {
-        const url = `${this.apiUrl}/api/gemini-tts`;
+        const url = `${this.apiUrl}/api/azure-tts`;
         
         const response = await fetch(url, {
             method: 'POST',
@@ -36,7 +37,7 @@ export class GeminiTtsService {
             },
             body: JSON.stringify({
                 text: cleanText,
-                voice: params.voiceName,
+                voice: azureVoice,
                 speed: params.speed,
                 pitch: params.pitch,
                 style: params.style
@@ -45,19 +46,19 @@ export class GeminiTtsService {
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Gemini TTS API Error (${response.status}): ${errorText}`);
+            throw new Error(`TTS API Error (${response.status}): ${errorText}`);
         }
 
         const blob = await response.blob();
         return URL.createObjectURL(blob);
 
     } catch (error) {
-      console.error('Gemini TTS Error:', error);
+      console.error('TTS Error:', error);
       throw error;
     }
   }
 
-  private async processLongText(text: string, voiceName: string, speed?: number, pitch?: number): Promise<string> {
+  private async processLongText(text: string, voice: string, speed?: number, pitch?: number): Promise<string> {
     const chunks = this.splitTextIntoChunks(text, 300);
     // console.log(`Texto dividido en ${chunks.length} chunks. Procesando con concurrencia...`);
 
@@ -70,13 +71,13 @@ export class GeminiTtsService {
         const batchPromises = batch.map((chunk, batchIndex) => {
             const index = i + batchIndex;
             return (async () => {
-                const url = `${this.apiUrl}/api/gemini-tts`;
+                const url = `${this.apiUrl}/api/azure-tts`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         text: chunk,
-                        voice: voiceName,
+                        voice,
                         speed: speed,
                         pitch: pitch
                     })
@@ -139,6 +140,17 @@ export class GeminiTtsService {
         }
         return c;
     });
+  }
+
+  private mapVoiceNameToAzureVoice(voiceName: VoiceParams['voiceName']): string {
+    const map: Record<VoiceParams['voiceName'], string> = {
+      Puck: 'es-CL-LorenzoNeural',
+      Charon: 'es-CL-LorenzoNeural',
+      Kore: 'es-CL-CatalinaNeural',
+      Fenrir: 'es-ES-AlvaroNeural',
+      Zephyr: 'es-ES-ElviraNeural'
+    };
+    return map[voiceName] || 'es-CL-LorenzoNeural';
   }
   
   // Helper for old implementation compatibility if needed
