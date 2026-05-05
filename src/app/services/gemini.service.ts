@@ -7,7 +7,9 @@ import { config } from '../core/config';
 export class GeminiService {
   private apiUrl = config.apiUrl;
   private lastCallAt = 0;
-  private inFlight: Promise<void> = Promise.resolve();
+  private startLock: Promise<void> = Promise.resolve();
+  private activeCount = 0;
+  private waiters: Array<() => void> = [];
 
   constructor() {}
 
@@ -35,69 +37,93 @@ export class GeminiService {
 
     try {
       const url = `${this.apiUrl}/api/gemini`;
-      const minIntervalMs = 1200;
+      const minIntervalMs = 150;
+      const maxConcurrent = 2;
       const maxAttempts = 6;
 
-      const runSerialized = async () => {
-        const since = Date.now() - this.lastCallAt;
-        if (since < minIntervalMs) {
-          await this.sleep(minIntervalMs - since);
+      const acquire = async () => {
+        if (this.activeCount < maxConcurrent) {
+          this.activeCount += 1;
+          return;
         }
-        this.lastCallAt = Date.now();
+        await new Promise<void>(resolve => this.waiters.push(resolve));
+        this.activeCount += 1;
       };
 
-      await (this.inFlight = this.inFlight.then(runSerialized, runSerialized));
+      const release = () => {
+        this.activeCount = Math.max(0, this.activeCount - 1);
+        const next = this.waiters.shift();
+        if (next) next();
+      };
+
+      const scheduleStart = async () => {
+        const run = async () => {
+          const since = Date.now() - this.lastCallAt;
+          if (since < minIntervalMs) {
+            await this.sleep(minIntervalMs - since);
+          }
+          this.lastCallAt = Date.now();
+        };
+        await (this.startLock = this.startLock.then(run, run));
+      };
 
       let lastErr: any = null;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ action, text, ...params })
-        });
+      await acquire();
+      try {
+        await scheduleStart();
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action, text, ...params })
+          });
 
-        if (!response.ok) {
-          const retryAfterMs = this.parseRetryAfterMs(response.headers.get('retry-after'));
-          const errorText = await response.text();
-          let message = errorText;
-          try {
-            const jsonError = JSON.parse(errorText);
-            if (jsonError?.error) message = String(jsonError.error);
-          } catch {}
+          if (!response.ok) {
+            const retryAfterMs = this.parseRetryAfterMs(response.headers.get('retry-after'));
+            const errorText = await response.text();
+            let message = errorText;
+            try {
+              const jsonError = JSON.parse(errorText);
+              if (jsonError?.error) message = String(jsonError.error);
+            } catch {}
 
-          const err: any = new Error(`Gemini API Error (${response.status}): ${message}`);
-          err.status = response.status;
-          err.retryAfterMs = retryAfterMs;
+            const err: any = new Error(`AI API Error (${response.status}): ${message}`);
+            err.status = response.status;
+            err.retryAfterMs = retryAfterMs;
 
-          const retryableByStatus = response.status === 429 || response.status === 503 || response.status === 502 || response.status === 504 || response.status === 500;
-          const retryableByBody = /429|too many requests|resource exhausted/i.test(message);
-          const retryable = retryableByStatus || retryableByBody;
+            const retryableByStatus = response.status === 429 || response.status === 503 || response.status === 502 || response.status === 504 || response.status === 500;
+            const retryableByBody = /429|too many requests|resource exhausted/i.test(message);
+            const retryable = retryableByStatus || retryableByBody;
 
-          lastErr = err;
-          if (!retryable || attempt >= maxAttempts) throw err;
+            lastErr = err;
+            if (!retryable || attempt >= maxAttempts) throw err;
 
-          const backoffBase = retryAfterMs !== null ? retryAfterMs : 900 * Math.pow(2, attempt - 1);
-          const jitter = Math.floor(Math.random() * 350);
-          await this.sleep(Math.min(20000, backoffBase + jitter));
-          continue;
+            const backoffBase = retryAfterMs !== null ? retryAfterMs : 900 * Math.pow(2, attempt - 1);
+            const jitter = Math.floor(Math.random() * 350);
+            await this.sleep(Math.min(20000, backoffBase + jitter));
+            await scheduleStart();
+            continue;
+          }
+
+          const data = await response.json();
+          const usage = data?.usage
+            ? {
+                promptTokens: Number(data.usage.promptTokens || 0),
+                outputTokens: Number(data.usage.outputTokens || 0),
+                totalTokens: Number(data.usage.totalTokens || 0)
+              }
+            : undefined;
+          return { text: data.result, model: data.model, usage };
         }
 
-        const data = await response.json();
-        const usage = data?.usage
-          ? {
-              promptTokens: Number(data.usage.promptTokens || 0),
-              outputTokens: Number(data.usage.outputTokens || 0),
-              totalTokens: Number(data.usage.totalTokens || 0)
-            }
-          : undefined;
-        return { text: data.result, model: data.model, usage };
+        throw lastErr || new Error('AI API Error');
+      } finally {
+        release();
       }
-
-      throw lastErr || new Error('Gemini API Error');
     } catch (error) {
-      console.error('Gemini Service Error:', error);
+      console.error('AI Service Error:', error);
       throw error;
     }
   }

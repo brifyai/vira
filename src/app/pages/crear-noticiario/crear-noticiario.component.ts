@@ -1483,7 +1483,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         try {
             // 1. Humanize News
             if (this.selectedNews.length > 0) {
-                const geminiTotals = {
+                const minimaxTotals = {
                     promptTokens: 0,
                     outputTokens: 0,
                     model: '',
@@ -1492,68 +1492,84 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 let ok = 0;
                 let failed = 0;
                 let stoppedByRateLimit = false;
-                // Process sequentially to avoid 429 Resource Exhausted errors
-                for (const news of this.selectedNews) {
-                    try {
-                        // Just humanize style, don't worry about length yet
-                        const humanized = await this.geminiService.humanizeText(news.content);
-                        if (humanized?.usage) {
-                            geminiTotals.promptTokens += humanized.usage.promptTokens || 0;
-                            geminiTotals.outputTokens += humanized.usage.outputTokens || 0;
-                        }
-                        if (humanized?.model) geminiTotals.model = humanized.model;
-                        geminiTotals.requests += 1;
-                        
-                        // Second pass: Clean and proofread (User request: "segunda consulta de ia para limpiar")
-                        const cleaned = await this.geminiService.cleanText(humanized.text);
-                        if (cleaned?.usage) {
-                            geminiTotals.promptTokens += cleaned.usage.promptTokens || 0;
-                            geminiTotals.outputTokens += cleaned.usage.outputTokens || 0;
-                        }
-                        if (cleaned?.model) geminiTotals.model = cleaned.model;
-                        geminiTotals.requests += 1;
 
-                        news.humanizedContent = cleaned.text;
-                        
-                        // Initial reading time estimate
-                        const words = cleaned.text.split(/\s+/).length;
-                        news.readingTime = Math.ceil((words / 150) * 60);
-                        
-                        // Reset audio
-                        news.generatedAudioUrl = undefined;
-                        
-                        // Set default voice if not set
-                        if (!news.selectedVoice) {
-                            news.selectedVoice = 'es-CL-LorenzoNeural';
-                            news.selectedSpeed = 1.0;
-                        }
-                        
-                        // Small delay to be gentle on the API
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        ok += 1;
+                const needsCleaning = (t: string) => {
+                    const s = String(t || '');
+                    if (!s.trim()) return true;
+                    if (/\[[^\]]+\]/.test(s)) return true;
+                    if (/[*_#]/.test(s)) return true;
+                    if (/aquí tienes|aqui tienes|texto reescrito|reescrito:|claro, aquí|claro, aqui/i.test(s)) return true;
+                    return false;
+                };
 
-                    } catch (error: any) {
-                        console.error(`Error humanizing news ${news.id}:`, error);
-                        failed += 1;
-                        const status = error?.status;
-                        const msg = String(error?.message || '');
-                        if (status === 429 || /429|too many requests|resource exhausted/i.test(msg)) {
-                            stoppedByRateLimit = true;
-                            break;
+                const items = this.selectedNews.slice();
+                let cursor = 0;
+                const concurrency = Math.min(2, items.length);
+
+                const worker = async () => {
+                    while (cursor < items.length && !stoppedByRateLimit) {
+                        const idx = cursor;
+                        cursor += 1;
+                        const news = items[idx];
+                        try {
+                            const humanized = await this.geminiService.humanizeText(news.content);
+                            if (humanized?.usage) {
+                                minimaxTotals.promptTokens += humanized.usage.promptTokens || 0;
+                                minimaxTotals.outputTokens += humanized.usage.outputTokens || 0;
+                            }
+                            if (humanized?.model) minimaxTotals.model = humanized.model;
+                            minimaxTotals.requests += 1;
+
+                            let finalText = humanized.text;
+                            if (needsCleaning(finalText)) {
+                                const cleaned = await this.geminiService.cleanText(finalText);
+                                if (cleaned?.usage) {
+                                    minimaxTotals.promptTokens += cleaned.usage.promptTokens || 0;
+                                    minimaxTotals.outputTokens += cleaned.usage.outputTokens || 0;
+                                }
+                                if (cleaned?.model) minimaxTotals.model = cleaned.model;
+                                minimaxTotals.requests += 1;
+                                finalText = cleaned.text;
+                            }
+
+                            news.humanizedContent = finalText;
+
+                            const words = finalText.split(/\s+/).length;
+                            news.readingTime = Math.ceil((words / 150) * 60);
+
+                            news.generatedAudioUrl = undefined;
+
+                            if (!news.selectedVoice) {
+                                news.selectedVoice = 'es-CL-LorenzoNeural';
+                                news.selectedSpeed = 1.0;
+                            }
+
+                            ok += 1;
+                        } catch (error: any) {
+                            console.error(`Error humanizing news ${news.id}:`, error);
+                            failed += 1;
+                            const status = error?.status;
+                            const msg = String(error?.message || '');
+                            if (status === 429 || /429|too many requests|resource exhausted/i.test(msg)) {
+                                stoppedByRateLimit = true;
+                            }
                         }
                     }
-                }
-                if (geminiTotals.promptTokens > 0) {
-                    const units = geminiTotals.promptTokens / 1000;
+                };
+
+                await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+                if (minimaxTotals.promptTokens > 0) {
+                    const units = minimaxTotals.promptTokens / 1000;
                     this.supabaseService.logCostEvent({
                         action: 'humanize_in',
                         module: 'crear-noticiario',
                         units,
                         metadata: {
-                            model: geminiTotals.model || 'gemini-2.0-flash',
-                            requests: geminiTotals.requests,
-                            prompt_tokens: geminiTotals.promptTokens,
-                            output_tokens: geminiTotals.outputTokens,
+                            model: minimaxTotals.model || 'MiniMax-M2.7',
+                            requests: minimaxTotals.requests,
+                            prompt_tokens: minimaxTotals.promptTokens,
+                            output_tokens: minimaxTotals.outputTokens,
                             items: this.selectedNews.length,
                             date_filter: this.dateFilter,
                             category_filter: this.categoryFilter,
@@ -1561,17 +1577,17 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         }
                     });
                 }
-                if (geminiTotals.outputTokens > 0) {
-                    const units = geminiTotals.outputTokens / 1000;
+                if (minimaxTotals.outputTokens > 0) {
+                    const units = minimaxTotals.outputTokens / 1000;
                     this.supabaseService.logCostEvent({
                         action: 'humanize_out',
                         module: 'crear-noticiario',
                         units,
                         metadata: {
-                            model: geminiTotals.model || 'gemini-2.0-flash',
-                            requests: geminiTotals.requests,
-                            prompt_tokens: geminiTotals.promptTokens,
-                            output_tokens: geminiTotals.outputTokens,
+                            model: minimaxTotals.model || 'MiniMax-M2.7',
+                            requests: minimaxTotals.requests,
+                            prompt_tokens: minimaxTotals.promptTokens,
+                            output_tokens: minimaxTotals.outputTokens,
                             items: this.selectedNews.length,
                             date_filter: this.dateFilter,
                             category_filter: this.categoryFilter,
@@ -1580,7 +1596,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     });
                 }
                 if (stoppedByRateLimit) {
-                    this.snackBar.open(`Límite de Gemini (429). Humanizadas ${ok}/${this.selectedNews.length}. Reintenta en unos minutos.`, 'Cerrar', {
+                    this.snackBar.open(`Límite de API (429). Humanizadas ${ok}/${this.selectedNews.length}. Reintenta en unos minutos.`, 'Cerrar', {
                         duration: 6000,
                         panelClass: ['error-snackbar']
                     });
