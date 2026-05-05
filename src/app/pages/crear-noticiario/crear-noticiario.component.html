@@ -92,7 +92,7 @@
                     <p>Cargando noticias...</p>
                 </div>
 
-                <div class="news-item" *ngFor="let news of filteredNews" (click)="selectNews(news)">
+                <div class="news-item" *ngFor="let news of paginatedFilteredNews" (click)="selectNews(news)">
                     <div class="news-content">
                         <h3 class="news-title">{{ news.title }}</h3>
                         <p class="news-excerpt">{{ news.content ? news.content.substring(0, 100) : (news.summary ||
@@ -119,6 +119,27 @@
                         <line x1="12" y1="16" x2="12.01" y2="16"></line>
                     </svg>
                     <p>No hay noticias disponibles con los filtros seleccionados</p>
+                </div>
+            </div>
+
+            <div class="news-pagination" *ngIf="!loading && filteredNews.length > 0">
+                <div class="pagination-left">
+                    <span class="pagination-info">
+                        {{ filteredNews.length }} noticias · Página {{ newsPage }} de {{ newsTotalPages }}
+                    </span>
+                </div>
+                <div class="pagination-right">
+                    <select class="page-size-select" [(ngModel)]="newsPageSize" (change)="onNewsPageSizeChange()">
+                        <option [ngValue]="10">10</option>
+                        <option [ngValue]="20">20</option>
+                        <option [ngValue]="50">50</option>
+                    </select>
+                    <button class="pagination-btn" type="button" (click)="setNewsPage(newsPage - 1)" [disabled]="newsPage <= 1">
+                        Anterior
+                    </button>
+                    <button class="pagination-btn" type="button" (click)="setNewsPage(newsPage + 1)" [disabled]="newsPage >= newsTotalPages">
+                        Siguiente
+                    </button>
                 </div>
             </div>
         </div>

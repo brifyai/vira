@@ -117,6 +117,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
     // Available news
     availableNews: ScrapedNews[] = [];
+    newsPage = 1;
+    newsPageSize = 10;
 
     // Filter options
     categoryFilter = 'all';
@@ -287,6 +289,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             });
         } finally {
             this.loading = false;
+            this.clampNewsPage();
             this.cdr.detectChanges();
         }
     }
@@ -454,7 +457,36 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         });
     }
 
+    get newsTotalPages(): number {
+        const total = this.filteredNews.length;
+        const size = Math.max(1, Number(this.newsPageSize) || 10);
+        return Math.max(1, Math.ceil(total / size));
+    }
+
+    get paginatedFilteredNews(): ScrapedNews[] {
+        const size = Math.max(1, Number(this.newsPageSize) || 10);
+        const page = Math.min(Math.max(1, this.newsPage), this.newsTotalPages);
+        const start = (page - 1) * size;
+        return this.filteredNews.slice(start, start + size);
+    }
+
+    setNewsPage(page: number): void {
+        const next = Math.min(Math.max(1, Math.floor(Number(page) || 1)), this.newsTotalPages);
+        this.newsPage = next;
+    }
+
+    onNewsPageSizeChange(): void {
+        this.newsPage = 1;
+    }
+
+    private clampNewsPage(): void {
+        if (this.newsPage < 1) this.newsPage = 1;
+        const total = this.newsTotalPages;
+        if (this.newsPage > total) this.newsPage = total;
+    }
+
     onFiltersChange(): void {
+        this.newsPage = 1;
         if (this.filtersReloadTimer) {
             window.clearTimeout(this.filtersReloadTimer);
         }
@@ -557,6 +589,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         });
         
         this.calculateTimelineTimes();
+        this.clampNewsPage();
     }
 
     removeNews(news: ScrapedNews) {
@@ -576,6 +609,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         // Recalculate order and times
         this.timelineEvents.forEach((e, i) => e.order = i);
         this.calculateTimelineTimes();
+        this.clampNewsPage();
     }
     
     // Timeline Management
