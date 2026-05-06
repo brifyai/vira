@@ -30,6 +30,8 @@ export interface TimelineEvent {
     startTime: number;
     duration: number;
     audioUrl?: string;
+    audioUrlOriginal?: string;
+    baseDuration?: number;
     order: number;
     originalItem?: any; // To store the ScrapedNews object if it's news
     file?: File; // For new uploads (ads) not yet saved
@@ -301,6 +303,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.timelineEvents.forEach(event => {
             if (event.audioUrl) {
                 URL.revokeObjectURL(event.audioUrl);
+            }
+            if (event.audioUrlOriginal && event.audioUrlOriginal !== event.audioUrl) {
+                URL.revokeObjectURL(event.audioUrlOriginal);
             }
         });
 
@@ -770,13 +775,52 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             description: 'Anuncio de audio',
             startTime: 0,
             duration: duration || 30,
+            baseDuration: duration || 30,
             order: this.timelineEvents.length,
             file: file, // Store file for upload later
-            audioUrl: objectUrl // Store the URL directly to avoid re-generating
+            audioUrl: objectUrl, // Store the URL directly to avoid re-generating
+            audioUrlOriginal: objectUrl,
+            voiceDelay: 0
         };
         this.timelineEvents.push(newItem);
         this.calculateTimelineTimes();
         this.cdr.detectChanges(); // Force update view
+    }
+
+    async onAdDelayChange(item: TimelineEvent): Promise<void> {
+        if (!item || item.type !== 'ad') return;
+
+        const delay = Math.max(0, Math.min(10, Number(item.voiceDelay || 0)));
+        item.voiceDelay = delay;
+
+        const base = Math.max(0, Number(item.baseDuration || item.duration || 0));
+        item.duration = Math.ceil(base) + delay;
+        this.calculateTimelineTimes();
+
+        const originalUrl = item.audioUrlOriginal || item.audioUrl;
+        if (!originalUrl) {
+            this.cdr.detectChanges();
+            return;
+        }
+
+        try {
+            if (delay <= 0) {
+                if (item.audioUrl && item.audioUrl !== originalUrl) {
+                    URL.revokeObjectURL(item.audioUrl);
+                }
+                item.audioUrl = originalUrl;
+            } else {
+                const paddedUrl = await this.addSilencePadding(originalUrl, delay);
+                if (item.audioUrl && item.audioUrl !== originalUrl) {
+                    URL.revokeObjectURL(item.audioUrl);
+                }
+                item.audioUrl = paddedUrl;
+            }
+        } catch (e) {
+            console.error('Error applying ad delay', e);
+        } finally {
+            this.cdr.detectChanges();
+        }
     }
 
     getAudioDuration(file: File): Promise<number> {
@@ -904,6 +948,12 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         if (item.type === 'news' && item.originalItem) {
             url = item.originalItem.generatedAudioUrl;
         }
+        if (!url && (item.type === 'intro' || item.type === 'outro')) {
+            const hasText = !!String(item.description || '').trim();
+            if (!hasText && item.musicUrl) {
+                url = item.musicUrl;
+            }
+        }
 
         // Auto-generate if missing
         if (!url && item.type !== 'ad') {
@@ -966,6 +1016,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             if (current.type !== 'news' && current.audioUrl) {
                 URL.revokeObjectURL(current.audioUrl);
             }
+            if (current.type === 'ad' && current.audioUrlOriginal && current.audioUrlOriginal !== current.audioUrl) {
+                URL.revokeObjectURL(current.audioUrlOriginal);
+            }
 
             if (current.type === 'news' && current.originalItem) {
                 this.removeNews(current.originalItem);
@@ -1016,10 +1069,16 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             const news = event.originalItem;
             return !!String(news?.generatedAudioUrl || news?.uploadedAudioUrl || '').trim();
         }
-        if ((event.type === 'intro' || event.type === 'outro') && !!String(event.musicUrl || '').trim()) {
-            return true;
+        const hasAudioUrl = !!String(event.audioUrl || '').trim();
+        if (hasAudioUrl) return true;
+
+        if (event.type === 'intro' || event.type === 'outro') {
+            const hasText = !!String(event.description || '').trim();
+            const hasMusic = !!String(event.musicUrl || '').trim();
+            if (!hasText && hasMusic) return true;
         }
-        return !!String(event.audioUrl || '').trim();
+
+        return false;
     }
 
     get missingAudiosCount(): number {
@@ -1125,6 +1184,11 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         finalAudioUrl = await this.supabaseService.uploadAudioFile(event.file, path);
                     } catch (e) {
                         console.error('Error uploading ad file', e);
+                    }
+                } else if ((event.type === 'intro' || event.type === 'outro') && !finalAudioUrl) {
+                    const hasText = !!String(event.description || '').trim();
+                    if (!hasText && event.musicUrl) {
+                        finalAudioUrl = event.musicUrl;
                     }
                 } else if (news && news.uploadedAudioUrl) {
                     finalAudioUrl = news.uploadedAudioUrl;
@@ -1241,6 +1305,14 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
             // 1. Fetch and Decode all audio segments
             for (const event of this.timelineEvents) {
+                if (event.type === 'ad' && event.voiceDelay && Number(event.voiceDelay) > 0) {
+                    const seconds = Math.max(0, Math.min(10, Number(event.voiceDelay)));
+                    if (seconds > 0) {
+                        const silenceSamples = Math.ceil(audioContext.sampleRate * seconds);
+                        const silence = audioContext.createBuffer(2, silenceSamples, audioContext.sampleRate);
+                        audioBuffers.push(silence);
+                    }
+                }
                 let url = event.audioUrl;
                 if (event.type === 'news' && event.originalItem?.generatedAudioUrl) {
                     url = event.originalItem.generatedAudioUrl;
@@ -1279,7 +1351,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
             // 2. Concatenate
             const totalLength = audioBuffers.reduce((acc, buf) => acc + buf.length, 0);
-            const offlineCtx = new OfflineAudioContext(2, totalLength, 44100); // Standard 44.1kHz
+            const offlineCtx = new OfflineAudioContext(2, totalLength, audioContext.sampleRate || 44100);
             
             let offset = 0;
             for (const buffer of audioBuffers) {
@@ -1556,19 +1628,24 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     invalidateAudio(item: TimelineEvent) {
         // Clear audio for this item
         if (item.audioUrl) {
-            URL.revokeObjectURL(item.audioUrl);
+            if (String(item.audioUrl).startsWith('blob:')) {
+                URL.revokeObjectURL(item.audioUrl);
+            }
             item.audioUrl = undefined;
         }
         
         // If it's a news item, clear the original news audio too
         if (item.type === 'news' && item.originalItem) {
             if (item.originalItem.generatedAudioUrl) {
-                URL.revokeObjectURL(item.originalItem.generatedAudioUrl);
+                if (String(item.originalItem.generatedAudioUrl).startsWith('blob:')) {
+                    URL.revokeObjectURL(item.originalItem.generatedAudioUrl);
+                }
                 item.originalItem.generatedAudioUrl = undefined;
             }
         }
 
         this.audiosReady = false;
+        this.audioGenerationAttempted = false;
         
         this.cdr.detectChanges();
     }
