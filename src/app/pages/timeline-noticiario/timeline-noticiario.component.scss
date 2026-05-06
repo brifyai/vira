@@ -605,6 +605,18 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 16px;
             font-weight: bold;
         }
+
+        &.primary {
+            background: rgba(99, 102, 241, 0.12);
+            border-color: rgba(99, 102, 241, 0.35);
+            color: $primary-color;
+
+            &:hover {
+                background: $primary-color;
+                border-color: $primary-color;
+                color: white;
+            }
+        }
     }
 }
 
@@ -820,6 +832,25 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 -webkit-line-clamp: unset;
                 -webkit-box-orient: unset;
                 overflow: visible;
+            }
+
+            .mini-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px 10px;
+                border-radius: 4px;
+                background: rgba(15, 23, 42, 0.5);
+                border: 1px solid $dark-border;
+                color: $text-secondary;
+                font-size: 12px;
+                cursor: pointer;
+                transition: $transition;
+
+                &:hover {
+                    background: $dark-bg;
+                    color: $text-primary;
+                }
             }
         }
     }

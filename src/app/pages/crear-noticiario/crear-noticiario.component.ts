@@ -1268,6 +1268,18 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     finalAudioUrl = news.generatedAudioUrl; // Already a URL (if reused)
                 }
 
+                if (event.type !== 'news' && !event.file && finalAudioUrl && String(finalAudioUrl).startsWith('blob:')) {
+                    try {
+                        const response = await fetch(finalAudioUrl);
+                        const blob = await response.blob();
+                        const fileName = `broadcast_${broadcast.id}_${event.type}_${event.id}_${Date.now()}.mp3`;
+                        const storagePath = `broadcasts/${broadcast.id}/${fileName}`;
+                        finalAudioUrl = await this.supabaseService.uploadAudio(blob, storagePath);
+                    } catch (e) {
+                        console.error('Error uploading audio for block ' + event.id, e);
+                    }
+                }
+
                 // Assign the final URL back to the event/news so we can use it for concatenation if needed (though we can use blobs too)
                 // For concatenation, we might want to fetch from the URL if we don't have the blob anymore, 
                 // but since we are in the same session, we might still have access.

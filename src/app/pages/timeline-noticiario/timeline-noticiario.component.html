@@ -189,7 +189,7 @@
             </div>
             
             <div class="timeline-actions">
-                <button class="tool-btn" *ngIf="!isEditingCopy" (click)="enableEditingByCopy()">
+                <button class="tool-btn primary" *ngIf="!isEditingCopy" (click)="enableEditingByCopy()">
                     Guardar como nuevo
                 </button>
                 <button class="tool-btn" (click)="addBlock('intro')" [disabled]="!isEditingCopy">
@@ -374,7 +374,7 @@
                     <span class="summary-value">{{ timelineEvents.length }}</span>
                 </div>
                 <div class="summary-item" *ngIf="!isEditingCopy">
-                    <button class="export-btn" (click)="enableEditingByCopy()">Guardar como nuevo</button>
+                    <button class="tool-btn primary" (click)="enableEditingByCopy()">Guardar como nuevo</button>
                 </div>
             </div>
         </div>

@@ -240,6 +240,22 @@ export class TimelineNoticiarioComponent implements OnInit {
                 if (!duration && news) duration = Number(news.reading_time_seconds || 0);
                 if (!duration) duration = 30;
 
+                const musicUrlFromId = item.music_resource_id ? this.findMusicUrl(item.music_resource_id) : undefined;
+                const isIntroOutro = (item.type === 'intro' || item.type === 'outro');
+                const audioUrlCandidate = item.audio_url || tts?.audio_url || news?.audio_url;
+                const audioUrlIsBlob = !!audioUrlCandidate && String(audioUrlCandidate).startsWith('blob:');
+
+                let musicUrl = item.music_url || musicUrlFromId;
+                if (!musicUrl && isIntroOutro && audioUrlCandidate) {
+                    const match = this.musicResources.find(m => m.url === audioUrlCandidate);
+                    if (match) musicUrl = match.url;
+                }
+
+                let audioUrl = audioUrlCandidate;
+                if (audioUrlIsBlob && isIntroOutro && musicUrl) {
+                    audioUrl = musicUrl;
+                }
+
                 return {
                     id: item.id,
                     type: item.type || 'news', // Default to news if not set
@@ -248,7 +264,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                     startTime: 0, // Calculated later
                     endTime: 0,
                     duration: duration,
-                    audioUrl: item.audio_url || tts?.audio_url || news?.audio_url,
+                    audioUrl,
                     order: item.order_index,
                     originalItem: item,
                     // Load voice configuration from DB, fallback to defaults if not set
@@ -260,7 +276,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                     showOriginalText: false,
                     // Music config
                     musicResourceId: item.music_resource_id,
-                    musicUrl: item.music_url || (item.music_resource_id ? this.findMusicUrl(item.music_resource_id) : undefined),
+                    musicUrl,
                     voiceDelay: item.voice_delay || 0,
                     musicVolume: item.music_volume || 0.5
                 };
