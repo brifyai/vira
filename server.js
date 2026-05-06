@@ -2754,6 +2754,67 @@ function clamp(n, min, max) {
     return Math.min(max, Math.max(min, x));
 }
 
+function hasNonLatinScripts(text) {
+    const s = String(text || '');
+    return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff]/.test(s);
+}
+
+function countEnglishStopwords(text) {
+    const s = String(text || '').toLowerCase();
+    const patterns = [
+        /\bthe\b/g,
+        /\band\b/g,
+        /\bthey\b/g,
+        /\btheir\b/g,
+        /\bwith\b/g,
+        /\bwithout\b/g,
+        /\bhelping\b/g,
+        /\binjured\b/g,
+        /\bgot\b/g,
+        /\bout\b/g,
+        /\bused\b/g,
+        /\bwarn\b/g,
+        /\broad\b/g,
+        /\bdanger\b/g
+    ];
+    let count = 0;
+    for (const re of patterns) {
+        const matches = s.match(re);
+        if (matches) count += matches.length;
+        if (count >= 2) return count;
+    }
+    return count;
+}
+
+function needsSpanishRepair(text) {
+    if (!text || !String(text).trim()) return true;
+    if (hasNonLatinScripts(text)) return true;
+    return countEnglishStopwords(text) >= 2;
+}
+
+function buildSpanishGuardRails() {
+    return `IDIOMA (INVIOLABLE): Español.
+- Prohibido incluir palabras o frases en inglés u otros idiomas.
+- Si el texto original contiene palabras en otro idioma, TRADÚCELAS al español o reemplázalas por una forma equivalente.
+- Elimina cualquier carácter fuera del alfabeto latino (por ejemplo, caracteres chinos, cirílicos o árabes).`;
+}
+
+function buildSpanishRepairPrompt(text) {
+    return `Actúa como un corrector final de guiones de noticiero.
+
+${buildSpanishGuardRails()}
+
+OBJETIVO:
+- Entregar un texto 100% en español, listo para locutar.
+- Mantener el sentido del contenido sin inventar datos.
+- Mantener estilo de noticiero de radio (fluido, hablado).
+- Mantener puntuación respirada (comas y puntos).
+- Sin markdown, sin símbolos raros, sin introducciones, sin "aquí tienes".
+
+Texto a corregir:
+${text}`;
+}
+
 async function callMiniMaxRaw({ apiKey, body, signal, timeoutMs = 45000 }) {
     const resp = await fetchWithTimeout(
         'https://api.minimax.io/anthropic/v1/messages',
@@ -3764,6 +3825,8 @@ app.post('/api/gemini', async (req, res) => {
       Tu misión es reescribir el siguiente texto para ser LEÍDO EN VOZ ALTA por una IA avanzada de clonación de voz.
       
       OBJETIVO: Lograr una prosodia humana perfecta, natural y respirada.
+
+      ${buildSpanishGuardRails()}
       
       Reglas de ORO para la Humanización:
       1. PUNTUACIÓN RESPIRADA: La IA usa la puntuación para respirar.
@@ -3792,6 +3855,8 @@ app.post('/api/gemini', async (req, res) => {
 
       OBJETIVO: Prosodia humana perfecta, sin palabras raras, sin tropiezos y con puntuación respirada.
 
+      ${buildSpanishGuardRails()}
+
       Reglas:
       1. PUNTUACIÓN RESPIRADA: usa comas para pausas breves y puntos para separar ideas.
       2. LENGUAJE HABLADO: tono conversacional y profesional.
@@ -3810,6 +3875,8 @@ app.post('/api/gemini', async (req, res) => {
                 prompt = `Actúa como un editor de corrección de estilo (proofreader) para guiones de radio.
       
       Tu tarea es REVISAR y LIMPIAR el siguiente texto que ya fue procesado por una IA.
+
+      ${buildSpanishGuardRails()}
       
       OBJETIVOS:
       1. ELIMINAR cualquier frase introductoria o de cierre que no sea parte de la noticia (ej: 'Aquí tienes la noticia', 'Claro, aquí está', 'Texto reescrito:', 'Espero que te guste', etc.).
@@ -3830,6 +3897,8 @@ app.post('/api/gemini', async (req, res) => {
                 desiredWords = targetWordsTime;
         
                 prompt = `Actúa como un editor de noticias experto.
+
+        ${buildSpanishGuardRails()}
         
         Reescribe y ajusta la longitud del siguiente texto para que pueda ser leído en voz alta en aproximadamente ${targetSeconds} segundos (alrededor de ${targetWordsTime} palabras).
 
@@ -3857,6 +3926,8 @@ app.post('/api/gemini', async (req, res) => {
                 desiredWords = targetWords;
 
                 prompt = `Actúa como un editor de noticias experto.
+
+        ${buildSpanishGuardRails()}
 
         OBJETIVO: Reescribir el siguiente texto para que tenga EXACTAMENTE alrededor de ${targetWords} palabras.
         
@@ -3907,6 +3978,8 @@ app.post('/api/gemini', async (req, res) => {
          
                  prompt = `Actúa como un editor de noticias de radio experto con un CRONÓMETRO ESTRICTO.
          
+                 ${buildSpanishGuardRails()}
+         
                  METAS NUMÉRICAS (INVIOLABLES):
                  - Palabras actuales: ${currentWords2}
                  - OBJETIVO EXACTO: ${targetWords2} palabras.
@@ -3948,8 +4021,19 @@ app.post('/api/gemini', async (req, res) => {
             temperature
         });
 
+        let finalText = generatedText;
+        if (needsSpanishRepair(finalText)) {
+            finalText = await generateMiniMaxWithContinuation({
+                apiKey: minimaxApiKey,
+                model: modelName,
+                prompt: buildSpanishRepairPrompt(finalText),
+                maxTokens: clamp(Math.ceil(countWords(finalText) * 2.2), 500, 2200),
+                temperature: 0.2
+            });
+        }
+
         res.json({
-            result: generatedText,
+            result: finalText,
             model: modelName,
             usage: {
                 promptTokens: 0,
