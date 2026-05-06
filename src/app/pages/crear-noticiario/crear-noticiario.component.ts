@@ -880,6 +880,45 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         }
     }
 
+    async onTextDelayChange(item: TimelineEvent): Promise<void> {
+        if (!item || item.type !== 'text') return;
+
+        const raw = Number(item.voiceDelay || 0);
+        const delay = Math.max(0, Math.min(10, Math.round(raw * 2) / 2));
+        item.voiceDelay = delay;
+
+        const baseUrl = item.audioUrlOriginal || item.audioUrl;
+        if (!baseUrl) {
+            this.cdr.detectChanges();
+            return;
+        }
+
+        try {
+            if (delay <= 0) {
+                if (item.audioUrl && item.audioUrl !== baseUrl && String(item.audioUrl).startsWith('blob:')) {
+                    URL.revokeObjectURL(item.audioUrl);
+                }
+                item.audioUrl = baseUrl;
+            } else {
+                const paddedUrl = await this.addSilencePadding(baseUrl, delay);
+                if (item.audioUrl && item.audioUrl !== baseUrl && item.audioUrl !== paddedUrl && String(item.audioUrl).startsWith('blob:')) {
+                    URL.revokeObjectURL(item.audioUrl);
+                }
+                item.audioUrl = paddedUrl;
+            }
+
+            const baseSeconds = Math.max(0, Number(item.baseDuration || 0));
+            if (baseSeconds > 0) {
+                item.duration = Math.round(baseSeconds + delay);
+                this.calculateTimelineTimes();
+            }
+        } catch (e) {
+            console.error('Error applying text delay', e);
+        } finally {
+            this.cdr.detectChanges();
+        }
+    }
+
     getAudioDuration(file: File): Promise<number> {
         return new Promise((resolve) => {
             const audio = new Audio();
@@ -927,7 +966,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 item.isGeneratingAudio = true;
                 item.progress = 0; // Reset progress
                 const voiceConfig = this.customVoices.find((v: any) => v.name === voice);
-                let audioUrl = await this.azureTtsService.generateSpeech({
+                const generatedUrl = await this.azureTtsService.generateSpeech({
                     text: textToSpeech,
                     voice: voice || '',
                     speed: Number(item.selectedSpeed) || 1.0,
@@ -946,6 +985,29 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     this.cdr.detectChanges();
                 });
 
+                if (item.type === 'text') {
+                    if (item.audioUrlOriginal && item.audioUrlOriginal !== generatedUrl && String(item.audioUrlOriginal).startsWith('blob:')) {
+                        URL.revokeObjectURL(item.audioUrlOriginal);
+                    }
+                    item.audioUrlOriginal = generatedUrl;
+                }
+
+                let audioUrl = generatedUrl;
+
+                if (item.type === 'text' && item.voiceDelay && Number(item.voiceDelay) > 0) {
+                    try {
+                        const paddedUrl = await this.addSilencePadding(audioUrl, Number(item.voiceDelay));
+                        if (paddedUrl !== audioUrl) {
+                            if (item.audioUrlOriginal !== audioUrl && String(audioUrl).startsWith('blob:')) {
+                                URL.revokeObjectURL(audioUrl);
+                            }
+                            audioUrl = paddedUrl;
+                        }
+                    } catch (paddingError) {
+                        console.error('Error adding silence padding:', paddingError);
+                    }
+                }
+
                 // Mix with music if selected
                 if (item.musicUrl) {
                     try {
@@ -956,7 +1018,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             item.musicVolume || 0.5
                         );
                         // Revoke original TTS url to avoid leaks, though it might be small
-                        URL.revokeObjectURL(audioUrl);
+                        if (item.audioUrlOriginal !== audioUrl && String(audioUrl).startsWith('blob:')) {
+                            URL.revokeObjectURL(audioUrl);
+                        }
                         audioUrl = mixedUrl;
                     } catch (mixError) {
                         console.error('Error mixing music:', mixError);
@@ -975,6 +1039,24 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 await new Promise((resolve) => {
                     audio.onloadedmetadata = () => {
                         if (audio.duration && audio.duration !== Infinity) {
+                            if (item.type === 'text') {
+                                const baseAudio = new Audio(item.audioUrlOriginal || audioUrl);
+                                baseAudio.onloadedmetadata = () => {
+                                    const baseSeconds = baseAudio.duration && baseAudio.duration !== Infinity ? Math.round(baseAudio.duration) : Math.round(audio.duration);
+                                    item.baseDuration = baseSeconds;
+                                    item.duration = Math.round(baseSeconds + Number(item.voiceDelay || 0));
+                                    this.calculateTimelineTimes();
+                                    resolve(true);
+                                };
+                                baseAudio.onerror = () => {
+                                    item.baseDuration = Math.round(audio.duration);
+                                    item.duration = Math.round(audio.duration);
+                                    this.calculateTimelineTimes();
+                                    resolve(true);
+                                };
+                                return;
+                            }
+
                             item.duration = Math.round(audio.duration);
                             this.calculateTimelineTimes();
                         }
@@ -1705,6 +1787,14 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             }
             item.audioUrl = undefined;
         }
+
+        if (item.audioUrlOriginal) {
+            if (String(item.audioUrlOriginal).startsWith('blob:')) {
+                URL.revokeObjectURL(item.audioUrlOriginal);
+            }
+            item.audioUrlOriginal = undefined;
+        }
+        item.baseDuration = undefined;
         
         // If it's a news item, clear the original news audio too
         if (item.type === 'news' && item.originalItem) {
@@ -2216,7 +2306,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 this.cdr.detectChanges(); // Ensure UI reflects loading state
 
                 const voiceConfig = this.customVoices.find((v: any) => v.name === voice);
-                let audioUrl = await this.azureTtsService.generateSpeech({
+                const generatedUrl = await this.azureTtsService.generateSpeech({
                     text: textToSpeech,
                     voice: voice || 'es-CL-LorenzoNeural',
                     speed: Number(event.selectedSpeed) || 1.0,
@@ -2235,6 +2325,29 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     this.cdr.detectChanges();
                 });
 
+                if (event.type === 'text') {
+                    if (event.audioUrlOriginal && event.audioUrlOriginal !== generatedUrl && String(event.audioUrlOriginal).startsWith('blob:')) {
+                        URL.revokeObjectURL(event.audioUrlOriginal);
+                    }
+                    event.audioUrlOriginal = generatedUrl;
+                }
+
+                let audioUrl = generatedUrl;
+
+                if (event.type === 'text' && event.voiceDelay && Number(event.voiceDelay) > 0) {
+                    try {
+                        const paddedUrl = await this.addSilencePadding(audioUrl, Number(event.voiceDelay));
+                        if (paddedUrl !== audioUrl) {
+                            if (event.audioUrlOriginal !== audioUrl && String(audioUrl).startsWith('blob:')) {
+                                URL.revokeObjectURL(audioUrl);
+                            }
+                            audioUrl = paddedUrl;
+                        }
+                    } catch (paddingError) {
+                        console.error('Error adding silence padding:', paddingError);
+                    }
+                }
+
                 // Mix with music if selected (only for intro/outro)
                 if ((event.type === 'intro' || event.type === 'outro') && event.musicUrl) {
                      try {
@@ -2245,7 +2358,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             event.musicVolume || 0.5,
                             event.type as 'intro' | 'outro' // Pass the mode
                         );
-                        URL.revokeObjectURL(audioUrl);
+                        if (event.audioUrlOriginal !== audioUrl && String(audioUrl).startsWith('blob:')) {
+                            URL.revokeObjectURL(audioUrl);
+                        }
                         audioUrl = mixedUrl;
                     } catch (mixError) {
                         console.error('Error mixing music in batch:', mixError);
@@ -2263,6 +2378,26 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     audio.onloadedmetadata = () => {
                         setTimeout(() => {
                             if (audio.duration && audio.duration !== Infinity) {
+                                if (event.type === 'text') {
+                                    const baseAudio = new Audio(event.audioUrlOriginal || audioUrl);
+                                    baseAudio.onloadedmetadata = () => {
+                                        const baseSeconds = baseAudio.duration && baseAudio.duration !== Infinity ? Math.round(baseAudio.duration) : Math.round(audio.duration);
+                                        event.baseDuration = baseSeconds;
+                                        event.duration = Math.round(baseSeconds + Number(event.voiceDelay || 0));
+                                        this.calculateTimelineTimes();
+                                        this.cdr.detectChanges();
+                                        resolve(true);
+                                    };
+                                    baseAudio.onerror = () => {
+                                        event.baseDuration = Math.round(audio.duration);
+                                        event.duration = Math.round(audio.duration);
+                                        this.calculateTimelineTimes();
+                                        this.cdr.detectChanges();
+                                        resolve(true);
+                                    };
+                                    return;
+                                }
+
                                 event.duration = Math.round(audio.duration);
                                 this.calculateTimelineTimes();
                                 this.cdr.detectChanges();

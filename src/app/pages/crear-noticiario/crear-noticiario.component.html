@@ -360,6 +360,14 @@
                                    <p *ngIf="customVoices.length === 0" class="no-voices-hint">No hay voces personalizadas. Ve a la sección Recursos para crear una.</p>
                                </div>
 
+                               <div class="control-group" *ngIf="item.type === 'text'">
+                                   <label>Desfase Inicio (seg):</label>
+                                   <div class="slider-group">
+                                       <input type="range" min="0" max="10" step="0.5" [(ngModel)]="item.voiceDelay" (ngModelChange)="onTextDelayChange(item)">
+                                       <span>{{ item.voiceDelay || 0 }}s</span>
+                                   </div>
+                               </div>
+
 
                                <!-- Music Controls for Intro/Outro -->
                                <div class="control-group" *ngIf="item.type === 'intro' || item.type === 'outro'">
