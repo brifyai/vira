@@ -135,6 +135,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     generating = false;
     loadingMessage = '';
     humanizing = false;
+    introGenerating = false;
     adjustingTime = false;
     generatingSmartAudios = false; // New state for smart audio loop
     globalProgress = 0;
@@ -236,24 +237,34 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             this.onRadioSelect();
             return;
         }
-        this.onIntroLocationChange();
+        this.onIntroLocationCommit();
     }
 
-    onIntroLocationChange(): void {
+    private lastIntroSignature = '';
+    private introRequestId = 0;
+
+    onIntroLocationCommit(): void {
         if (!this.scheduledTime) return;
         const region = String(this.introRegion || '').trim();
         const comuna = String(this.introComuna || '').trim();
         if (!region || !comuna) return;
+
+        const signature = `${String(this.scheduledTime).trim()}|${region.toLowerCase()}|${comuna.toLowerCase()}`;
+        if (signature === this.lastIntroSignature) return;
+        this.lastIntroSignature = signature;
+
         this.generateIntroFromLocation(region, comuna);
     }
 
     private async generateIntroFromLocation(region: string, comuna: string): Promise<void> {
-        this.loading = true;
+        const requestId = ++this.introRequestId;
+        this.introGenerating = true;
         this.cdr.detectChanges();
 
         try {
             const location = `${comuna}, ${region}, Chile`;
             const weatherInfo = await this.weatherService.getWeatherForLocation(location);
+            if (requestId !== this.introRequestId) return;
 
             const spokenTime = this.formatTimeForSpeech(this.scheduledTime);
             const spokenWeather = this.formatWeatherForSpeech(weatherInfo);
@@ -298,7 +309,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 panelClass: ['error-snackbar']
             });
         } finally {
-            this.loading = false;
+            if (requestId === this.introRequestId) {
+                this.introGenerating = false;
+            }
             this.cdr.detectChanges();
         }
     }
