@@ -160,6 +160,16 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     // Audio options
     customVoices: any[] = [];
     musicResources: any[] = [];
+    private readonly adTransitionPhrases: string[] = [
+        'Estamos de regreso. Sigamos con los temas que marcan la agenda de hoy.',
+        'Gracias por quedarse con nosotros. Continuamos con más información.',
+        'Volvemos a nuestros estudios y con ellos, más noticias para usted.',
+        'Siguiendo con nuestra cobertura, le traemos los últimos detalles.',
+        'Retomamos. Esto es lo que está pasando a esta hora.',
+        'Seguimos con más noticias. Atención a lo siguiente.',
+        'Continuamos con nuestra pauta informativa. Vamos con el siguiente tema.',
+        'Ya estamos de vuelta. Le contamos lo más importante del momento.'
+    ];
 
     // Date filters
     dateFilters = [
@@ -760,6 +770,19 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.audioGenerationAttempted = false;
     }
 
+    private pickRandomAdTransitionPhrase(): string {
+        const list = this.adTransitionPhrases;
+        if (!list.length) return 'Continuamos con más información.';
+        const idx = Math.floor(Math.random() * list.length);
+        return list[idx] || list[0];
+    }
+
+    private estimateDurationSecondsForText(text: string): number {
+        const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
+        const seconds = Math.ceil(words / 2.5); // ~150 wpm
+        return Math.max(6, Math.min(20, seconds || 10));
+    }
+
     async onFileSelected(event: any) {
         const file = event.target.files[0];
         if (!file) return;
@@ -783,7 +806,28 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             voiceDelay: 0
         };
         this.timelineEvents.push(newItem);
+
+        const phrase = this.pickRandomAdTransitionPhrase();
+        const transitionBlock: TimelineEvent = {
+            id: this.generateUUID(),
+            type: 'text',
+            title: 'Continuidad',
+            description: phrase,
+            startTime: 0,
+            duration: this.estimateDurationSecondsForText(phrase),
+            order: this.timelineEvents.length,
+            voiceSource: 'custom',
+            selectedVoice: this.customVoices.length > 0 ? this.customVoices[0].name : undefined,
+            selectedSpeed: this.customVoices.length > 0 ? (this.customVoices[0].speed || 1.0) : 1.0,
+            selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].exaggeration || 1.0) : 1.0,
+            showAudioPanel: this.hasHumanized,
+            voiceDelay: 0
+        };
+        this.timelineEvents.push(transitionBlock);
+
         this.calculateTimelineTimes();
+        this.audiosReady = false;
+        this.audioGenerationAttempted = false;
         this.cdr.detectChanges(); // Force update view
     }
 
@@ -1687,7 +1731,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         // Let's assume we proceed if there are any timeline events.
         
         const scriptBlocks = this.timelineEvents.filter(e =>
-            (e.type === 'intro' || e.type === 'outro') && !!String(e.description || '').trim()
+            (e.type === 'intro' || e.type === 'outro' || e.type === 'text') && !!String(e.description || '').trim()
         );
 
         this.humanizeTotal = this.selectedNews.length + scriptBlocks.length;
