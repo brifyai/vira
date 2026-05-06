@@ -34,6 +34,21 @@
                 <input type="time" id="scheduledTime" class="form-input" [(ngModel)]="scheduledTime" (change)="onScheduledTimeChange()">
             </div>
 
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="introRegion">Región (opcional)</label>
+                    <select id="introRegion" class="form-select" [(ngModel)]="introRegion" (change)="onIntroLocationChange()">
+                        <option value="">Seleccionar región</option>
+                        <option *ngFor="let r of chileRegions" [value]="r">{{ r }}</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="introComuna">Comuna/Ciudad (opcional)</label>
+                    <input type="text" id="introComuna" class="form-input" [(ngModel)]="introComuna" (input)="onIntroLocationChange()"
+                        placeholder="Ej: Providencia">
+                </div>
+            </div>
+
             <div class="form-group">
                 <label for="duration">Duración (minutos) *</label>
                 <input type="number" id="duration" class="form-input" [(ngModel)]="duration" min="5" max="60">

@@ -149,6 +149,20 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             }
         }
     }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+
+        @media (max-width: 768px) {
+            grid-template-columns: 1fr;
+        }
+
+        .form-group {
+            margin-bottom: 0;
+        }
+    }
 }
 
 // Content Grid

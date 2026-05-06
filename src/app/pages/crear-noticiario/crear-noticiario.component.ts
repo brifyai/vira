@@ -170,6 +170,26 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     radios: Radio[] = [];
     selectedRadioId: string | null = null;
     scheduledTime: string = '';
+    introRegion: string = '';
+    introComuna: string = '';
+    chileRegions: string[] = [
+        'Arica y Parinacota',
+        'Tarapacá',
+        'Antofagasta',
+        'Atacama',
+        'Coquimbo',
+        'Valparaíso',
+        'Metropolitana de Santiago',
+        "Libertador General Bernardo O'Higgins",
+        'Maule',
+        'Ñuble',
+        'Biobío',
+        'La Araucanía',
+        'Los Ríos',
+        'Los Lagos',
+        'Aysén del General Carlos Ibáñez del Campo',
+        'Magallanes y de la Antártica Chilena'
+    ];
 
     currentAudio: HTMLAudioElement | null = null;
     private filtersReloadTimer: number | null = null;
@@ -199,8 +219,74 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     }
 
     onScheduledTimeChange(): void {
-        if (!this.showRadioField) return;
-        this.onRadioSelect();
+        if (this.showRadioField) {
+            this.onRadioSelect();
+            return;
+        }
+        this.onIntroLocationChange();
+    }
+
+    onIntroLocationChange(): void {
+        if (!this.scheduledTime) return;
+        const region = String(this.introRegion || '').trim();
+        const comuna = String(this.introComuna || '').trim();
+        if (!region || !comuna) return;
+        this.generateIntroFromLocation(region, comuna);
+    }
+
+    private async generateIntroFromLocation(region: string, comuna: string): Promise<void> {
+        this.loading = true;
+        this.cdr.detectChanges();
+
+        try {
+            const location = `${comuna}, ${region}, Chile`;
+            const weatherInfo = await this.weatherService.getWeatherForLocation(location);
+
+            const spokenTime = this.formatTimeForSpeech(this.scheduledTime);
+            const spokenWeather = this.formatWeatherForSpeech(weatherInfo);
+
+            const introText = `Son las ${spokenTime}, y en ${comuna}, región de ${region}, tenemos una temperatura actual de ${spokenWeather}. . Bienvenidos al noticiero.`;
+
+            const existingIntroIndex = this.timelineEvents.findIndex(e => e.type === 'intro');
+            if (existingIntroIndex !== -1) {
+                const intro = this.timelineEvents[existingIntroIndex];
+                intro.description = introText;
+                intro.title = `Intro - ${comuna}`;
+                this.invalidateAudio(intro);
+            } else {
+                const newIntro: TimelineEvent = {
+                    id: this.generateUUID(),
+                    type: 'intro',
+                    title: `Intro - ${comuna}`,
+                    description: introText,
+                    startTime: 0,
+                    duration: 15,
+                    order: 0,
+                    voiceSource: 'custom',
+                    selectedVoice: this.customVoices.length > 0 ? this.customVoices[0].name : undefined,
+                    selectedSpeed: this.customVoices.length > 0 ? (this.customVoices[0].speed || 1.0) : 1.0,
+                    selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].exaggeration || 1.0) : 1.0
+                };
+                this.timelineEvents.unshift(newIntro);
+                this.timelineEvents.forEach((e, i) => (e.order = i));
+                this.audiosReady = false;
+            }
+
+            this.calculateTimelineTimes();
+            this.snackBar.open('Intro generada automáticamente con datos del clima', 'Cerrar', {
+                duration: 4000,
+                panelClass: ['success-snackbar']
+            });
+        } catch (error) {
+            console.error('Error generating intro:', error);
+            this.snackBar.open('Error al generar la intro automática', 'Cerrar', {
+                duration: 3000,
+                panelClass: ['error-snackbar']
+            });
+        } finally {
+            this.loading = false;
+            this.cdr.detectChanges();
+        }
     }
 
     ngOnDestroy(): void {
