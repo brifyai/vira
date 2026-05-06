@@ -140,6 +140,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     humanizeCompleted = 0;
     humanizeTotal = 0;
     audiosReady = false; // Only show progress bar when this is true
+    audioGenerationAttempted = false;
     hasHumanized = false; // Track if humanization has been done
     isExportingAudio = false;
 
@@ -270,6 +271,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 this.timelineEvents.unshift(newIntro);
                 this.timelineEvents.forEach((e, i) => (e.order = i));
                 this.audiosReady = false;
+                this.audioGenerationAttempted = false;
             }
 
             this.calculateTimelineTimes();
@@ -498,6 +500,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 // Update existing intro
                 this.timelineEvents[existingIntroIndex].description = introText;
                 this.timelineEvents[existingIntroIndex].title = `Intro - ${selectedRadio.name}`;
+                this.audiosReady = false;
+                this.audioGenerationAttempted = false;
             } else {
                 // Add new intro block at the beginning
                 const newIntro: TimelineEvent = {
@@ -517,6 +521,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 this.timelineEvents.unshift(newIntro);
                 // Update orders
                 this.timelineEvents.forEach((e, i) => e.order = i);
+                this.audiosReady = false;
+                this.audioGenerationAttempted = false;
             }
 
             this.calculateTimelineTimes();
@@ -681,6 +687,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         
         this.calculateTimelineTimes();
         this.audiosReady = false;
+        this.audioGenerationAttempted = false;
         this.clampNewsPage();
     }
 
@@ -745,6 +752,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.timelineEvents.push(newItem);
         this.calculateTimelineTimes();
         this.audiosReady = false;
+        this.audioGenerationAttempted = false;
     }
 
     async onFileSelected(event: any) {
@@ -1008,6 +1016,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             const news = event.originalItem;
             return !!String(news?.generatedAudioUrl || news?.uploadedAudioUrl || '').trim();
         }
+        if ((event.type === 'intro' || event.type === 'outro') && !!String(event.musicUrl || '').trim()) {
+            return true;
+        }
         return !!String(event.audioUrl || '').trim();
     }
 
@@ -1235,6 +1246,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     url = event.originalItem.generatedAudioUrl;
                 } else if (event.file) {
                     url = URL.createObjectURL(event.file);
+                } else if (!url && (event.type === 'intro' || event.type === 'outro') && event.musicUrl) {
+                    url = event.musicUrl;
                 }
 
                 if (url) {
@@ -1861,13 +1874,20 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             });
         } finally {
             this.generatingSmartAudios = false;
+            this.audioGenerationAttempted = true;
             this.cdr.detectChanges();
         }
     }
 
     async generateBatchAudios(startProgress: number = 0, endProgress: number = 100): Promise<void> {
         // Calculate total items to process for progress tracking
-        const itemsToProcess = this.timelineEvents.filter(e => e.type !== 'ad').length;
+        const itemsToGenerate = this.timelineEvents.filter(e => e.type !== 'ad' && !this.isAudioReadyForEvent(e));
+        const itemsToProcess = itemsToGenerate.length;
+        if (itemsToProcess === 0) {
+            this.globalProgress = endProgress;
+            this.cdr.detectChanges();
+            return;
+        }
         let completedItems = 0;
         const updateProgress = () => {
             completedItems++;
@@ -1879,6 +1899,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         // Generate audio for all timeline events (except ads) - SEQUENTIAL to avoid 429
         for (const event of this.timelineEvents) {
             if (event.type === 'ad') continue;
+            if (this.isAudioReadyForEvent(event)) continue;
 
             // Small delay between requests to be gentle with APIs
             await new Promise(resolve => setTimeout(resolve, 500));

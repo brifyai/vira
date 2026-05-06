@@ -120,6 +120,163 @@ const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
     }
 };
 
+function normalizeTerm(input) {
+    return String(input || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function pickBestGeocodingResult(results, { city, region } = {}) {
+    const list = Array.isArray(results) ? results : [];
+    if (!list.length) return null;
+
+    const cityNorm = normalizeTerm(city || '');
+    const regionNorm = normalizeTerm(region || '');
+
+    let best = list[0];
+    let bestScore = -1;
+
+    for (const r of list) {
+        const nameNorm = normalizeTerm(String(r?.name || ''));
+        const admin1Norm = normalizeTerm(String(r?.admin1 || ''));
+
+        let score = 0;
+        if (cityNorm) {
+            if (nameNorm === cityNorm) score += 8;
+            else if (nameNorm.startsWith(cityNorm)) score += 6;
+            else if (nameNorm.includes(cityNorm)) score += 4;
+        }
+        if (regionNorm) {
+            if (admin1Norm === regionNorm) score += 6;
+            else if (admin1Norm.includes(regionNorm) || regionNorm.includes(admin1Norm)) score += 3;
+        }
+        if (String(r?.country_code || '').toUpperCase() === 'CL') score += 2;
+
+        if (score > bestScore) {
+            best = r;
+            bestScore = score;
+        }
+    }
+
+    return best || null;
+}
+
+function getWeatherDescription(code) {
+    const codes = {
+        0: 'cielo despejado',
+        1: 'mayormente despejado',
+        2: 'parcialmente nublado',
+        3: 'nublado',
+        45: 'neblina',
+        48: 'escarcha',
+        51: 'llovizna ligera',
+        53: 'llovizna moderada',
+        55: 'llovizna densa',
+        61: 'lluvia ligera',
+        63: 'lluvia moderada',
+        65: 'lluvia fuerte',
+        71: 'nieve ligera',
+        73: 'nieve moderada',
+        75: 'nieve fuerte',
+        95: 'tormenta',
+        96: 'tormenta con granizo ligero',
+        99: 'tormenta con granizo fuerte'
+    };
+    const n = Number(code);
+    return codes[n] || 'condiciones variables';
+}
+
+app.get('/api/geocoding/search', async (req, res) => {
+    try {
+        const name = String(req?.query?.name || '').trim();
+        if (!name) return res.status(400).json({ error: 'missing_name' });
+
+        const count = Math.min(25, Math.max(1, Number(req?.query?.count || 10)));
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=${count}&language=es&format=json&country_code=CL`;
+        const resp = await fetchWithTimeout(url, {}, 15000);
+        const raw = await resp.text().catch(() => '');
+        const json = raw ? JSON.parse(raw) : {};
+        if (!resp.ok) return res.status(resp.status).json({ error: json?.reason || raw || 'geocoding_failed' });
+
+        const results = Array.isArray(json?.results) ? json.results : [];
+        const trimmed = results.map((r) => ({
+            name: r?.name,
+            admin1: r?.admin1,
+            admin2: r?.admin2,
+            country: r?.country,
+            country_code: r?.country_code,
+            latitude: r?.latitude,
+            longitude: r?.longitude
+        }));
+        res.json({ results: trimmed });
+    } catch (e) {
+        res.status(500).json({ error: String(e?.message || e || 'internal_error') });
+    }
+});
+
+app.get('/api/weather-for-location', async (req, res) => {
+    try {
+        const location = String(req?.query?.location || '').trim();
+        if (!location) return res.status(400).json({ error: 'missing_location' });
+
+        const searchStrategies = [location];
+        let city;
+        let region;
+        if (location.includes(',')) {
+            const parts = location.split(',').map((p) => p.trim()).filter(Boolean);
+            city = parts[0] || undefined;
+            region = parts.length >= 2 ? parts[1] : undefined;
+            if (parts.length >= 3) {
+                searchStrategies.push(`${parts[0]} ${parts[2]}`);
+                searchStrategies.push(`${parts[0]} ${parts[1]} ${parts[2]}`);
+                searchStrategies.push(`${parts[0]} ${parts[1]}`);
+            } else if (parts.length === 2) {
+                searchStrategies.push(`${parts[0]} ${parts[1]}`);
+            }
+            if (parts[0]) searchStrategies.push(parts[0]);
+        }
+
+        let latitude;
+        let longitude;
+        for (const term of searchStrategies) {
+            const t = String(term || '').trim();
+            if (!t) continue;
+            const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(t)}&count=10&language=es&format=json&country_code=CL`;
+            const geoResp = await fetchWithTimeout(geoUrl, {}, 15000);
+            const geoRaw = await geoResp.text().catch(() => '');
+            const geoJson = geoRaw ? JSON.parse(geoRaw) : {};
+            const results = Array.isArray(geoJson?.results) ? geoJson.results : [];
+            if (geoResp.ok && results.length > 0) {
+                const best = pickBestGeocodingResult(results, { city, region }) || results[0];
+                latitude = best?.latitude;
+                longitude = best?.longitude;
+                if (latitude && longitude) break;
+            }
+        }
+
+        if (!latitude || !longitude) return res.json({ weatherInfo: 'clima desconocido' });
+
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&current=temperature_2m,weather_code&timezone=auto`;
+        const wResp = await fetchWithTimeout(weatherUrl, {}, 15000);
+        const wRaw = await wResp.text().catch(() => '');
+        const wJson = wRaw ? JSON.parse(wRaw) : {};
+        if (!wResp.ok) return res.status(wResp.status).json({ error: wJson?.reason || wRaw || 'weather_failed' });
+
+        const current = wJson?.current;
+        if (!current) return res.json({ weatherInfo: 'clima desconocido' });
+
+        const temp = Math.round(Number(current?.temperature_2m));
+        const condition = getWeatherDescription(current?.weather_code);
+        res.json({ weatherInfo: `${temp}°C y ${condition}` });
+    } catch (e) {
+        res.status(500).json({ error: String(e?.message || e || 'internal_error') });
+    }
+});
+
 function safeUrlForLog(url) {
     if (!url || typeof url !== 'string') return null;
     const withoutQuery = url.split('?')[0];

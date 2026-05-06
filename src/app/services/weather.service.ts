@@ -1,13 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { config } from '../core/config';
 
 @Injectable({
   providedIn: 'root'
 })
 export class WeatherService {
-  private readonly GEOCODING_API = 'https://geocoding-api.open-meteo.com/v1/search';
-  private readonly WEATHER_API = 'https://api.open-meteo.com/v1/forecast';
+  private readonly apiUrl = config.apiUrl;
 
   constructor(private http: HttpClient) { }
 
@@ -58,73 +58,13 @@ export class WeatherService {
 
   async getWeatherForLocation(location: string): Promise<string> {
     try {
-      // 1. Get Coordinates with fallback search strategies
-      let latitude: number | undefined;
-      let longitude: number | undefined;
-
-      // Strategy 1: Full search string
-      const searchStrategies = [location];
-      let city: string | undefined;
-      let region: string | undefined;
-
-      // Strategy 2: If contains comma, try "City Country" (e.g. "Los Ángeles Chile")
-      if (location.includes(',')) {
-        const parts = location.split(',').map(p => p.trim());
-        city = parts[0] || undefined;
-        region = parts.length >= 2 ? (parts[1] || undefined) : undefined;
-        if (parts.length >= 3) { // Comuna, Region, Country
-             searchStrategies.push(`${parts[0]} ${parts[2]}`);
-             searchStrategies.push(`${parts[0]} ${parts[1]} ${parts[2]}`);
-             searchStrategies.push(`${parts[0]} ${parts[1]}`);
-        } else if (parts.length === 2) { // Comuna, Country
-             searchStrategies.push(`${parts[0]} ${parts[1]}`);
-        }
-        // Strategy 3: Just the City (Comuna)
-        if (parts.length > 0 && parts[0]) {
-            searchStrategies.push(parts[0]);
-        }
-      }
-
-      // console.log('WeatherService: Searching location with strategies:', searchStrategies);
-
-      for (const term of searchStrategies) {
-        if (!term || term.trim() === ',' || term.trim() === '') continue;
-        
-        try {
-            const geoUrl = `${this.GEOCODING_API}?name=${encodeURIComponent(term)}&count=10&language=es&format=json&country_code=CL`;
-            // console.log(`WeatherService: Trying geocoding url: ${geoUrl}`);
-            const geoData: any = await firstValueFrom(this.http.get(geoUrl));
-
-            if (geoData.results && geoData.results.length > 0) {
-                const best = this.pickBestGeocodingResult(geoData.results, city, region) || geoData.results[0];
-                latitude = best.latitude;
-                longitude = best.longitude;
-                // console.log(`WeatherService: Found coordinates for "${term}":`, { latitude, longitude });
-                break; // Found coordinates, stop searching
-            }
-        } catch (e) {
-            console.warn(`WeatherService: Error searching for "${term}"`, e);
-        }
-      }
-
-      if (!latitude || !longitude) {
-        console.warn('WeatherService: Could not find coordinates for any search strategy');
-        return 'clima desconocido';
-      }
-
-      // 2. Get Weather
-      const weatherUrl = `${this.WEATHER_API}?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`;
-      const weatherData: any = await firstValueFrom(this.http.get(weatherUrl));
-
-      if (!weatherData.current) {
-        return 'clima desconocido';
-      }
-
-      const temp = Math.round(weatherData.current.temperature_2m);
-      const code = weatherData.current.weather_code;
-      const condition = this.getWeatherDescription(code);
-
-      return `${temp}°C y ${condition}`;
+      const resp: any = await firstValueFrom(
+        this.http.get(`${this.apiUrl}/api/weather-for-location`, {
+          params: { location }
+        })
+      );
+      const weatherInfo = String(resp?.weatherInfo || '').trim();
+      return weatherInfo || 'clima desconocido';
     } catch (error) {
       console.error('Error fetching weather:', error);
       return 'clima no disponible';
