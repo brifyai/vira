@@ -894,27 +894,65 @@ export class SupabaseService {
         return data;
     }
 
-    async createBroadcastNewsItem(item: any) {
-        const { data, error } = await this.supabase
-            .from('broadcast_news_items')
-            .insert(item)
-            .select()
-            .single();
+    private parseMissingColumnFromPostgrestError(error: any): string | null {
+        const code = String(error?.code || '');
+        if (code !== 'PGRST204') return null;
+        const msg = String(error?.message || '');
+        const m = msg.match(/Could not find the '([^']+)' column/i);
+        return m?.[1] ? String(m[1]) : null;
+    }
 
-        if (error) throw error;
-        return data;
+    private omitKey(obj: any, key: string): any {
+        if (!obj || typeof obj !== 'object') return obj;
+        if (!(key in obj)) return obj;
+        const copy: any = Array.isArray(obj) ? obj.slice() : { ...obj };
+        try {
+            delete copy[key];
+        } catch {}
+        return copy;
+    }
+
+    async createBroadcastNewsItem(item: any) {
+        let payload = item;
+        for (let attempt = 0; attempt < 6; attempt++) {
+            const { data, error } = await this.supabase
+                .from('broadcast_news_items')
+                .insert(payload)
+                .select()
+                .single();
+
+            if (!error) return data;
+
+            const missing = this.parseMissingColumnFromPostgrestError(error);
+            if (!missing) throw error;
+
+            const next = this.omitKey(payload, missing);
+            if (next === payload) throw error;
+            payload = next;
+        }
+        throw new Error('No se pudo crear el bloque del noticiero (schema mismatch).');
     }
 
     async updateBroadcastNewsItem(id: string, updates: any) {
-        const { data, error } = await this.supabase
-            .from('broadcast_news_items')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
+        let payload = updates;
+        for (let attempt = 0; attempt < 6; attempt++) {
+            const { data, error } = await this.supabase
+                .from('broadcast_news_items')
+                .update(payload)
+                .eq('id', id)
+                .select()
+                .single();
 
-        if (error) throw error;
-        return data;
+            if (!error) return data;
+
+            const missing = this.parseMissingColumnFromPostgrestError(error);
+            if (!missing) throw error;
+
+            const next = this.omitKey(payload, missing);
+            if (next === payload) throw error;
+            payload = next;
+        }
+        throw new Error('No se pudo actualizar el bloque del noticiero (schema mismatch).');
     }
 
     async deleteBroadcastNewsItem(id: string) {

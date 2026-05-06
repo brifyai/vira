@@ -69,6 +69,8 @@ export interface ScrapedNews {
     publishedAt?: Date;
     readingTime?: number;
     humanizedContent?: string;
+    humanizeStatus?: 'pending' | 'ok' | 'error';
+    humanizeError?: string;
     
     // Audio fields
     showAudioPanel?: boolean;
@@ -134,6 +136,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     adjustingTime = false;
     generatingSmartAudios = false; // New state for smart audio loop
     globalProgress = 0;
+    humanizeProgress = 0;
+    humanizeCompleted = 0;
+    humanizeTotal = 0;
     audiosReady = false; // Only show progress bar when this is true
     hasHumanized = false; // Track if humanization has been done
     isExportingAudio = false;
@@ -589,6 +594,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         });
         
         this.calculateTimelineTimes();
+        this.audiosReady = false;
         this.clampNewsPage();
     }
 
@@ -609,6 +615,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         // Recalculate order and times
         this.timelineEvents.forEach((e, i) => e.order = i);
         this.calculateTimelineTimes();
+        this.audiosReady = false;
         this.clampNewsPage();
     }
     
@@ -651,6 +658,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         };
         this.timelineEvents.push(newItem);
         this.calculateTimelineTimes();
+        this.audiosReady = false;
     }
 
     async onFileSelected(event: any) {
@@ -903,6 +911,26 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         const target = this.duration * 60;
         if (target === 0) return 0;
         return Math.min((total / target) * 100, 100);
+    }
+
+    private isAudioReadyForEvent(event: TimelineEvent): boolean {
+        if (!event) return false;
+        if (event.type === 'ad') {
+            return !!event.file || !!String(event.audioUrl || '').trim();
+        }
+        if (event.type === 'news') {
+            const news = event.originalItem;
+            return !!String(news?.generatedAudioUrl || news?.uploadedAudioUrl || '').trim();
+        }
+        return !!String(event.audioUrl || '').trim();
+    }
+
+    get missingAudiosCount(): number {
+        return this.timelineEvents.filter(e => !this.isAudioReadyForEvent(e)).length;
+    }
+
+    private refreshAudiosReadyFlag(): void {
+        this.audiosReady = this.timelineEvents.length > 0 && this.missingAudiosCount === 0;
     }
 
     canCreateBroadcast(): boolean {
@@ -1440,6 +1468,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 item.originalItem.generatedAudioUrl = undefined;
             }
         }
+
+        this.audiosReady = false;
         
         this.cdr.detectChanges();
     }
@@ -1477,6 +1507,10 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         // User said "humanizar solo las noticias". If no news, maybe skip humanization but show audio panels?
         // Let's assume we proceed if there are any timeline events.
         
+        this.humanizeTotal = this.selectedNews.length;
+        this.humanizeCompleted = 0;
+        this.humanizeProgress = 0;
+        this.audiosReady = false;
         this.humanizing = true;
         this.cdr.detectChanges();
 
@@ -1503,8 +1537,18 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 };
 
                 const items = this.selectedNews.slice();
+                items.forEach(n => {
+                    n.humanizeStatus = 'pending';
+                    n.humanizeError = undefined;
+                });
                 let cursor = 0;
                 const concurrency = Math.min(2, items.length);
+                const updateHumanizeProgress = () => {
+                    this.humanizeCompleted += 1;
+                    const total = Math.max(1, this.humanizeTotal);
+                    this.humanizeProgress = Math.min(100, Math.round((this.humanizeCompleted / total) * 100));
+                    this.cdr.detectChanges();
+                };
 
                 const worker = async () => {
                     while (cursor < items.length && !stoppedByRateLimit) {
@@ -1533,6 +1577,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             }
 
                             news.humanizedContent = finalText;
+                            news.humanizeStatus = 'ok';
 
                             const words = finalText.split(/\s+/).length;
                             news.readingTime = Math.ceil((words / 150) * 60);
@@ -1550,9 +1595,13 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             failed += 1;
                             const status = error?.status;
                             const msg = String(error?.message || '');
+                            news.humanizeStatus = 'error';
+                            news.humanizeError = msg || 'error';
                             if (status === 429 || /429|too many requests|resource exhausted/i.test(msg)) {
                                 stoppedByRateLimit = true;
                             }
+                        } finally {
+                            updateHumanizeProgress();
                         }
                     }
                 };
@@ -1605,6 +1654,11 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         duration: 5000,
                         panelClass: ['error-snackbar']
                     });
+                } else {
+                    this.snackBar.open(`Humanización completada: ${ok}/${this.selectedNews.length}.`, 'Cerrar', {
+                        duration: 3500,
+                        panelClass: ['success-snackbar']
+                    });
                 }
             }
 
@@ -1624,12 +1678,18 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 }
             });
 
-            this.hasHumanized = true;
-
-            this.snackBar.open('Noticias humanizadas. Ahora configura voces y genera el audio exacto.', 'Cerrar', {
-                duration: 4000,
-                panelClass: ['success-snackbar']
-            });
+            this.hasHumanized = this.selectedNews.some(n => !!String(n.humanizedContent || '').trim());
+            if (this.hasHumanized) {
+                this.snackBar.open('Humanización lista. Ahora configura voces y genera el audio.', 'Cerrar', {
+                    duration: 4000,
+                    panelClass: ['success-snackbar']
+                });
+            } else {
+                this.snackBar.open('No se pudo humanizar ninguna noticia. Revisa la consola/servidor e intenta de nuevo.', 'Cerrar', {
+                    duration: 5500,
+                    panelClass: ['error-snackbar']
+                });
+            }
         } catch (error) {
             console.error('Error humanizing news:', error);
             this.snackBar.open('Error al procesar noticias', 'Cerrar', {
@@ -1638,6 +1698,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             });
         } finally {
             this.humanizing = false;
+            if (this.humanizeTotal > 0) {
+                this.humanizeProgress = Math.min(100, this.humanizeProgress || 0);
+            }
             this.calculateTimelineTimes();
             this.cdr.detectChanges();
         }
@@ -1654,7 +1717,15 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
         try {
             await this.generateBatchAudios(0, 100);
-            this.audiosReady = true;
+            this.refreshAudiosReadyFlag();
+            if (!this.audiosReady) {
+                this.snackBar.open(`Faltan ${this.missingAudiosCount} audios por generar. Revisa los bloques con error e intenta nuevamente.`, 'Cerrar', {
+                    duration: 6000,
+                    panelClass: ['error-snackbar']
+                });
+                return;
+            }
+            this.cdr.detectChanges();
 
             const ttsChars = this.timelineEvents
                 .filter(e => e.type !== 'ad')

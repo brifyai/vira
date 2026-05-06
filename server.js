@@ -2597,7 +2597,7 @@ function clamp(n, min, max) {
     return Math.min(max, Math.max(min, x));
 }
 
-async function callMiniMaxRaw({ apiKey, body, signal, timeoutMs = 25000 }) {
+async function callMiniMaxRaw({ apiKey, body, signal, timeoutMs = 45000 }) {
     const resp = await fetchWithTimeout(
         'https://api.minimax.io/anthropic/v1/messages',
         {
@@ -3783,6 +3783,7 @@ app.post('/api/gemini', async (req, res) => {
     } catch (error) {
         console.error('MiniMax API Error:', error);
 
+        const status = Number(error?.status);
         const msg = String(error?.message || 'Internal Server Error');
         if (/429|too many requests|resource exhausted/i.test(msg)) {
             res.setHeader('Retry-After', '10');
@@ -3790,6 +3791,10 @@ app.post('/api/gemini', async (req, res) => {
         }
         if (/403|permission_denied|unregistered callers/i.test(msg)) {
             return res.status(403).json({ error: msg });
+        }
+
+        if (Number.isFinite(status) && status >= 400 && status <= 599) {
+            return res.status(status).json({ error: msg });
         }
         
         res.status(500).json({ error: msg });
