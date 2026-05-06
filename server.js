@@ -3785,6 +3785,27 @@ app.post('/api/gemini', async (req, res) => {
       ${text}`;
                 break;
 
+            case 'refineScript':
+                prompt = `Actúa como un editor de guiones de radio (intro/cierre) de élite.
+
+      Tu misión es REESCRIBIR o PULIR el siguiente texto para que suene natural y fluido al ser LEÍDO EN VOZ ALTA por una IA de clonación de voz.
+
+      OBJETIVO: Prosodia humana perfecta, sin palabras raras, sin tropiezos y con puntuación respirada.
+
+      Reglas:
+      1. PUNTUACIÓN RESPIRADA: usa comas para pausas breves y puntos para separar ideas.
+      2. LENGUAJE HABLADO: tono conversacional y profesional.
+      3. NÚMEROS: escribe números en letras.
+      4. SIGLAS: expándelas o sepáralas con guiones si se deletrean (ej: "O-N-U").
+      5. LIMPIEZA: sin markdown, sin símbolos raros, sin corchetes ni asteriscos.
+      6. CONSERVA EL SENTIDO: no inventes datos.
+      7. IMPORTANTE: si el texto incluye saludos o frases como "Bienvenidos", consérvalas (esto NO es una noticia web).
+      8. RESPUESTA: SOLO el texto final listo para locutar. Nada más.
+
+      Texto:
+      ${text}`;
+                break;
+
             case 'clean':
                 prompt = `Actúa como un editor de corrección de estilo (proofreader) para guiones de radio.
       

@@ -1686,7 +1686,11 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         // User said "humanizar solo las noticias". If no news, maybe skip humanization but show audio panels?
         // Let's assume we proceed if there are any timeline events.
         
-        this.humanizeTotal = this.selectedNews.length;
+        const scriptBlocks = this.timelineEvents.filter(e =>
+            (e.type === 'intro' || e.type === 'outro') && !!String(e.description || '').trim()
+        );
+
+        this.humanizeTotal = this.selectedNews.length + scriptBlocks.length;
         this.humanizeCompleted = 0;
         this.humanizeProgress = 0;
         this.audiosReady = false;
@@ -1694,6 +1698,13 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
 
         try {
+            const updateHumanizeProgress = () => {
+                this.humanizeCompleted += 1;
+                const total = Math.max(1, this.humanizeTotal);
+                this.humanizeProgress = Math.min(100, Math.round((this.humanizeCompleted / total) * 100));
+                this.cdr.detectChanges();
+            };
+
             // 1. Humanize News
             if (this.selectedNews.length > 0) {
                 const minimaxTotals = {
@@ -1722,12 +1733,6 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 });
                 let cursor = 0;
                 const concurrency = Math.min(2, items.length);
-                const updateHumanizeProgress = () => {
-                    this.humanizeCompleted += 1;
-                    const total = Math.max(1, this.humanizeTotal);
-                    this.humanizeProgress = Math.min(100, Math.round((this.humanizeCompleted / total) * 100));
-                    this.cdr.detectChanges();
-                };
 
                 const worker = async () => {
                     while (cursor < items.length && !stoppedByRateLimit) {
@@ -1841,6 +1846,53 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 }
             }
 
+            // 1.5 Refine Intro/Outro scripts (optional)
+            if (scriptBlocks.length > 0) {
+                let okScripts = 0;
+                let failedScripts = 0;
+
+                const needsCleaning = (t: string) => {
+                    const s = String(t || '');
+                    if (!s.trim()) return true;
+                    if (/\[[^\]]+\]/.test(s)) return true;
+                    if (/[*_#]/.test(s)) return true;
+                    if (/aquí tienes|aqui tienes|texto reescrito|reescrito:|claro, aquí|claro, aqui/i.test(s)) return true;
+                    return false;
+                };
+
+                for (const block of scriptBlocks) {
+                    try {
+                        const refined = await this.geminiService.refineScript(String(block.description || ''));
+                        let finalText = refined.text;
+                        if (needsCleaning(finalText)) {
+                            const cleaned = await this.geminiService.cleanText(finalText);
+                            finalText = cleaned.text;
+                        }
+
+                        block.description = finalText;
+                        this.invalidateAudio(block);
+                        okScripts += 1;
+                    } catch (e) {
+                        console.error(`Error refining script ${block.id}`, e);
+                        failedScripts += 1;
+                    } finally {
+                        updateHumanizeProgress();
+                    }
+                }
+
+                if (failedScripts > 0) {
+                    this.snackBar.open(`Intro/Cierre afinados con errores: ${okScripts} ok · ${failedScripts} fallidos.`, 'Cerrar', {
+                        duration: 5000,
+                        panelClass: ['error-snackbar']
+                    });
+                } else {
+                    this.snackBar.open(`Intro/Cierre afinados: ${okScripts}/${scriptBlocks.length}.`, 'Cerrar', {
+                        duration: 3000,
+                        panelClass: ['success-snackbar']
+                    });
+                }
+            }
+
             // 2. Prepare Audio Config for ALL blocks (except ads)
             this.timelineEvents.forEach(event => {
                 if (event.type === 'ad') return;
@@ -1857,7 +1909,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 }
             });
 
-            this.hasHumanized = this.selectedNews.some(n => !!String(n.humanizedContent || '').trim());
+            this.hasHumanized =
+                this.selectedNews.some(n => !!String(n.humanizedContent || '').trim()) ||
+                scriptBlocks.length > 0;
             if (this.hasHumanized) {
                 this.snackBar.open('Humanización lista. Ahora configura voces y genera el audio.', 'Cerrar', {
                     duration: 4000,

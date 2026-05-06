@@ -136,6 +136,10 @@ export class GeminiService {
     return this.callGeminiApi('clean', text);
   }
 
+  async refineScript(text: string): Promise<{ text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }> {
+    return this.callGeminiApi('refineScript', text);
+  }
+
   async adjustContentToTime(text: string, targetSeconds: number): Promise<{ text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }> {
     return this.callGeminiApi('adjustTime', text, { targetSeconds });
   }
