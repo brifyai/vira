@@ -790,7 +790,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     async onAdDelayChange(item: TimelineEvent): Promise<void> {
         if (!item || item.type !== 'ad') return;
 
-        const delay = Math.max(0, Math.min(10, Number(item.voiceDelay || 0)));
+        const delay = Math.max(0, Math.min(10, Math.round(Number(item.voiceDelay || 0))));
         item.voiceDelay = delay;
 
         const base = Math.max(0, Number(item.baseDuration || item.duration || 0));
@@ -1046,7 +1046,10 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     }
 
     getTotalReadingTime(): number {
-        return this.timelineEvents.reduce((acc, curr) => acc + curr.duration, 0);
+        return this.timelineEvents.reduce((acc, curr) => {
+            const seconds = Math.max(0, Math.round(Number(curr?.duration || 0)));
+            return acc + seconds;
+        }, 0);
     }
 
     getObjectUrl(file: File): string {
@@ -1154,7 +1157,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 duration_minutes: this.duration,
                 status: 'draft',
                 total_news_count: this.selectedNews.length,
-                total_reading_time_seconds: this.getTotalReadingTime(),
+                total_reading_time_seconds: Math.max(0, Math.round(this.getTotalReadingTime())),
                 created_by: user.id,
                 radio_id: this.selectedRadioId || null,
                 scheduled_time: this.scheduledTime || null
@@ -1240,7 +1243,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     broadcast_id: broadcast.id,
                     humanized_news_id: humanizedNewsId,
                     order_index: i,
-                    reading_time_seconds: event.duration,
+                    reading_time_seconds: Math.max(0, Math.round(Number(event.duration || 0))),
                     type: event.type,
                     custom_title: event.type !== 'news' ? event.title : null,
                     custom_content: event.type !== 'news' ? event.description : null,
