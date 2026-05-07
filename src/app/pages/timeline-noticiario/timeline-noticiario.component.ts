@@ -90,6 +90,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     // Audio playback
     currentAudio: HTMLAudioElement | null = null;
     playingBroadcastId: string | null = null;
+    private isCreatingEditableCopy = false;
 
     constructor(
         private supabaseService: SupabaseService,
@@ -101,10 +102,33 @@ export class TimelineNoticiarioComponent implements OnInit {
         // Voices will be loaded asynchronously
     }
 
-    private requireEditing(): boolean {
+    private async ensureEditingCopy(showHint = true): Promise<boolean> {
         if (this.isEditingCopy) return true;
-        this.snackBar.open('Activa "Guardar como nuevo" para editar sin sobrescribir el original', 'Cerrar', { duration: 3500 });
-        return false;
+        if (this.isCreatingEditableCopy) return false;
+        if (!this.selectedBroadcast?.id || !this.originalBroadcast?.id) {
+            if (showHint) {
+                this.snackBar.open('Primero abre un noticiero para editarlo', 'Cerrar', { duration: 2500 });
+            }
+            return false;
+        }
+
+        this.isCreatingEditableCopy = true;
+        if (showHint) {
+            this.snackBar.open('Creando copia editable del noticiero...', 'Cerrar', { duration: 2500 });
+        }
+
+        try {
+            await this.enableEditingByCopy();
+            return this.isEditingCopy;
+        } finally {
+            this.isCreatingEditableCopy = false;
+        }
+    }
+
+    private normalizeMusicVolume(value: any, fallback: number = 0.25): number {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return fallback;
+        return Math.max(0.05, Math.min(1, n));
     }
 
     async playBroadcast(broadcast: any) {
@@ -319,15 +343,15 @@ export class TimelineNoticiarioComponent implements OnInit {
         this.totalDuration = currentTime;
     }
 
-    drop(event: CdkDragDrop<any[]>) {
-        if (!this.requireEditing()) return;
+    async drop(event: CdkDragDrop<any[]>) {
+        if (!(await this.ensureEditingCopy(false))) return;
         moveItemInArray(this.timelineEvents, event.previousIndex, event.currentIndex);
         this.calculateTimes();
         this.saveOrder();
     }
 
     async saveOrder() {
-        if (!this.requireEditing()) return;
+        if (!(await this.ensureEditingCopy(false))) return;
         // Optimistic update already done in UI.
         // Now update DB.
         for (let i = 0; i < this.timelineEvents.length; i++) {
@@ -345,7 +369,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async addBlock(type: 'text' | 'intro' | 'outro') {
-        if (!this.requireEditing()) return;
+        if (!(await this.ensureEditingCopy())) return;
         if (!this.selectedBroadcast) return;
 
         this.loadingTimeline = true; // Show loading immediately
@@ -383,7 +407,10 @@ export class TimelineNoticiarioComponent implements OnInit {
             voice_id: defaultVoice,
             voice_speed: defaultSpeed,
             voice_pitch: defaultPitch,
-            music_volume: 0.5,
+            music_volume: 0.25,
+            music_position: type === 'outro' ? 'after' : 'during',
+            music_tail_seconds: 0.8,
+            music_fade_out_seconds: 0.5,
             voice_delay: 0
         };
 
@@ -407,7 +434,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async deleteBlock(event: any) {
-        if (!this.requireEditing()) return;
+        if (!(await this.ensureEditingCopy())) return;
         const result = await Swal.fire({
             title: '¿Estás seguro?',
             text: "No podrás revertir esto",
@@ -443,7 +470,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async onFileSelected(event: any) {
-        if (!this.requireEditing()) return;
+        if (!(await this.ensureEditingCopy())) return;
         const file = event.target.files[0];
         if (!file || !this.selectedBroadcast) return;
 
@@ -646,7 +673,10 @@ export class TimelineNoticiarioComponent implements OnInit {
                     music_url: (item as any).music_url,
                     music_resource_id: item.music_resource_id,
                     voice_delay: item.voice_delay,
-                    music_volume: item.music_volume
+                    music_volume: item.music_volume,
+                    music_position: (item as any).music_position,
+                    music_tail_seconds: (item as any).music_tail_seconds,
+                    music_fade_out_seconds: (item as any).music_fade_out_seconds
                 };
                 await this.supabaseService.createBroadcastNewsItem(clone);
             }
@@ -791,7 +821,7 @@ export class TimelineNoticiarioComponent implements OnInit {
 
 
     async updateBlockText(event: TimelineEvent, newText: string) {
-        if (!this.requireEditing()) return;
+        if (!(await this.ensureEditingCopy(false))) return;
         event.description = newText;
         try {
             await this.supabaseService.updateBroadcastNewsItem(event.id, { custom_content: newText });
@@ -803,7 +833,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async updateBlockVoice(event: TimelineEvent) {
-        if (!this.requireEditing()) return;
+        if (!(await this.ensureEditingCopy(false))) return;
         if (!event.id) return;
         
         // Find selected voice to get default settings if available
@@ -831,7 +861,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async updateBlockMusic(event: TimelineEvent) {
-        if (!this.requireEditing()) return;
+        if (!(await this.ensureEditingCopy(false))) return;
         if (!event.id) return;
 
         // Find music resource to get URL
@@ -849,7 +879,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         const updates: any = {
             music_url: event.musicUrl, // Store URL for easier access
             music_resource_id: musicResourceId,
-            music_volume: event.musicVolume,
+            music_volume: this.normalizeMusicVolume(event.musicVolume, 0.25),
             voice_delay: event.voiceDelay,
             music_position: event.musicUrl ? (event.musicPlacement || (event.type === 'outro' ? 'after' : 'during')) : null,
             music_tail_seconds: event.musicUrl ? event.musicTailSeconds : null,
@@ -871,7 +901,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         event.showOriginalText = !event.showOriginalText;
     }
     async generateBlockAudio(event: TimelineEvent) {
-        if (!this.requireEditing()) return;
+        if (!(await this.ensureEditingCopy(false))) return;
         const textToSpeak = event.description || event.title;
         if (!textToSpeak) return;
         this.isGeneratingAudio = true;
@@ -893,7 +923,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                         audioUrl,
                         event.musicUrl,
                         Number(event.voiceDelay) || 0,
-                        Number(event.musicVolume) || 0.25,
+                        this.normalizeMusicVolume(event.musicVolume, 0.25),
                         placement,
                         {
                             tailSeconds: Number(event.musicTailSeconds ?? 0.8),
@@ -926,8 +956,11 @@ export class TimelineNoticiarioComponent implements OnInit {
                 voice_pitch: Number(event.pitch),
                 music_url: event.musicUrl,
                 music_resource_id: event.musicResourceId,
-                music_volume: event.musicVolume,
-                voice_delay: event.voiceDelay
+                    music_volume: this.normalizeMusicVolume(event.musicVolume, 0.25),
+                    voice_delay: event.voiceDelay,
+                    music_position: event.musicUrl ? (event.musicPlacement || (event.type === 'outro' ? 'after' : 'during')) : null,
+                    music_tail_seconds: event.musicUrl ? event.musicTailSeconds : null,
+                    music_fade_out_seconds: event.musicUrl ? event.musicFadeOutSeconds : null
             });
 
             // 6. Update local state

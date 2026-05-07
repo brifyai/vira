@@ -214,15 +214,16 @@
                 </div>
 
                 <div class="timeline-item-card" *ngFor="let item of timelineEvents; let i = index" cdkDrag>
-                    <div class="item-handle" cdkDragHandle>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="8" y1="6" x2="21" y2="6"></line>
-                            <line x1="8" y1="12" x2="21" y2="12"></line>
-                            <line x1="8" y1="18" x2="21" y2="18"></line>
-                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                        </svg>
+                    <div class="item-handle" cdkDragHandle title="Arrastrar bloque">
+                        <div class="handle-dots" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <span class="handle-label">Mover</span>
                     </div>
                     
                     <div class="item-content-wrapper">
