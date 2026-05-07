@@ -63,6 +63,10 @@ export class TimelineNoticiarioComponent implements OnInit {
     loading = false;
     loadingTimeline = false;
     isGeneratingAudio = false;
+    pendingTopAction: 'intro' | 'text' | 'audio' | 'outro' | null = null;
+    pendingDeleteId: string | null = null;
+    pendingGenerateId: string | null = null;
+    pendingCopy = false;
 
     // View mode
     viewMode = 'grid'; // 'grid' or 'list'
@@ -129,6 +133,10 @@ export class TimelineNoticiarioComponent implements OnInit {
         const n = Number(value);
         if (!Number.isFinite(n)) return fallback;
         return Math.max(0.05, Math.min(1, n));
+    }
+
+    isTopActionPending(action: 'intro' | 'text' | 'audio' | 'outro'): boolean {
+        return this.pendingTopAction === action;
     }
 
     async playBroadcast(broadcast: any) {
@@ -343,6 +351,53 @@ export class TimelineNoticiarioComponent implements OnInit {
         this.totalDuration = currentTime;
     }
 
+    private createTimelineEventFromItem(item: any): TimelineEvent {
+        const news = item?.humanized_news;
+        const duration = Number(
+            item?.duration_seconds ??
+            item?.reading_time_seconds ??
+            news?.reading_time_seconds ??
+            30
+        ) || 30;
+
+        const musicUrlFromId = item?.music_resource_id ? this.findMusicUrl(item.music_resource_id) : undefined;
+        const musicUrl = item?.music_url || musicUrlFromId;
+
+        return {
+            id: item.id,
+            type: item.type || 'text',
+            title: item.custom_title || news?.title || 'Bloque sin título',
+            description: item.custom_content || news?.humanized_content || '',
+            startTime: 0,
+            endTime: 0,
+            duration,
+            audioUrl: item.audio_url || news?.audio_url,
+            order: Number(item.order_index ?? this.timelineEvents.length),
+            originalItem: item,
+            voice: item.voice_id || 'es-CL-LorenzoNeural',
+            speed: Number(item.voice_speed || 1),
+            pitch: Number(item.voice_pitch || 1),
+            originalContent: news?.original_content,
+            humanizedContent: news?.humanized_content,
+            showOriginalText: false,
+            musicResourceId: item.music_resource_id,
+            musicUrl,
+            voiceDelay: Number(item.voice_delay || 0),
+            musicVolume: this.normalizeMusicVolume(item.music_volume, 0.25),
+            musicPlacement: (item.music_position || (item.type === 'outro' ? 'after' : 'during')) as any,
+            musicTailSeconds: item.music_tail_seconds == null ? 0.8 : Number(item.music_tail_seconds),
+            musicFadeOutSeconds: item.music_fade_out_seconds == null ? 0.5 : Number(item.music_fade_out_seconds)
+        };
+    }
+
+    private appendTimelineItem(createdItem: any): void {
+        const next = this.createTimelineEventFromItem(createdItem);
+        next.order = this.timelineEvents.length;
+        this.timelineEvents = [...this.timelineEvents, next];
+        this.calculateTimes();
+        this.cdr.detectChanges();
+    }
+
     async drop(event: CdkDragDrop<any[]>) {
         if (!(await this.ensureEditingCopy(false))) return;
         moveItemInArray(this.timelineEvents, event.previousIndex, event.currentIndex);
@@ -369,66 +424,56 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async addBlock(type: 'text' | 'intro' | 'outro') {
-        if (!(await this.ensureEditingCopy())) return;
-        if (!this.selectedBroadcast) return;
-
-        this.loadingTimeline = true; // Show loading immediately
-        
-        // Find default voice from existing items
-        // Prioritize "news" items as they likely carry the main voice of the noticiero
-        let defaultVoice = 'es-CL-LorenzoNeural';
-        let defaultSpeed = 1.0;
-        let defaultPitch = 1.0;
-        
-        const mainNewsItem = this.timelineEvents.find(e => e.type === 'news' && e.voice);
-        const anyItemWithVoice = this.timelineEvents.find(e => e.voice);
-        
-        const sourceItem = mainNewsItem || anyItemWithVoice;
-
-        if (sourceItem) {
-            defaultVoice = sourceItem.voice!;
-            defaultSpeed = sourceItem.speed || 1.0;
-            defaultPitch = sourceItem.pitch || 1.0;
-        } else if (this.availableVoices.length > 0) {
-            // Fallback to first custom voice
-            const firstVoice = this.availableVoices[0];
-            defaultVoice = firstVoice.name;
-            defaultSpeed = firstVoice.speed || 1.0;
-            defaultPitch = firstVoice.exaggeration || firstVoice.pitch || 1.0;
-        }
-        
-        const newItem = {
-            broadcast_id: this.selectedBroadcast.id,
-            type: type,
-            custom_title: type === 'intro' ? 'Introducción' : type === 'outro' ? 'Cierre' : 'Nuevo Texto',
-            custom_content: type === 'intro' ? 'Bienvenidos al noticiero...' : type === 'outro' ? 'Gracias por sintonizar...' : 'Escribe aquí...',
-            order_index: this.timelineEvents.length,
-            duration_seconds: 30,
-            voice_id: defaultVoice,
-            voice_speed: defaultSpeed,
-            voice_pitch: defaultPitch,
-            music_volume: 0.25,
-            music_position: type === 'outro' ? 'after' : 'during',
-            music_tail_seconds: 0.8,
-            music_fade_out_seconds: 0.5,
-            voice_delay: 0
-        };
-
+        this.pendingTopAction = type;
         try {
-            await this.supabaseService.createBroadcastNewsItem(newItem);
-            await this.loadTimeline(this.selectedBroadcast.id);
-            Swal.fire({
-                title: 'Bloque Agregado',
-                text: 'El bloque ha sido agregado correctamente.',
-                icon: 'success',
-                timer: 1500,
-                showConfirmButton: false
-            });
+            if (!(await this.ensureEditingCopy())) return;
+            if (!this.selectedBroadcast) return;
+
+            let defaultVoice = 'es-CL-LorenzoNeural';
+            let defaultSpeed = 1.0;
+            let defaultPitch = 1.0;
+            
+            const mainNewsItem = this.timelineEvents.find(e => e.type === 'news' && e.voice);
+            const anyItemWithVoice = this.timelineEvents.find(e => e.voice);
+            const sourceItem = mainNewsItem || anyItemWithVoice;
+
+            if (sourceItem) {
+                defaultVoice = sourceItem.voice!;
+                defaultSpeed = sourceItem.speed || 1.0;
+                defaultPitch = sourceItem.pitch || 1.0;
+            } else if (this.availableVoices.length > 0) {
+                const firstVoice = this.availableVoices[0];
+                defaultVoice = firstVoice.name;
+                defaultSpeed = firstVoice.speed || 1.0;
+                defaultPitch = firstVoice.exaggeration || firstVoice.pitch || 1.0;
+            }
+            
+            const newItem = {
+                broadcast_id: this.selectedBroadcast.id,
+                type: type,
+                custom_title: type === 'intro' ? 'Introducción' : type === 'outro' ? 'Cierre' : 'Nuevo Texto',
+                custom_content: type === 'intro' ? 'Bienvenidos al noticiero...' : type === 'outro' ? 'Gracias por sintonizar...' : 'Escribe aquí...',
+                order_index: this.timelineEvents.length,
+                duration_seconds: 30,
+                voice_id: defaultVoice,
+                voice_speed: defaultSpeed,
+                voice_pitch: defaultPitch,
+                music_volume: 0.25,
+                music_position: type === 'outro' ? 'after' : 'during',
+                music_tail_seconds: 0.8,
+                music_fade_out_seconds: 0.5,
+                voice_delay: 0
+            };
+
+            const created = await this.supabaseService.createBroadcastNewsItem(newItem);
+            this.appendTimelineItem(created);
+            await this.syncBroadcastTotals();
+            this.snackBar.open('Bloque agregado correctamente', 'Cerrar', { duration: 2200 });
         } catch (error) {
             console.error('Error adding block:', error);
-            Swal.fire('Error', 'Error al agregar bloque. Verifica la base de datos.', 'error');
-            this.loadingTimeline = false;
+            this.snackBar.open('Error al agregar bloque', 'Cerrar', { duration: 3000 });
         } finally {
+            this.pendingTopAction = null;
             this.cdr.detectChanges();
         }
     }
@@ -449,35 +494,31 @@ export class TimelineNoticiarioComponent implements OnInit {
         if (!result.isConfirmed) return;
         
         try {
+            this.pendingDeleteId = event.id;
             await this.supabaseService.deleteBroadcastNewsItem(event.id);
             // Remove locally
-            this.timelineEvents = this.timelineEvents.filter(e => e.id !== event.id);
+            this.timelineEvents = this.timelineEvents
+                .filter(e => e.id !== event.id)
+                .map((e, index) => ({ ...e, order: index }));
             this.calculateTimes();
             await this.syncBroadcastTotals();
-            Swal.fire({
-                title: 'Eliminado!',
-                text: 'El bloque ha sido eliminado.',
-                icon: 'success',
-                timer: 1500,
-                showConfirmButton: false
-            });
+            this.snackBar.open('Bloque eliminado', 'Cerrar', { duration: 2200 });
         } catch (error) {
             console.error('Error deleting block:', error);
             Swal.fire('Error', 'No se pudo eliminar el bloque', 'error');
         } finally {
+            this.pendingDeleteId = null;
             this.cdr.detectChanges();
         }
     }
 
     async onFileSelected(event: any) {
-        if (!(await this.ensureEditingCopy())) return;
-        const file = event.target.files[0];
-        if (!file || !this.selectedBroadcast) return;
-
-        this.loadingTimeline = true;
-
-        // Upload file
+        this.pendingTopAction = 'audio';
         try {
+            if (!(await this.ensureEditingCopy())) return;
+            const file = event.target.files[0];
+            if (!file || !this.selectedBroadcast) return;
+
             // Get duration first
             const duration = await this.getAudioDuration(file);
 
@@ -496,21 +537,19 @@ export class TimelineNoticiarioComponent implements OnInit {
                 duration_seconds: duration || 30 
             };
 
-            await this.supabaseService.createBroadcastNewsItem(newItem);
-            await this.loadTimeline(this.selectedBroadcast.id);
-            Swal.fire({
-                title: 'Anuncio Subido',
-                text: 'El anuncio se ha subido correctamente.',
-                icon: 'success',
-                timer: 1500,
-                showConfirmButton: false
-            });
+            const created = await this.supabaseService.createBroadcastNewsItem(newItem);
+            this.appendTimelineItem(created);
+            await this.syncBroadcastTotals();
+            this.snackBar.open('Audio agregado correctamente', 'Cerrar', { duration: 2200 });
 
         } catch (error) {
             console.error('Error uploading ad:', error);
-            Swal.fire('Error', 'Error al subir el archivo de audio.', 'error');
-            this.loadingTimeline = false;
+            this.snackBar.open('Error al subir el archivo de audio', 'Cerrar', { duration: 3000 });
         } finally {
+            this.pendingTopAction = null;
+            if (event?.target) {
+                event.target.value = '';
+            }
             this.cdr.detectChanges();
         }
     }
@@ -631,6 +670,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         if (this.isEditingCopy) return;
 
         this.loadingTimeline = true;
+        this.pendingCopy = true;
         this.cdr.detectChanges();
 
         try {
@@ -703,6 +743,8 @@ export class TimelineNoticiarioComponent implements OnInit {
             this.snackBar.open('No se pudo crear la copia para edición', 'Cerrar', { duration: 3500 });
             this.loadingTimeline = false;
             this.cdr.detectChanges();
+        } finally {
+            this.pendingCopy = false;
         }
     }
 
@@ -905,6 +947,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         const textToSpeak = event.description || event.title;
         if (!textToSpeak) return;
         this.isGeneratingAudio = true;
+        this.pendingGenerateId = event.id;
 
         try {
             // 1. Generate Speech Audio (returns Blob URL)
@@ -981,6 +1024,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             Swal.fire('Error', 'Error al generar audio del bloque.', 'error');
         } finally {
             this.isGeneratingAudio = false;
+            this.pendingGenerateId = null;
             this.cdr.detectChanges();
         }
     }

@@ -190,20 +190,25 @@
             
             <div class="timeline-actions">
                 <button class="tool-btn primary" *ngIf="!isEditingCopy" (click)="enableEditingByCopy()">
-                    Guardar como nuevo
+                    <span class="spinner-inline" *ngIf="pendingCopy"></span>
+                    <span>{{ pendingCopy ? 'Creando copia...' : 'Guardar como nuevo' }}</span>
                 </button>
-                <button class="tool-btn" (click)="addBlock('intro')">
-                    <span class="icon">+</span> Intro
+                <button class="tool-btn" (click)="addBlock('intro')" [disabled]="pendingTopAction !== null || pendingCopy">
+                    <span class="spinner-inline" *ngIf="isTopActionPending('intro')"></span>
+                    <span class="icon" *ngIf="!isTopActionPending('intro')">+</span> Intro
                 </button>
-                <button class="tool-btn" (click)="addBlock('text')">
-                    <span class="icon">+</span> Texto
+                <button class="tool-btn" (click)="addBlock('text')" [disabled]="pendingTopAction !== null || pendingCopy">
+                    <span class="spinner-inline" *ngIf="isTopActionPending('text')"></span>
+                    <span class="icon" *ngIf="!isTopActionPending('text')">+</span> Texto
                 </button>
-                <button class="tool-btn" (click)="fileInput.click()">
-                    <span class="icon">+</span> Audio/Ad
+                <button class="tool-btn" (click)="fileInput.click()" [disabled]="pendingTopAction !== null || pendingCopy">
+                    <span class="spinner-inline" *ngIf="isTopActionPending('audio')"></span>
+                    <span class="icon" *ngIf="!isTopActionPending('audio')">+</span> Audio/Ad
                 </button>
                 <input #fileInput type="file" (change)="onFileSelected($event)" accept="audio/*" hidden>
-                <button class="tool-btn" (click)="addBlock('outro')">
-                    <span class="icon">+</span> Cierre
+                <button class="tool-btn" (click)="addBlock('outro')" [disabled]="pendingTopAction !== null || pendingCopy">
+                    <span class="spinner-inline" *ngIf="isTopActionPending('outro')"></span>
+                    <span class="icon" *ngIf="!isTopActionPending('outro')">+</span> Cierre
                 </button>
                 <button class="export-btn" (click)="exportTimeline()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -424,7 +429,8 @@
                                 (click)="generateBlockAudio(event)" 
                                 [disabled]="isGeneratingAudio || !isEditingCopy"
                                 [title]="event.audioUrl ? 'Regenerar Audio' : 'Generar Audio'">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <span class="spinner-small" *ngIf="pendingGenerateId === event.id"></span>
+                            <svg *ngIf="pendingGenerateId !== event.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                                 <line x1="12" y1="19" x2="12" y2="23"></line>
@@ -432,8 +438,9 @@
                             </svg>
                         </button>
 
-                        <button class="delete-btn" (click)="deleteBlock(event)" title="Eliminar bloque">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <button class="delete-btn" (click)="deleteBlock(event)" [disabled]="pendingDeleteId === event.id" title="Eliminar bloque">
+                            <span class="spinner-small danger" *ngIf="pendingDeleteId === event.id"></span>
+                            <svg *ngIf="pendingDeleteId !== event.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                             </svg>

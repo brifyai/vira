@@ -595,6 +595,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         cursor: pointer;
         transition: $transition;
 
+        &:disabled {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
         &:hover {
             background: rgba(255, 255, 255, 0.1);
             color: $text-primary;
@@ -604,6 +609,16 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         .icon {
             font-size: 16px;
             font-weight: bold;
+        }
+
+        .spinner-inline {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(99, 102, 241, 0.25);
+            border-top-color: $primary-color;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex: 0 0 auto;
         }
 
         &.primary {
@@ -908,6 +923,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border-radius: 4px;
             transition: $transition;
 
+            &:disabled {
+                opacity: 0.7;
+                cursor: wait;
+            }
+
             &:hover {
                 color: $danger-color;
                 background: rgba(239, 68, 68, 0.1);
@@ -916,6 +936,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             svg {
                 width: 18px;
                 height: 18px;
+            }
+
+            .spinner-small.danger {
+                border-color: rgba(239, 68, 68, 0.2);
+                border-top-color: $danger-color;
             }
         }
     }
