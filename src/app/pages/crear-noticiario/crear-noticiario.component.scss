@@ -100,11 +100,13 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
         .time-input {
             color-scheme: dark;
+            position: relative;
 
             &::-webkit-calendar-picker-indicator {
-                filter: invert(1) brightness(1.9);
+                filter: brightness(0) invert(1) contrast(1.2);
                 opacity: 1;
                 cursor: pointer;
+                background-color: transparent;
             }
 
             &::-webkit-datetime-edit {
