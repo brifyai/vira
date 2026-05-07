@@ -31,7 +31,14 @@
 
             <div class="form-group">
                 <label for="scheduledTime">Horario de Emisión *</label>
-                <input type="time" id="scheduledTime" class="form-input" [(ngModel)]="scheduledTime" (change)="onScheduledTimeChange()">
+                <input
+                    type="time"
+                    id="scheduledTime"
+                    class="form-input time-input"
+                    lang="en-GB"
+                    step="60"
+                    [(ngModel)]="scheduledTime"
+                    (change)="onScheduledTimeChange()">
             </div>
 
             <div class="form-row">

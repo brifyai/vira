@@ -98,6 +98,33 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             }
         }
 
+        .time-input {
+            color-scheme: dark;
+
+            &::-webkit-calendar-picker-indicator {
+                filter: invert(1) brightness(1.9);
+                opacity: 1;
+                cursor: pointer;
+            }
+
+            &::-webkit-datetime-edit {
+                color: $text-primary;
+            }
+
+            &::-webkit-datetime-edit-fields-wrapper {
+                color: $text-primary;
+            }
+
+            &::-webkit-datetime-edit-hour-field,
+            &::-webkit-datetime-edit-minute-field {
+                color: $text-primary;
+            }
+
+            &::-webkit-datetime-edit-ampm-field {
+                display: none;
+            }
+        }
+
         .form-textarea {
             resize: vertical;
             min-height: 80px;
