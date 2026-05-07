@@ -337,12 +337,56 @@
                                 </div>
 
                                 <div class="control-group">
-                                    <label>Desfase Inicio (seg):</label>
+                                    <label>Música:</label>
+                                    <select [(ngModel)]="item.originalItem.musicUrl" (ngModelChange)="invalidateAudio(item)">
+                                        <option [ngValue]="undefined">Sin música</option>
+                                        <option *ngFor="let music of musicResources" [value]="music.url">
+                                            {{ music.name }} ({{ music.type }})
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="control-group" *ngIf="item.originalItem.musicUrl">
+                                    <label>Uso de Música:</label>
+                                    <select [(ngModel)]="item.originalItem.musicPlacement" (ngModelChange)="invalidateAudio(item)">
+                                        <option value="before">Antes</option>
+                                        <option value="during">Fondo</option>
+                                        <option value="after">Después</option>
+                                    </select>
+                                </div>
+
+                                <div class="control-group" *ngIf="item.originalItem.musicUrl">
+                                    <label>Volumen Música:</label>
+                                    <div class="slider-group">
+                                        <input type="range" min="0" max="1.0" step="0.05" [(ngModel)]="item.originalItem.musicVolume" (ngModelChange)="invalidateAudio(item)">
+                                        <span>{{ (item.originalItem.musicVolume || 0.25) * 100 | number:'1.0-0' }}%</span>
+                                    </div>
+                                </div>
+
+                                <div class="control-group">
+                                    <label>{{ item.originalItem.musicUrl ? (item.originalItem.musicPlacement === 'after' ? 'Desfase Música (seg):' : 'Desfase Voz (seg):') : 'Desfase Inicio (seg):' }}</label>
                                     <div class="slider-group">
                                         <input type="range" min="0" max="10" step="0.5" [(ngModel)]="item.originalItem.voiceDelay" (ngModelChange)="invalidateAudio(item)">
                                         <span>{{ item.originalItem.voiceDelay || 0 }}s</span>
                                     </div>
                                 </div>
+
+                                <div class="control-group" *ngIf="item.originalItem.musicUrl && item.originalItem.musicPlacement === 'during'">
+                                    <label>Cola Música (seg):</label>
+                                    <div class="slider-group">
+                                        <input type="range" min="0" max="10" step="0.5" [(ngModel)]="item.originalItem.musicTailSeconds" (ngModelChange)="invalidateAudio(item)">
+                                        <span>{{ item.originalItem.musicTailSeconds || 0 }}s</span>
+                                    </div>
+                                </div>
+
+                                <div class="control-group" *ngIf="item.originalItem.musicUrl">
+                                    <label>Fade Out (seg):</label>
+                                    <div class="slider-group">
+                                        <input type="range" min="0" max="3" step="0.1" [(ngModel)]="item.originalItem.musicFadeOutSeconds" (ngModelChange)="invalidateAudio(item)">
+                                        <span>{{ item.originalItem.musicFadeOutSeconds || 0 }}s</span>
+                                    </div>
+                                </div>
+
                                  <div class="audio-player" *ngIf="item.originalItem.generatedAudioUrl">
                                     <audio class="audio-slim" [src]="item.originalItem.generatedAudioUrl" controls></audio>
                                 </div>
@@ -361,7 +405,7 @@
                                </div>
 
                                <div class="control-group" *ngIf="item.type === 'text'">
-                                   <label>Desfase Inicio (seg):</label>
+                                   <label>{{ item.musicUrl ? (item.musicPlacement === 'after' ? 'Desfase Música (seg):' : 'Desfase Voz (seg):') : 'Desfase Inicio (seg):' }}</label>
                                    <div class="slider-group">
                                        <input type="range" min="0" max="10" step="0.5" [(ngModel)]="item.voiceDelay" (ngModelChange)="onTextDelayChange(item)">
                                        <span>{{ item.voiceDelay || 0 }}s</span>
@@ -369,8 +413,7 @@
                                </div>
 
 
-                               <!-- Music Controls for Intro/Outro -->
-                               <div class="control-group" *ngIf="item.type === 'intro' || item.type === 'outro'">
+                               <div class="control-group" *ngIf="item.type === 'intro' || item.type === 'outro' || item.type === 'text'">
                                    <label>Música de Fondo:</label>
                                    <select [(ngModel)]="item.musicUrl" (ngModelChange)="invalidateAudio(item)">
                                        <option [ngValue]="undefined">Sin música</option>
@@ -380,19 +423,44 @@
                                    </select>
                                </div>
 
-                               <div class="control-group" *ngIf="(item.type === 'intro' || item.type === 'outro') && item.musicUrl">
+                               <div class="control-group" *ngIf="item.musicUrl && (item.type === 'intro' || item.type === 'outro' || item.type === 'text')">
+                                   <label>Uso de Música:</label>
+                                   <select [(ngModel)]="item.musicPlacement" (ngModelChange)="invalidateAudio(item)">
+                                       <option value="before">Antes</option>
+                                       <option value="during">Fondo</option>
+                                       <option value="after">Después</option>
+                                   </select>
+                               </div>
+
+                               <div class="control-group" *ngIf="item.musicUrl && (item.type === 'intro' || item.type === 'outro' || item.type === 'text')">
                                    <label>Volumen Música:</label>
                                    <div class="slider-group">
-                                       <input type="range" min="0.1" max="1.0" step="0.1" [(ngModel)]="item.musicVolume" (ngModelChange)="invalidateAudio(item)">
-                                       <span>{{ (item.musicVolume || 0.5) * 100 | number:'1.0-0' }}%</span>
+                                       <input type="range" min="0" max="1.0" step="0.05" [(ngModel)]="item.musicVolume" (ngModelChange)="invalidateAudio(item)">
+                                       <span>{{ (item.musicVolume || 0.25) * 100 | number:'1.0-0' }}%</span>
                                    </div>
                                </div>
 
-                               <div class="control-group" *ngIf="(item.type === 'intro' || item.type === 'outro') && item.musicUrl">
-                                   <label>Desfase Voz (seg):</label>
+                               <div class="control-group" *ngIf="item.musicUrl && (item.type === 'intro' || item.type === 'outro')">
+                                   <label>{{ item.musicPlacement === 'after' ? 'Desfase Música (seg):' : 'Desfase Voz (seg):' }}</label>
                                    <div class="slider-group">
                                        <input type="range" min="0" max="10" step="0.5" [(ngModel)]="item.voiceDelay" (ngModelChange)="invalidateAudio(item)">
                                        <span>{{ item.voiceDelay || 0 }}s</span>
+                                   </div>
+                               </div>
+
+                               <div class="control-group" *ngIf="item.musicUrl && item.musicPlacement === 'during'">
+                                   <label>Cola Música (seg):</label>
+                                   <div class="slider-group">
+                                       <input type="range" min="0" max="10" step="0.5" [(ngModel)]="item.musicTailSeconds" (ngModelChange)="invalidateAudio(item)">
+                                       <span>{{ item.musicTailSeconds || 0 }}s</span>
+                                   </div>
+                               </div>
+
+                               <div class="control-group" *ngIf="item.musicUrl">
+                                   <label>Fade Out (seg):</label>
+                                   <div class="slider-group">
+                                       <input type="range" min="0" max="3" step="0.1" [(ngModel)]="item.musicFadeOutSeconds" (ngModelChange)="invalidateAudio(item)">
+                                       <span>{{ item.musicFadeOutSeconds || 0 }}s</span>
                                    </div>
                                </div>
 

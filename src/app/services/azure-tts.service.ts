@@ -547,7 +547,8 @@ export class AzureTtsService {
       musicUrl: string, 
       voiceDelay: number = 0, 
       musicVolume: number = 0.5,
-      mode: 'intro' | 'outro' = 'intro'
+      mode: 'intro' | 'outro' | 'before' | 'during' | 'after' = 'intro',
+      options?: { tailSeconds?: number; fadeOutSeconds?: number }
   ): Promise<string> {
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -569,27 +570,29 @@ export class AzureTtsService {
       let totalDuration = 0;
       let voiceStartTime = 0;
       let musicStartTime = 0;
+      let musicSegmentDuration = musicBuffer.duration;
+      const tailSeconds = Math.max(0, Number(options?.tailSeconds ?? 0.8));
+      const fadeOutSeconds = Math.max(0, Number(options?.fadeOutSeconds ?? 0.5));
+      const effectiveMode = mode === 'intro' ? 'during' : mode === 'outro' ? 'after' : mode;
 
-      if (mode === 'intro') {
-           // INTRO: Voice starts after voiceDelay. Music starts at 0.
-           // Total duration is max(voiceEnd, musicEnd)
-           voiceStartTime = voiceDelay;
-           musicStartTime = 0;
-           const voiceEndTime = voiceStartTime + voiceBuffer.duration;
-           totalDuration = Math.max(voiceEndTime, musicBuffer.duration);
-       } else {
-           // OUTRO: Voice starts at 0. Music starts AFTER voice ends with delay.
-           // User request: "Desfase es con respecto a la voz esto quiere deecir que si le coloco 2 segundos de desface priemro viene el audio de voz - 2 seg - Musica"
-           // So Music Start = Voice Duration + voiceDelay
-           
-           voiceStartTime = 0;
-           musicStartTime = voiceBuffer.duration + voiceDelay; 
-           
-           // Ensure music doesn't start before 0 if delay is negative (overlap)
-           if (musicStartTime < 0) musicStartTime = 0;
-
-           totalDuration = musicStartTime + musicBuffer.duration;
-       }
+      if (effectiveMode === 'before') {
+        voiceStartTime = Math.max(0, voiceDelay);
+        musicStartTime = 0;
+        musicSegmentDuration = Math.min(musicBuffer.duration, voiceStartTime);
+        totalDuration = voiceStartTime + voiceBuffer.duration;
+      } else if (effectiveMode === 'after') {
+        voiceStartTime = 0;
+        musicStartTime = Math.max(0, voiceBuffer.duration + voiceDelay);
+        musicSegmentDuration = musicBuffer.duration;
+        totalDuration = musicStartTime + musicSegmentDuration;
+      } else {
+        voiceStartTime = Math.max(0, voiceDelay);
+        musicStartTime = 0;
+        const voiceEndTime = voiceStartTime + voiceBuffer.duration;
+        const desiredMusicEnd = voiceEndTime + tailSeconds;
+        musicSegmentDuration = Math.min(musicBuffer.duration, desiredMusicEnd);
+        totalDuration = Math.max(voiceEndTime, musicSegmentDuration);
+      }
       
       const totalLength = Math.ceil(totalDuration * sampleRate);
       const resultBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
@@ -601,11 +604,19 @@ export class AzureTtsService {
         // Add Music
         const musicChannelData = musicBuffer.getChannelData(channel < musicBuffer.numberOfChannels ? channel : 0);
         const musicStartSample = Math.floor(musicStartTime * sampleRate);
-        
-        for (let i = 0; i < musicBuffer.length; i++) {
-          if (musicStartSample + i < totalLength) {
-             resultData[musicStartSample + i] += musicChannelData[i] * musicVolume;
+        const musicSamplesToCopy = Math.min(musicBuffer.length, Math.floor(musicSegmentDuration * sampleRate));
+        const fadeSamples = fadeOutSeconds > 0 ? Math.max(1, Math.floor(fadeOutSeconds * sampleRate)) : 0;
+        const fadeStart = fadeSamples > 0 ? Math.max(0, musicSamplesToCopy - fadeSamples) : musicSamplesToCopy;
+
+        for (let i = 0; i < musicSamplesToCopy; i++) {
+          const outIndex = musicStartSample + i;
+          if (outIndex < 0 || outIndex >= totalLength) continue;
+          let gain = musicVolume;
+          if (fadeSamples > 0 && i >= fadeStart) {
+            const t = (i - fadeStart) / fadeSamples;
+            gain = gain * Math.max(0, 1 - t);
           }
+          resultData[outIndex] += musicChannelData[i] * gain;
         }
 
         // Add Voice

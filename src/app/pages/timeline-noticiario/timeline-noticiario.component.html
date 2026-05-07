@@ -274,17 +274,43 @@
                                         </div>
                                     </div>
                                     
+                                    <div class="controls-row" *ngIf="event.musicUrl">
+                                        <div class="control-group">
+                                            <label class="control-label">Uso de Música:</label>
+                                            <select class="control-select" [(ngModel)]="event.musicPlacement" (change)="updateBlockMusic(event)" [disabled]="!isEditingCopy">
+                                                <option value="before">Antes</option>
+                                                <option value="during">Fondo</option>
+                                                <option value="after">Después</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     <div class="controls-row two-cols" *ngIf="event.musicUrl">
                                         <div class="control-group">
-                                            <label class="control-label">Volumen Música ({{ (event.musicVolume || 0.5) * 100 | number:'1.0-0' }}%):</label>
-                                            <input class="control-range" type="range" min="0" max="1" step="0.1"
+                                            <label class="control-label">Volumen Música ({{ (event.musicVolume || 0.25) * 100 | number:'1.0-0' }}%):</label>
+                                            <input class="control-range" type="range" min="0" max="1" step="0.05"
                                                 [(ngModel)]="event.musicVolume"
                                                 (change)="updateBlockMusic(event)" [disabled]="!isEditingCopy">
                                         </div>
                                         <div class="control-group">
-                                            <label class="control-label">Inicio Voz ({{ event.voiceDelay || 0 }}s):</label>
+                                            <label class="control-label">{{ event.musicPlacement === 'after' ? 'Inicio Música' : 'Inicio Voz' }} ({{ event.voiceDelay || 0 }}s):</label>
                                             <input class="control-range" type="range" min="0" max="10" step="0.5"
                                                 [(ngModel)]="event.voiceDelay"
+                                                (change)="updateBlockMusic(event)" [disabled]="!isEditingCopy">
+                                        </div>
+                                    </div>
+
+                                    <div class="controls-row two-cols" *ngIf="event.musicUrl">
+                                        <div class="control-group" *ngIf="event.musicPlacement === 'during'">
+                                            <label class="control-label">Cola Música ({{ event.musicTailSeconds || 0 }}s):</label>
+                                            <input class="control-range" type="range" min="0" max="10" step="0.5"
+                                                [(ngModel)]="event.musicTailSeconds"
+                                                (change)="updateBlockMusic(event)" [disabled]="!isEditingCopy">
+                                        </div>
+                                        <div class="control-group">
+                                            <label class="control-label">Fade Out ({{ event.musicFadeOutSeconds || 0 }}s):</label>
+                                            <input class="control-range" type="range" min="0" max="3" step="0.1"
+                                                [(ngModel)]="event.musicFadeOutSeconds"
                                                 (change)="updateBlockMusic(event)" [disabled]="!isEditingCopy">
                                         </div>
                                     </div>

@@ -33,6 +33,9 @@ interface TimelineEvent {
     musicName?: string;
     voiceDelay?: number; // seconds
     musicVolume?: number; // 0.0 to 1.0
+    musicPlacement?: 'before' | 'during' | 'after';
+    musicTailSeconds?: number;
+    musicFadeOutSeconds?: number;
 }
 
 @Component({
@@ -278,7 +281,10 @@ export class TimelineNoticiarioComponent implements OnInit {
                     musicResourceId: item.music_resource_id,
                     musicUrl,
                     voiceDelay: item.voice_delay || 0,
-                    musicVolume: item.music_volume || 0.5
+                    musicVolume: item.music_volume || 0.25,
+                    musicPlacement: (item.music_position || (item.type === 'outro' ? 'after' : 'during')) as any,
+                    musicTailSeconds: item.music_tail_seconds == null ? 0.8 : Number(item.music_tail_seconds),
+                    musicFadeOutSeconds: item.music_fade_out_seconds == null ? 0.5 : Number(item.music_fade_out_seconds)
                 };
             });
 
@@ -844,7 +850,10 @@ export class TimelineNoticiarioComponent implements OnInit {
             music_url: event.musicUrl, // Store URL for easier access
             music_resource_id: musicResourceId,
             music_volume: event.musicVolume,
-            voice_delay: event.voiceDelay
+            voice_delay: event.voiceDelay,
+            music_position: event.musicUrl ? (event.musicPlacement || (event.type === 'outro' ? 'after' : 'during')) : null,
+            music_tail_seconds: event.musicUrl ? event.musicTailSeconds : null,
+            music_fade_out_seconds: event.musicUrl ? event.musicFadeOutSeconds : null
         };
 
         try {
@@ -879,13 +888,17 @@ export class TimelineNoticiarioComponent implements OnInit {
             // 2. Mix with Music if configured
             if (event.musicUrl) {
                 try {
-                    const mode = event.type === 'outro' ? 'outro' : 'intro';
+                    const placement = event.musicPlacement || (event.type === 'outro' ? 'after' : 'during');
                     const mixedUrl = await this.azureTtsService.mixVoiceAndMusic(
                         audioUrl,
                         event.musicUrl,
                         Number(event.voiceDelay) || 0,
-                        Number(event.musicVolume) || 0.5,
-                        mode
+                        Number(event.musicVolume) || 0.25,
+                        placement,
+                        {
+                            tailSeconds: Number(event.musicTailSeconds ?? 0.8),
+                            fadeOutSeconds: Number(event.musicFadeOutSeconds ?? 0.5)
+                        }
                     );
                     // Revoke original speech url to free memory
                     URL.revokeObjectURL(audioUrl);
