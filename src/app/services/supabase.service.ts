@@ -1227,7 +1227,7 @@ export class SupabaseService {
             .from('settings')
             .select('*')
             .eq('key', key)
-            .single();
+            .maybeSingle();
 
         if (error) throw error;
         return data;

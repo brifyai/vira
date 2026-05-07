@@ -227,7 +227,7 @@ DECLARE
   encrypted_pw text;
   requesting_role user_role;
 BEGIN
-  SELECT role INTO requesting_role FROM public.users WHERE id = auth.uid();
+  SELECT u.role INTO requesting_role FROM public.users u WHERE u.id = auth.uid();
   IF requesting_role <> 'admin' THEN
     RAISE EXCEPTION 'Unauthorized: Only admins can create team users';
   END IF;
@@ -389,7 +389,7 @@ DECLARE
   v_role user_role;
 BEGIN
   v_admin_id := COALESCE(p_admin_id, auth.uid());
-  SELECT role INTO v_role FROM public.users WHERE id = auth.uid();
+  SELECT u.role INTO v_role FROM public.users u WHERE u.id = auth.uid();
 
   IF v_role = 'admin' AND v_admin_id <> auth.uid() THEN
     RAISE EXCEPTION 'Unauthorized: Admins can only query their own team';
@@ -447,7 +447,7 @@ DECLARE
   v_admin_id uuid;
   v_manager_id uuid;
 BEGIN
-  SELECT role INTO v_requesting_role FROM public.users WHERE id = auth.uid();
+  SELECT u.role INTO v_requesting_role FROM public.users u WHERE u.id = auth.uid();
   IF v_requesting_role NOT IN ('admin', 'super_admin') THEN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
@@ -535,18 +535,57 @@ CREATE POLICY "Super admin manage settings" ON public.settings
   USING (public.get_my_role() = 'super_admin')
   WITH CHECK (public.get_my_role() = 'super_admin');
 
-CREATE POLICY "Admin manage settings except voices" ON public.settings
+CREATE POLICY "Admin insert settings except voices" ON public.settings
   FOR INSERT
   TO authenticated
   WITH CHECK (public.get_my_role() = 'admin' AND key <> 'tts_custom_voices');
 
-CREATE POLICY "Admin manage settings except voices" ON public.settings
+CREATE POLICY "Admin update settings except voices" ON public.settings
   FOR UPDATE
   TO authenticated
   USING (public.get_my_role() = 'admin' AND key <> 'tts_custom_voices')
   WITH CHECK (public.get_my_role() = 'admin' AND key <> 'tts_custom_voices');
 
-CREATE POLICY "Admin manage settings except voices" ON public.settings
+CREATE POLICY "Admin delete settings except voices" ON public.settings
   FOR DELETE
   TO authenticated
   USING (public.get_my_role() = 'admin' AND key <> 'tts_custom_voices');
+
+ALTER TABLE public.music_resources ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.music_resources;
+DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON public.music_resources;
+DROP POLICY IF EXISTS "Enable delete for users based on user_id" ON public.music_resources;
+DROP POLICY IF EXISTS "Music resources select own or team" ON public.music_resources;
+DROP POLICY IF EXISTS "Music resources insert own" ON public.music_resources;
+DROP POLICY IF EXISTS "Music resources update own" ON public.music_resources;
+DROP POLICY IF EXISTS "Music resources delete own" ON public.music_resources;
+
+CREATE POLICY "Music resources select own or team" ON public.music_resources
+  FOR SELECT
+  TO authenticated
+  USING (
+    public.get_my_role() = 'super_admin'
+    OR user_id = auth.uid()
+    OR (
+      public.get_my_role() = 'admin'
+      AND user_id IS NOT NULL
+      AND public.is_admin_of(auth.uid(), user_id)
+    )
+  );
+
+CREATE POLICY "Music resources insert own" ON public.music_resources
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Music resources update own" ON public.music_resources
+  FOR UPDATE
+  TO authenticated
+  USING (public.get_my_role() = 'super_admin' OR user_id = auth.uid())
+  WITH CHECK (public.get_my_role() = 'super_admin' OR user_id = auth.uid());
+
+CREATE POLICY "Music resources delete own" ON public.music_resources
+  FOR DELETE
+  TO authenticated
+  USING (public.get_my_role() = 'super_admin' OR user_id = auth.uid());

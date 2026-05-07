@@ -41,6 +41,7 @@ export class RecursosComponent implements OnInit {
   activeTab: 'voices' | 'music' = 'voices'; // Tab state
   loading = false;
   currentUserRole: 'user' | 'admin' | 'super_admin' = 'user';
+  currentUserId: string | null = null;
   showCreateModal = false;
   showEditModal = false;
   showMusicModal = false; // Modal for uploading music
@@ -112,6 +113,12 @@ export class RecursosComponent implements OnInit {
 
   get canManageVoices(): boolean {
     return this.currentUserRole === 'super_admin';
+  }
+
+  canDeleteMusic(music: any): boolean {
+    if (this.currentUserRole === 'super_admin') return true;
+    if (!this.currentUserId) return false;
+    return String(music?.user_id || '') === this.currentUserId;
   }
 
   async ngOnInit(): Promise<void> {
@@ -643,8 +650,10 @@ export class RecursosComponent implements OnInit {
       const user = await this.supabaseService.getCurrentUser();
       if (!user) {
         this.currentUserRole = 'user';
+        this.currentUserId = null;
         return;
       }
+      this.currentUserId = user.id;
       const profile = await this.supabaseService.getUserProfile(user.id);
       const role = String(profile?.role || 'user') as any;
       if (role === 'super_admin' || role === 'admin' || role === 'user') {
@@ -654,6 +663,7 @@ export class RecursosComponent implements OnInit {
       }
     } catch (e) {
       this.currentUserRole = 'user';
+      this.currentUserId = null;
     }
   }
 
