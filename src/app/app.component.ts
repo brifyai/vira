@@ -68,6 +68,7 @@ export class AppComponent implements OnInit {
         if (this.authService.hasRole('admin')) {
             items.push({ path: '/equipo', label: 'Equipo', icon: 'people' });
             items.push({ path: '/recursos', label: 'Recursos', icon: 'voice' });
+            items.push({ path: '/costos', label: 'Costos', icon: 'costs' });
         }
 
         return items;

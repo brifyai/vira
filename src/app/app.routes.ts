@@ -70,7 +70,7 @@ export const routes: Routes = [
         path: 'costos',
         loadComponent: () => import('./pages/costos/costos.component').then(m => m.CostosComponent),
         canActivate: [authGuard, roleGuard],
-        data: { roles: ['super_admin'] }
+        data: { roles: ['admin', 'super_admin'] }
     },
     {
         path: 'radios',

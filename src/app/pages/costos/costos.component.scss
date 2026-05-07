@@ -138,6 +138,10 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     min-height: 0;
 }
 
+.panel-full {
+    margin-bottom: 16px;
+}
+
 .panel-header {
     padding: 14px 16px;
     border-bottom: 1px solid $dark-border;
@@ -201,6 +205,97 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         top: 0;
         z-index: 1;
     }
+}
+
+.summary-table {
+    min-width: 720px;
+}
+
+.admin-team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 14px;
+}
+
+.admin-team-card {
+    border: 1px solid rgba(51, 65, 85, 0.65);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.35);
+    padding: 14px;
+}
+
+.admin-team-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.admin-team-title {
+    color: $text-primary;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.admin-team-subtitle,
+.summary-mini-label,
+.mini-stat-label {
+    color: $text-secondary;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.admin-team-total {
+    text-align: right;
+}
+
+.summary-mini-value,
+.mini-stat-value {
+    display: block;
+    color: $text-primary;
+    font-size: 14px;
+    font-weight: 800;
+    margin-top: 3px;
+}
+
+.summary-mini-cost,
+.mini-stat-cost {
+    display: block;
+    color: $text-secondary;
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+.admin-team-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.mini-stat {
+    border: 1px solid rgba(51, 65, 85, 0.6);
+    border-radius: 12px;
+    background: rgba(30, 41, 59, 0.45);
+    padding: 10px 12px;
+}
+
+.members-table-wrap {
+    overflow: auto;
+}
+
+.compact-table {
+    min-width: 420px;
+
+    th,
+    td {
+        padding: 8px 10px;
+    }
+}
+
+.compact-empty {
+    padding: 10px 6px 2px;
 }
 
 .mono {

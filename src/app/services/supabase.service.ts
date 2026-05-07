@@ -619,7 +619,7 @@ export class SupabaseService {
     async getCostEvents(options?: { limit?: number; offset?: number; userId?: string; action?: string; from?: string; to?: string }) {
         let query = this.supabase
             .from('cost_events')
-            .select('*, user:users(id, email, full_name, role)')
+            .select('*, user:users(id, email, full_name, role, manager_id)')
             .order('created_at', { ascending: false });
 
         if (options?.limit) query = query.limit(options.limit);
@@ -631,6 +631,27 @@ export class SupabaseService {
 
         if (options?.action && options.action !== 'all') {
             query = query.eq('action', options.action);
+        }
+
+        if (options?.from) query = query.gte('created_at', options.from);
+        if (options?.to) query = query.lte('created_at', options.to);
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
+    }
+
+    async getBroadcastsForCosts(options?: { limit?: number; offset?: number; creatorId?: string; from?: string; to?: string }) {
+        let query = this.supabase
+            .from('news_broadcasts')
+            .select('id, title, status, duration_minutes, total_news_count, created_at, created_by, creator:users!news_broadcasts_created_by_fkey(id, email, full_name, role, manager_id)')
+            .order('created_at', { ascending: false });
+
+        if (options?.limit) query = query.limit(options.limit);
+        if (options?.offset) query = query.range(options.offset, options.offset + (options.limit || 50) - 1);
+
+        if (options?.creatorId && options.creatorId !== 'all') {
+            query = query.eq('created_by', options.creatorId);
         }
 
         if (options?.from) query = query.gte('created_at', options.from);

@@ -2,10 +2,11 @@
     <div class="page-header">
         <div class="header-left">
             <h1 class="page-title">Costos</h1>
-            <p class="page-subtitle">Registro de actividad y costos por usuario</p>
+            <p class="page-subtitle" *ngIf="currentUserRole === 'super_admin'">Registro global de actividad, costos y responsables por usuario</p>
+            <p class="page-subtitle" *ngIf="currentUserRole === 'admin'">Seguimiento de actividad y noticieros creados por tu equipo</p>
         </div>
         <div class="header-right">
-            <button class="secondary-btn" type="button" (click)="loadEvents()" [disabled]="loading">Actualizar</button>
+            <button class="secondary-btn" type="button" (click)="refreshAll()" [disabled]="loading || loadingBroadcasts">Actualizar</button>
         </div>
     </div>
 
@@ -13,7 +14,7 @@
         <div class="filters-row">
             <div class="filter-group">
                 <label>Usuario</label>
-                <select [(ngModel)]="selectedUserId" (change)="loadEvents()">
+                <select [(ngModel)]="selectedUserId" (change)="refreshAll()">
                     <option value="all">Todos</option>
                     <option *ngFor="let u of users" [value]="u.id">{{ displayUser(u) }}</option>
                 </select>
@@ -29,12 +30,12 @@
 
             <div class="filter-group">
                 <label>Desde</label>
-                <input type="date" [(ngModel)]="fromDate" (change)="loadEvents()">
+                <input type="date" [(ngModel)]="fromDate" (change)="refreshAll()">
             </div>
 
             <div class="filter-group">
                 <label>Hasta</label>
-                <input type="date" [(ngModel)]="toDate" (change)="loadEvents()">
+                <input type="date" [(ngModel)]="toDate" (change)="refreshAll()">
             </div>
         </div>
     </div>
@@ -44,9 +45,118 @@
             <div class="summary-label">Eventos</div>
             <div class="summary-value">{{ events.length }}</div>
         </div>
-        <div class="summary-card" *ngFor="let t of totalCostByCurrency">
-            <div class="summary-label">Total ({{ t.currency }})</div>
-            <div class="summary-value">{{ t.total | number:'1.2-2' }}</div>
+        <ng-container *ngIf="canViewCosts">
+            <div class="summary-card" *ngFor="let t of totalCostByCurrency">
+                <div class="summary-label">Total ({{ t.currency }})</div>
+                <div class="summary-value">{{ t.total | number:'1.2-2' }}</div>
+            </div>
+        </ng-container>
+        <div class="summary-card" *ngIf="currentUserRole === 'admin'">
+            <div class="summary-label">Noticieros del Team</div>
+            <div class="summary-value">{{ teamBroadcastCount }}</div>
+        </div>
+        <div class="summary-card" *ngIf="currentUserRole === 'admin'">
+            <div class="summary-label">Noticieros del Admin</div>
+            <div class="summary-value">{{ ownBroadcastCount }}</div>
+        </div>
+    </div>
+
+    <div class="panel panel-full" *ngIf="currentUserRole === 'super_admin' || currentUserRole === 'admin'">
+        <div class="panel-header">
+            <h2 class="panel-title">{{ currentUserRole === 'super_admin' ? 'Resumen por Usuario' : 'Resumen de Admin + Equipo' }}</h2>
+        </div>
+
+        <div class="panel-body table-wrap">
+            <table class="table summary-table" *ngIf="activitySummary.length > 0">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Responsable</th>
+                        <th>Eventos</th>
+                        <th>Noticieros</th>
+                        <th *ngIf="canViewCosts">Costo Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let row of activitySummary">
+                        <td>{{ displayUser(row.user) }}</td>
+                        <td>{{ displayRole(row.user) }}</td>
+                        <td>{{ displayResponsible(row.user) }}</td>
+                        <td class="mono">{{ row.eventCount }}</td>
+                        <td class="mono">{{ row.broadcastCount }}</td>
+                        <td class="mono strong" *ngIf="canViewCosts">{{ row.totalCost | number:'1.2-2' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="empty-state" *ngIf="activitySummary.length === 0">
+                <p>No hay resumen disponible para los filtros seleccionados.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel panel-full" *ngIf="currentUserRole === 'super_admin'">
+        <div class="panel-header">
+            <h2 class="panel-title">Monitoreo Admin + Team</h2>
+        </div>
+
+        <div class="panel-body">
+            <div class="admin-team-grid" *ngIf="adminTeamMonitoring.length > 0">
+                <div class="admin-team-card" *ngFor="let group of adminTeamMonitoring">
+                    <div class="admin-team-header">
+                        <div>
+                            <div class="admin-team-title">{{ displayUser(group.admin) }}</div>
+                            <div class="admin-team-subtitle">Admin</div>
+                        </div>
+                        <div class="admin-team-total">
+                            <div class="summary-mini-label">Admin + Team</div>
+                            <div class="summary-mini-value">{{ group.totalBroadcastCount }} noticieros</div>
+                            <div class="summary-mini-cost">Costo {{ group.totalCost | number:'1.2-2' }}</div>
+                        </div>
+                    </div>
+
+                    <div class="admin-team-stats">
+                        <div class="mini-stat">
+                            <span class="mini-stat-label">Admin</span>
+                            <span class="mini-stat-value">{{ group.adminBroadcastCount }} noticieros</span>
+                            <span class="mini-stat-cost">Costo {{ group.adminCost | number:'1.2-2' }}</span>
+                        </div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-label">Integrantes</span>
+                            <span class="mini-stat-value">{{ group.membersBroadcastCount }} noticieros</span>
+                            <span class="mini-stat-cost">Costo {{ group.membersCost | number:'1.2-2' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="members-table-wrap">
+                        <table class="table compact-table" *ngIf="group.members.length > 0">
+                            <thead>
+                                <tr>
+                                    <th>Integrante</th>
+                                    <th>Noticieros</th>
+                                    <th>Costo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr *ngFor="let member of group.members">
+                                    <td>{{ displayUser(member.user) }}</td>
+                                    <td class="mono">{{ member.broadcastCount }}</td>
+                                    <td class="mono strong">{{ member.totalCost | number:'1.2-2' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="empty-state compact-empty" *ngIf="group.members.length === 0">
+                            <p>Este admin aún no tiene integrantes asociados.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="empty-state" *ngIf="adminTeamMonitoring.length === 0">
+                <p>No hay administradores o actividad de equipos para mostrar.</p>
+            </div>
         </div>
     </div>
 
@@ -67,22 +177,26 @@
                         <tr>
                             <th>Fecha</th>
                             <th>Usuario</th>
+                            <th>Rol</th>
+                            <th>Responsable</th>
                             <th>Actividad</th>
                             <th>Módulo</th>
                             <th>Unidades</th>
-                            <th>$/Unidad</th>
-                            <th>Total</th>
+                            <th *ngIf="canViewCosts">$/Unidad</th>
+                            <th *ngIf="canViewCosts">Total</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr *ngFor="let e of events">
                             <td class="mono">{{ formatDate(e.created_at) }}</td>
-                            <td>{{ e.user?.full_name || e.user?.email || e.user_id }}</td>
+                            <td>{{ displayUser(e.user) || e.user_id }}</td>
+                            <td>{{ displayRole(e.user) }}</td>
+                            <td>{{ displayResponsible(e.user) }}</td>
                             <td><span class="pill">{{ e.action }}</span></td>
                             <td>{{ e.module }}</td>
                             <td class="mono">{{ e.units }} {{ e.unit_name }}</td>
-                            <td class="mono">{{ e.unit_cost }} {{ e.currency }}</td>
-                            <td class="mono strong">{{ e.total_cost }} {{ e.currency }}</td>
+                            <td class="mono" *ngIf="canViewCosts">{{ e.unit_cost }} {{ e.currency }}</td>
+                            <td class="mono strong" *ngIf="canViewCosts">{{ e.total_cost }} {{ e.currency }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -93,7 +207,7 @@
             </div>
         </div>
 
-        <div class="panel">
+        <div class="panel" *ngIf="canManageRates">
             <div class="panel-header">
                 <h2 class="panel-title">Tarifas</h2>
             </div>
@@ -137,5 +251,48 @@
             </div>
         </div>
     </div>
-</div>
 
+    <div class="panel panel-full">
+        <div class="panel-header">
+            <h2 class="panel-title">{{ currentUserRole === 'admin' ? 'Noticieros del Team' : 'Noticieros por Usuario' }}</h2>
+        </div>
+
+        <div class="panel-body table-wrap">
+            <div class="loading-state" *ngIf="loadingBroadcasts">
+                <div class="spinner"></div>
+                <p>Cargando noticieros...</p>
+            </div>
+
+            <table class="table" *ngIf="!loadingBroadcasts && teamBroadcastRows.length > 0">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Creador</th>
+                        <th>Rol</th>
+                        <th>Responsable</th>
+                        <th>Título</th>
+                        <th>Estado</th>
+                        <th>Noticias</th>
+                        <th>Duración</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let b of teamBroadcastRows">
+                        <td class="mono">{{ formatDate(b.created_at) }}</td>
+                        <td>{{ displayUser(b.creator) }}</td>
+                        <td>{{ displayRole(b.creator) }}</td>
+                        <td>{{ displayResponsible(b.creator) }}</td>
+                        <td>{{ b.title }}</td>
+                        <td><span class="pill">{{ b.status || 'draft' }}</span></td>
+                        <td class="mono">{{ b.total_news_count || 0 }}</td>
+                        <td class="mono">{{ b.duration_minutes || 0 }} min</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="empty-state" *ngIf="!loadingBroadcasts && teamBroadcastRows.length === 0">
+                <p>No hay noticieros para los filtros seleccionados.</p>
+            </div>
+        </div>
+    </div>
+</div>
