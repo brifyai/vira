@@ -401,12 +401,12 @@ BEGIN
 
   RETURN QUERY
   WITH members AS (
-    SELECT u.id, u.email, u.full_name, u.role, false::boolean AS is_admin
+    SELECT u.id, u.email::text AS email, u.full_name::text AS full_name, u.role, false::boolean AS is_admin
     FROM public.users u
     WHERE u.manager_id = v_admin_id
   ),
   admin_row AS (
-    SELECT u.id, u.email, u.full_name, u.role, true::boolean AS is_admin
+    SELECT u.id, u.email::text AS email, u.full_name::text AS full_name, u.role, true::boolean AS is_admin
     FROM public.users u
     WHERE u.id = v_admin_id
   ),
@@ -417,8 +417,8 @@ BEGIN
   )
   SELECT
     au.id AS member_id,
-    au.email,
-    au.full_name,
+    au.email::text,
+    au.full_name::text,
     au.role,
     au.is_admin,
     COALESCE(COUNT(DISTINCT nb.id), 0) AS broadcasts_count,
