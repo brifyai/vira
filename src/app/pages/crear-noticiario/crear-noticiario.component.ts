@@ -1042,7 +1042,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     try {
                         const mixedUrl = await this.azureTtsService.mixVoiceAndMusic(
                             audioUrl,
-                            item.musicUrl,
+                            item.musicUrl!,
                             item.voiceDelay || 0,
                             item.musicVolume || 0.25,
                             placement,
@@ -2470,7 +2470,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                      try {
                         const mixedUrl = await this.azureTtsService.mixVoiceAndMusic(
                             audioUrl,
-                            event.musicUrl,
+                            event.musicUrl!,
                             event.voiceDelay || 0,
                             event.musicVolume || 0.25,
                             placement,
