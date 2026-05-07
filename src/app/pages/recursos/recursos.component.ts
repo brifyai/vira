@@ -40,6 +40,7 @@ export class RecursosComponent implements OnInit {
   radios: any[] = []; // Array for radios
   activeTab: 'voices' | 'music' = 'voices'; // Tab state
   loading = false;
+  currentUserRole: 'user' | 'admin' | 'super_admin' = 'user';
   showCreateModal = false;
   showEditModal = false;
   showMusicModal = false; // Modal for uploading music
@@ -109,7 +110,12 @@ export class RecursosComponent implements OnInit {
     private azureTtsService: AzureTtsService
   ) {}
 
+  get canManageVoices(): boolean {
+    return this.currentUserRole === 'super_admin';
+  }
+
   async ngOnInit(): Promise<void> {
+    await this.loadCurrentUserRole();
     await this.loadVoices();
     await this.loadRadios();
   }
@@ -154,6 +160,10 @@ export class RecursosComponent implements OnInit {
   }
 
   async createQwenVoice(): Promise<void> {
+    if (!this.canManageVoices) {
+      this.snackBar.open('No autorizado', 'Cerrar', { duration: 2500 });
+      return;
+    }
     if (!this.qwenFile) {
       this.snackBar.open('Debes seleccionar un audio de referencia', 'Cerrar', {
         duration: 3000
@@ -628,7 +638,27 @@ export class RecursosComponent implements OnInit {
     }
   }
 
+  private async loadCurrentUserRole(): Promise<void> {
+    try {
+      const user = await this.supabaseService.getCurrentUser();
+      if (!user) {
+        this.currentUserRole = 'user';
+        return;
+      }
+      const profile = await this.supabaseService.getUserProfile(user.id);
+      const role = String(profile?.role || 'user') as any;
+      if (role === 'super_admin' || role === 'admin' || role === 'user') {
+        this.currentUserRole = role;
+      } else {
+        this.currentUserRole = 'user';
+      }
+    } catch (e) {
+      this.currentUserRole = 'user';
+    }
+  }
+
   openCreateModal(): void {
+    if (!this.canManageVoices) return;
     this.formData = {
       name: '',
       label: '',
@@ -682,6 +712,7 @@ export class RecursosComponent implements OnInit {
   }
 
   openEditModal(voice: CustomVoice): void {
+    if (!this.canManageVoices) return;
     this.selectedVoice = voice;
     this.formData = {
       name: voice.name,
@@ -789,6 +820,7 @@ export class RecursosComponent implements OnInit {
   }
 
   async saveVoice(): Promise<void> {
+    if (!this.canManageVoices) return;
     if (this.saving) return;
 
     const label = this.formData.label.trim();
@@ -990,6 +1022,7 @@ export class RecursosComponent implements OnInit {
   }
 
   async deleteVoice(voice: CustomVoice): Promise<void> {
+    if (!this.canManageVoices) return;
     if (!confirm('ADVERTENCIA: ¿Estás seguro de eliminar esta voz personalizada?\n\nNOTA: Los audios YA GENERADOS (mp3) con esta voz seguirán funcionando, pero si intentas regenerar o editar noticias que usaban esta voz, el sistema ya no podrá usarla.')) return;
 
     this.voices = this.voices.filter(v => v.id !== voice.id);

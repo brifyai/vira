@@ -43,6 +43,7 @@ export class UsersComponent implements OnInit {
   }
   
   openCreateUserModal() {
+    if (this.currentUserRole !== 'super_admin') return;
     this.newUser = { email: '', password: '', fullName: '', role: 'user' };
     this.showCreateUserModal = true;
   }
@@ -52,6 +53,7 @@ export class UsersComponent implements OnInit {
   }
 
   async createUser() {
+    if (this.currentUserRole !== 'super_admin') return;
     if (!this.newUser.email || !this.newUser.password) {
       this.showSnackBar('Email y contraseña son requeridos', 'error-snackbar');
       return;

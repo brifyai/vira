@@ -4,7 +4,7 @@
             <h1 class="page-title">Gestión de Usuarios</h1>
             <p class="page-subtitle">Administra roles y asignación de radios</p>
         </div>
-        <button class="create-btn" (click)="openCreateUserModal()" *ngIf="currentUserRole === 'super_admin' || currentUserRole === 'admin'">
+        <button class="create-btn" (click)="openCreateUserModal()" *ngIf="currentUserRole === 'super_admin'">
             <span>+</span> Nuevo Usuario
         </button>
     </div>

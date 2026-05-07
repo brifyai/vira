@@ -96,6 +96,7 @@ CREATE OR REPLACE FUNCTION public.create_user_rpc(
 RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
     new_user_id uuid;
@@ -112,7 +113,7 @@ BEGIN
          RAISE EXCEPTION 'Unauthorized: Admins can only create regular users';
     END IF;
 
-    new_user_id := uuid_generate_v4();
+    new_user_id := gen_random_uuid();
 
     -- Insert into auth.users
     INSERT INTO auth.users (
@@ -131,6 +132,88 @@ BEGIN
         now(),
         now()
     );
+
+    BEGIN
+        IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'auth'
+              AND table_name = 'identities'
+              AND column_name = 'provider_id'
+        ) THEN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'auth'
+                  AND table_name = 'identities'
+                  AND column_name = 'email'
+                  AND (is_generated IS NULL OR is_generated = 'NEVER')
+            ) THEN
+                INSERT INTO auth.identities (
+                    id,
+                    user_id,
+                    identity_data,
+                    provider,
+                    provider_id,
+                    email,
+                    last_sign_in_at,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    new_user_id,
+                    json_build_object('sub', new_user_id::text, 'email', email),
+                    'email',
+                    email,
+                    email,
+                    NULL,
+                    now(),
+                    now()
+                );
+            ELSE
+                INSERT INTO auth.identities (
+                    id,
+                    user_id,
+                    identity_data,
+                    provider,
+                    provider_id,
+                    last_sign_in_at,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    new_user_id,
+                    json_build_object('sub', new_user_id::text, 'email', email),
+                    'email',
+                    email,
+                    NULL,
+                    now(),
+                    now()
+                );
+            END IF;
+        ELSE
+            INSERT INTO auth.identities (
+                id,
+                user_id,
+                identity_data,
+                provider,
+                last_sign_in_at,
+                created_at,
+                updated_at
+            ) VALUES (
+                gen_random_uuid(),
+                new_user_id,
+                json_build_object('sub', new_user_id::text, 'email', email),
+                'email',
+                NULL,
+                now(),
+                now()
+            );
+        END IF;
+    EXCEPTION
+        WHEN undefined_table OR undefined_column THEN
+            NULL;
+    END;
 
     -- Insert into public.users (handled by trigger usually, but forcing here for safety/role)
     INSERT INTO public.users (id, email, full_name, role)

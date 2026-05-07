@@ -1,0 +1,97 @@
+<div class="team-container">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Equipo</h1>
+            <p class="page-subtitle">Gestiona tu equipo y revisa el uso global</p>
+        </div>
+        <button class="create-btn" (click)="openCreateModal()">
+            <span>+</span> Nuevo integrante
+        </button>
+    </div>
+
+    <div class="summary" *ngIf="!loading">
+        <div class="summary-card">
+            <div class="summary-value">{{ totals.broadcasts }}</div>
+            <div class="summary-label">Noticieros creados (admin + equipo)</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value">{{ totals.cost | number:'1.0-2' }}</div>
+            <div class="summary-label">Costos totales (admin + equipo)</div>
+        </div>
+    </div>
+
+    <div class="loading-state" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Cargando equipo...</p>
+    </div>
+
+    <div class="table-wrap" *ngIf="!loading">
+        <table class="team-table" *ngIf="members.length > 0; else empty">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Noticieros</th>
+                    <th>Costos</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let m of members" [class.admin-row]="m.is_admin">
+                    <td>
+                        <div class="user-cell">
+                            <div class="user-name">{{ m.full_name || 'Sin nombre' }}</div>
+                            <div class="user-email">{{ m.email }}</div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="role-badge" [ngClass]="m.role">{{ m.is_admin ? 'admin' : m.role }}</span>
+                    </td>
+                    <td>{{ m.broadcasts_count || 0 }}</td>
+                    <td>{{ (m.total_cost || 0) | number:'1.0-2' }}</td>
+                    <td class="actions">
+                        <button class="danger-btn" (click)="deleteMember(m)" *ngIf="!m.is_admin">Eliminar</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <ng-template #empty>
+            <div class="empty-state">
+                <p>No hay integrantes en el equipo.</p>
+            </div>
+        </ng-template>
+    </div>
+
+    <div class="modal-overlay" *ngIf="showCreateModal" (click)="closeCreateModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Agregar integrante</h2>
+                <button class="close-btn" (click)="closeCreateModal()">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Nombre completo</label>
+                    <input type="text" [(ngModel)]="newMember.fullName" placeholder="Ej: Juan Pérez">
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" [(ngModel)]="newMember.email" placeholder="Ej: usuario@equipo.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" [(ngModel)]="newMember.password" placeholder="Mínimo 6 caracteres">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="cancel-btn" (click)="closeCreateModal()">Cancelar</button>
+                <button class="save-btn" (click)="createMember()">Crear</button>
+            </div>
+        </div>
+    </div>
+</div>
+

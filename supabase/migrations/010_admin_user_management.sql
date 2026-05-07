@@ -11,6 +11,7 @@ CREATE OR REPLACE FUNCTION public.create_user_rpc(
 RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
     new_user_id uuid;
@@ -34,7 +35,7 @@ BEGIN
     -- Super Admin restriction? (Maybe they can create anything)
 
     -- Generate ID and encrypt password
-    new_user_id := uuid_generate_v4();
+    new_user_id := gen_random_uuid();
     encrypted_pw := crypt(password, gen_salt('bf'));
 
     -- Insert into auth.users
@@ -76,14 +77,95 @@ BEGIN
         ''
     );
 
-    -- Trigger 'on_auth_user_created' will likely fire and insert into public.users with role 'user'.
-    -- We wait a moment or just update. 
-    -- Since we are in a transaction, the trigger fires immediately.
-    -- We update the role to the requested one.
-    
-    UPDATE public.users 
-    SET role = role_name::user_role 
-    WHERE id = new_user_id;
+    BEGIN
+        IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'auth'
+              AND table_name = 'identities'
+              AND column_name = 'provider_id'
+        ) THEN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'auth'
+                  AND table_name = 'identities'
+                  AND column_name = 'email'
+                  AND (is_generated IS NULL OR is_generated = 'NEVER')
+            ) THEN
+                INSERT INTO auth.identities (
+                    id,
+                    user_id,
+                    identity_data,
+                    provider,
+                    provider_id,
+                    email,
+                    last_sign_in_at,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    new_user_id,
+                    json_build_object('sub', new_user_id::text, 'email', email),
+                    'email',
+                    email,
+                    email,
+                    NULL,
+                    now(),
+                    now()
+                );
+            ELSE
+                INSERT INTO auth.identities (
+                    id,
+                    user_id,
+                    identity_data,
+                    provider,
+                    provider_id,
+                    last_sign_in_at,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    new_user_id,
+                    json_build_object('sub', new_user_id::text, 'email', email),
+                    'email',
+                    email,
+                    NULL,
+                    now(),
+                    now()
+                );
+            END IF;
+        ELSE
+            INSERT INTO auth.identities (
+                id,
+                user_id,
+                identity_data,
+                provider,
+                last_sign_in_at,
+                created_at,
+                updated_at
+            ) VALUES (
+                gen_random_uuid(),
+                new_user_id,
+                json_build_object('sub', new_user_id::text, 'email', email),
+                'email',
+                NULL,
+                now(),
+                now()
+            );
+        END IF;
+    EXCEPTION
+        WHEN undefined_table OR undefined_column THEN
+            NULL;
+    END;
+
+    INSERT INTO public.users (id, email, full_name, role)
+    VALUES (new_user_id, email, full_name, role_name::user_role)
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = EXCLUDED.full_name,
+        role = EXCLUDED.role,
+        updated_at = now();
 
     RETURN json_build_object('id', new_user_id, 'email', email, 'role', role_name);
 END;
@@ -103,7 +185,7 @@ BEGIN
     SELECT id INTO sa_id FROM auth.users WHERE email = sa_email;
 
     IF sa_id IS NULL THEN
-        sa_id := uuid_generate_v4();
+        sa_id := gen_random_uuid();
         INSERT INTO auth.users (
             instance_id, id, aud, role, email, encrypted_password, 
             email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at

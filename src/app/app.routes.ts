@@ -86,6 +86,12 @@ export const routes: Routes = [
         path: 'usuarios',
         loadComponent: () => import('./pages/users/users.component').then(m => m.UsersComponent),
         canActivate: [authGuard, roleGuard],
+        data: { roles: ['super_admin'] }
+    },
+    {
+        path: 'equipo',
+        loadComponent: () => import('./pages/equipo/equipo.component').then(m => m.EquipoComponent),
+        canActivate: [authGuard, roleGuard],
         data: { roles: ['admin', 'super_admin'] }
     }
 ];

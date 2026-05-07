@@ -60,16 +60,13 @@ export class AppComponent implements OnInit {
             items.push({ path: '/fuentes', label: 'Fuentes', icon: 'source' });
             items.push({ path: '/scrapping', label: 'Scrapping', icon: 'scrape' });
             items.push({ path: '/costos', label: 'Costos', icon: 'costs' });
+            items.push({ path: '/usuarios', label: 'Usuarios', icon: 'people' });
+            items.push({ path: '/recursos', label: 'Recursos', icon: 'voice' });
+            return items;
         }
 
-        // Usuarios: Admin and Super Admin
-        if (this.authService.isAdmin()) {
-             // Assuming 'users' icon is not in the template yet, I'll use 'dashboard' or need to add SVG for it.
-             // I'll add a generic 'users' label and handle the icon in template or reuse one.
-             // For now, I'll reuse 'settings_suggest' logic or just add it.
-             // Wait, the template loops through items and checks `item.icon`.
-             // I need to add 'people' or 'group' icon support in template.
-             items.push({ path: '/usuarios', label: 'Usuarios', icon: 'people' });
+        if (this.authService.hasRole('admin')) {
+            items.push({ path: '/equipo', label: 'Equipo', icon: 'people' });
             items.push({ path: '/recursos', label: 'Recursos', icon: 'voice' });
         }
 

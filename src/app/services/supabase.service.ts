@@ -133,6 +133,37 @@ export class SupabaseService {
         return data;
     }
 
+    async createTeamUser(user: { email: string; password: string; fullName?: string }) {
+        const { data, error } = await this.supabase.rpc('create_team_user_rpc', {
+            email: user.email,
+            password: user.password,
+            full_name: user.fullName || ''
+        });
+
+        if (error) throw error;
+        return data;
+    }
+
+    async getTeamMembersWithUsage(adminId?: string) {
+        const args: any = {};
+        if (adminId) args.p_admin_id = adminId;
+
+        const { data, error } = await this.supabase.rpc('get_team_members_with_usage_rpc', args);
+
+        if (error) throw error;
+        return data;
+    }
+
+    async deleteTeamUser(userId: string, behavior: 'transfer' | 'delete') {
+        const { data, error } = await this.supabase.rpc('delete_team_user_rpc', {
+            p_user_id: userId,
+            p_behavior: behavior
+        });
+
+        if (error) throw error;
+        return data;
+    }
+
     // User Radios Assignment
     async getUserRadios(userId: string) {
         const { data, error } = await this.supabase
