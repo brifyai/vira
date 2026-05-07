@@ -707,7 +707,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             }
         }
         if (news.voiceDelay == null) news.voiceDelay = 0;
-        if (news.musicVolume == null) news.musicVolume = 0.25;
+        news.musicVolume = this.normalizeMusicVolume(news.musicVolume, 0.25);
         if (news.musicTailSeconds == null) news.musicTailSeconds = 0.8;
         if (news.musicFadeOutSeconds == null) news.musicFadeOutSeconds = 0.5;
         if (!news.musicPlacement) news.musicPlacement = 'during';
@@ -1044,7 +1044,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             audioUrl,
                             item.musicUrl!,
                             item.voiceDelay || 0,
-                            item.musicVolume || 0.25,
+                            this.normalizeMusicVolume(item.musicVolume, 0.25),
                             placement,
                             { tailSeconds, fadeOutSeconds }
                         );
@@ -1231,6 +1231,12 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         const n = Number(value);
         if (!Number.isFinite(n)) return fallback;
         return Math.max(min, Math.min(max, n));
+    }
+
+    private normalizeMusicVolume(value: any, fallback: number = 0.25): number {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return fallback;
+        return Math.max(0.05, Math.min(1, n));
     }
 
     getTotalReadingTime(): number {
@@ -1444,7 +1450,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     event.type === 'news' && news ? news.musicPlacement : event.musicPlacement,
                     event.type === 'outro' ? 'after' : 'during'
                 );
-                const musicVolume = Number(event.type === 'news' && news ? (news.musicVolume ?? 0.25) : (event.musicVolume ?? 0.25));
+                const musicVolume = this.normalizeMusicVolume(event.type === 'news' && news ? news.musicVolume : event.musicVolume, 0.25);
                 const voiceDelay = Number(event.type === 'news' && news ? (news.voiceDelay ?? 0) : (event.voiceDelay ?? 0));
                 const musicTailSeconds = this.normalizeSeconds(event.type === 'news' && news ? news.musicTailSeconds : event.musicTailSeconds, 0.8, 0, 10);
                 const musicFadeOutSeconds = this.normalizeSeconds(event.type === 'news' && news ? news.musicFadeOutSeconds : event.musicFadeOutSeconds, 0.5, 0, 5);
@@ -1804,7 +1810,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                         audioUrl,
                         news.musicUrl!,
                         Number(news.voiceDelay || 0),
-                        Number(news.musicVolume || 0.25),
+                        this.normalizeMusicVolume(news.musicVolume, 0.25),
                         placement,
                         { tailSeconds, fadeOutSeconds }
                     );
@@ -2344,7 +2350,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                                 audioUrl,
                                 news.musicUrl!,
                                 Number(news.voiceDelay || 0),
-                                Number(news.musicVolume || 0.25),
+                                this.normalizeMusicVolume(news.musicVolume, 0.25),
                                 placement,
                                 { tailSeconds, fadeOutSeconds }
                             );
@@ -2472,7 +2478,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             audioUrl,
                             event.musicUrl!,
                             event.voiceDelay || 0,
-                            event.musicVolume || 0.25,
+                            this.normalizeMusicVolume(event.musicVolume, 0.25),
                             placement,
                             { tailSeconds, fadeOutSeconds }
                         );

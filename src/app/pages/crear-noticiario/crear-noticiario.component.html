@@ -358,8 +358,8 @@
                                 <div class="control-group" *ngIf="item.originalItem.musicUrl">
                                     <label>Volumen Música:</label>
                                     <div class="slider-group">
-                                        <input type="range" min="0" max="1.0" step="0.05" [(ngModel)]="item.originalItem.musicVolume" (ngModelChange)="invalidateAudio(item)">
-                                        <span>{{ (item.originalItem.musicVolume || 0.25) * 100 | number:'1.0-0' }}%</span>
+                                        <input type="range" min="0.05" max="1.0" step="0.05" [(ngModel)]="item.originalItem.musicVolume" (ngModelChange)="invalidateAudio(item)">
+                                        <span>{{ (item.originalItem.musicVolume ?? 0.25) * 100 | number:'1.0-0' }}%</span>
                                     </div>
                                 </div>
 
@@ -435,8 +435,8 @@
                                <div class="control-group" *ngIf="item.musicUrl && (item.type === 'intro' || item.type === 'outro' || item.type === 'text')">
                                    <label>Volumen Música:</label>
                                    <div class="slider-group">
-                                       <input type="range" min="0" max="1.0" step="0.05" [(ngModel)]="item.musicVolume" (ngModelChange)="invalidateAudio(item)">
-                                       <span>{{ (item.musicVolume || 0.25) * 100 | number:'1.0-0' }}%</span>
+                                       <input type="range" min="0.05" max="1.0" step="0.05" [(ngModel)]="item.musicVolume" (ngModelChange)="invalidateAudio(item)">
+                                       <span>{{ (item.musicVolume ?? 0.25) * 100 | number:'1.0-0' }}%</span>
                                    </div>
                                </div>
 
