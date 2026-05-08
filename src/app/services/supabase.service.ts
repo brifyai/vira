@@ -188,6 +188,42 @@ export class SupabaseService {
         return data;
     }
 
+    async requestPasswordReset(email: string) {
+        const apiBaseUrl = this.getApiBaseUrl();
+        const response = await fetch(`${apiBaseUrl}/api/auth/forgot-password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email })
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data?.error || 'No se pudo iniciar la recuperacion de contrasena.');
+        }
+
+        return data;
+    }
+
+    async resetPassword(token: string, newPassword: string) {
+        const apiBaseUrl = this.getApiBaseUrl();
+        const response = await fetch(`${apiBaseUrl}/api/auth/reset-password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ token, newPassword })
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data?.error || 'No se pudo restablecer la contrasena.');
+        }
+
+        return data;
+    }
+
     async getTeamMembersWithUsage(adminId?: string) {
         const args: any = {};
         if (adminId) args.p_admin_id = adminId;

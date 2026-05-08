@@ -79,6 +79,7 @@ GOOGLE_MAIL_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
 GOOGLE_MAIL_CLIENT_SECRET=tu_secreto_privado
 GOOGLE_MAIL_REDIRECT_URI=https://tu-backend.com/api/mail/google/callback
 GOOGLE_MAIL_REFRESH_TOKEN=se_obtiene_despues_del_callback
+PASSWORD_RESET_TOKEN_TTL_MINUTES=30
 ```
 
 Flujo recomendado:
@@ -91,6 +92,21 @@ Flujo recomendado:
 6. Verifica el estado con `GET /api/mail/status`.
 
 El frontend ya no expone `googleClientSecret`, `googleClientId`, `googleRedirectUri` ni `googleCloudTtsApiKey` en `public/env.js`.
+
+### Recuperación de contraseña
+
+Flujo implementado:
+
+1. `POST /api/auth/forgot-password`
+2. El backend genera un token temporal, lo guarda hasheado en `public.password_reset_tokens`
+3. Se envía un correo con enlace a `/reset-password?token=...`
+4. `POST /api/auth/reset-password` actualiza la clave en `auth.users`
+
+Antes de usarlo, aplica la migración:
+
+```sql
+-- Ejecuta el contenido de supabase/migrations/032_password_reset_tokens.sql
+```
 
 ## Integración con la Aplicación Angular
 

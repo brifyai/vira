@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
+import { SupabaseService } from '../../services/supabase.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -16,11 +17,14 @@ export class LoginComponent implements OnDestroy {
     email = '';
     password = '';
     loading = false;
+    forgotLoading = false;
     errorMessage = '';
+    infoMessage = '';
     private authSubscription: Subscription;
 
     constructor(
         private authService: AuthService,
+        private supabaseService: SupabaseService,
         private router: Router,
         private ngZone: NgZone,
         private cdr: ChangeDetectorRef
@@ -54,6 +58,7 @@ export class LoginComponent implements OnDestroy {
         
         this.loading = true;
         this.errorMessage = '';
+        this.infoMessage = '';
         // console.log('LoginComponent: Submitting login form...');
 
         this.authService.login(this.email, this.password).subscribe({
@@ -98,5 +103,31 @@ export class LoginComponent implements OnDestroy {
                 });
             }
         });
+    }
+
+    async onForgotPassword(): Promise<void> {
+        if (this.forgotLoading || this.loading) return;
+
+        this.errorMessage = '';
+        this.infoMessage = '';
+
+        if (!this.email.trim()) {
+            this.errorMessage = 'Ingresa tu correo para enviarte el enlace de recuperacion.';
+            this.cdr.detectChanges();
+            return;
+        }
+
+        this.forgotLoading = true;
+
+        try {
+            const result = await this.supabaseService.requestPasswordReset(this.email.trim());
+            this.infoMessage = result?.message || 'Si el correo existe, enviaremos instrucciones para restablecer la contrasena.';
+        } catch (error: any) {
+            console.error('LoginComponent: Forgot password error:', error);
+            this.errorMessage = error?.message || 'No se pudo procesar la solicitud.';
+        } finally {
+            this.forgotLoading = false;
+            this.cdr.detectChanges();
+        }
     }
 }

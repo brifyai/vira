@@ -88,6 +88,10 @@ const MAIL_LOGIN_URL = normalizeBaseUrl(
     getEnvValue('MAIL_LOGIN_URL') ||
     appPublicUrl
 );
+const PASSWORD_RESET_TOKEN_TTL_MINUTES = Math.max(
+    5,
+    Number.parseInt(getEnvValue('PASSWORD_RESET_TOKEN_TTL_MINUTES') || '30', 10) || 30
+);
 
 // --- Debug Environment Variables (Safe Log) ---
 console.log('[Server] Starting...');
@@ -173,6 +177,10 @@ function buildRuntimeBaseUrl(req) {
     return host ? `${protocol}://${host}` : '';
 }
 
+function buildRuntimeAppUrl(req) {
+    return appPublicUrl || buildRuntimeBaseUrl(req);
+}
+
 function buildMailRedirectUri(req) {
     return GOOGLE_MAIL_REDIRECT_URI || `${buildRuntimeBaseUrl(req)}/api/mail/google/callback`;
 }
@@ -238,6 +246,28 @@ function resolveProfileLabel(profileType) {
         default:
             return 'Usuario';
     }
+}
+
+function sha256(value) {
+    return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+}
+
+const rateLimitBuckets = new Map();
+
+function isRateLimited(key, limit, windowMs) {
+    const now = Date.now();
+    const bucket = rateLimitBuckets.get(key) || [];
+    const recent = bucket.filter(ts => now - ts < windowMs);
+    recent.push(now);
+    rateLimitBuckets.set(key, recent);
+    return recent.length > limit;
+}
+
+function getRequestIp(req) {
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const raw = Array.isArray(forwardedFor) ? forwardedFor[0] : String(forwardedFor || req.ip || '').split(',')[0];
+    const cleaned = String(raw || '').trim();
+    return cleaned.slice(0, 64) || null;
 }
 
 function buildWelcomeEmail(payload = {}) {
@@ -312,6 +342,61 @@ function buildWelcomeEmail(payload = {}) {
     ].join('\n');
 
     return { subject, html, text };
+}
+
+function buildResetPasswordEmail(req, payload = {}) {
+    const recipientName = String(payload.recipientName || '').trim();
+    const recipientEmail = String(payload.recipientEmail || '').trim();
+    const resetToken = String(payload.resetToken || '').trim();
+    const safeDisplayName = escapeXml(recipientName || recipientEmail || 'usuario');
+    const resetUrl = `${buildRuntimeAppUrl(req)}/reset-password?token=${encodeURIComponent(resetToken)}`;
+    const safeResetUrl = escapeXml(resetUrl);
+    const ttlLabel = `${PASSWORD_RESET_TOKEN_TTL_MINUTES} minutos`;
+
+    const subject = `${APP_NAME}: restablece tu contrasena`;
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;background:#0f172a;color:#e2e8f0;padding:24px;">
+        <div style="max-width:640px;margin:0 auto;background:#111827;border:1px solid #334155;border-radius:16px;overflow:hidden;">
+          <div style="padding:24px 24px 8px;">
+            <h1 style="margin:0 0 8px;font-size:24px;color:#f8fafc;">Recuperacion de contrasena</h1>
+            <p style="margin:0;color:#cbd5e1;">Solicitud de acceso para ${escapeXml(APP_NAME)}</p>
+          </div>
+          <div style="padding:24px;">
+            <p style="margin:0 0 16px;">Hola ${safeDisplayName},</p>
+            <p style="margin:0 0 16px;">Recibimos una solicitud para restablecer tu contrasena.</p>
+            <p style="margin:0 0 20px;">Este enlace vence en <strong>${ttlLabel}</strong> y solo puede usarse una vez.</p>
+
+            <p style="margin:0 0 24px;">
+              <a href="${safeResetUrl}" style="display:inline-block;background:#6366f1;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;">Restablecer contrasena</a>
+            </p>
+
+            <div style="background:#0b1220;border:1px solid #334155;border-radius:12px;padding:16px;margin:0 0 20px;">
+              <p style="margin:0 0 8px;"><strong>Enlace directo:</strong></p>
+              <p style="margin:0;word-break:break-all;"><a href="${safeResetUrl}" style="color:#93c5fd;">${safeResetUrl}</a></p>
+            </div>
+
+            <div style="background:#1e293b;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;">
+              <p style="margin:0 0 10px;"><strong>Recomendaciones de seguridad</strong></p>
+              <p style="margin:0 0 8px;">1. Si no solicitaste este cambio, ignora este correo.</p>
+              <p style="margin:0 0 8px;">2. Crea una contrasena nueva y unica.</p>
+              <p style="margin:0;">3. No compartas este enlace ni por correo ni por chat.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const text = [
+        `Recuperacion de contrasena para ${APP_NAME}`,
+        '',
+        `Hola ${recipientName || recipientEmail},`,
+        `Abre este enlace para restablecer tu contrasena: ${resetUrl}`,
+        `El enlace vence en ${ttlLabel}.`,
+        '',
+        'Si no solicitaste este cambio, ignora este correo.'
+    ].join('\n');
+
+    return { subject, html, text, resetUrl };
 }
 
 function normalizeTerm(input) {
@@ -4402,6 +4487,172 @@ app.post('/api/mail/send-welcome', async (req, res) => {
             success: false,
             configured: isMailSendingConfigured(req),
             error: error?.message || 'No se pudo enviar el correo de bienvenida.'
+        });
+    }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        const ip = getRequestIp(req);
+        const emailRateKey = `pwdreset:email:${email}`;
+        const ipRateKey = `pwdreset:ip:${ip || 'unknown'}`;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'El email es requerido.'
+            });
+        }
+
+        if (!isMailSendingConfigured(req)) {
+            return res.status(503).json({
+                success: false,
+                configured: false,
+                error: 'El servicio de correo no esta configurado.'
+            });
+        }
+
+        if (isRateLimited(emailRateKey, 3, 15 * 60 * 1000) || isRateLimited(ipRateKey, 10, 15 * 60 * 1000)) {
+            return res.status(429).json({
+                success: false,
+                error: 'Has realizado demasiadas solicitudes. Intenta nuevamente en unos minutos.'
+            });
+        }
+
+        const genericResponse = {
+            success: true,
+            message: 'Si el correo existe, enviaremos instrucciones para restablecer la contrasena.'
+        };
+
+        const { data: userProfile, error: userError } = await supabase
+            .from('users')
+            .select('id, email, full_name')
+            .ilike('email', email)
+            .maybeSingle();
+
+        if (userError) {
+            console.error('[Forgot Password] Error loading user profile:', userError);
+            return res.json(genericResponse);
+        }
+
+        if (!userProfile?.id || !userProfile?.email) {
+            return res.json(genericResponse);
+        }
+
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = sha256(resetToken);
+        const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000).toISOString();
+
+        await supabase
+            .from('password_reset_tokens')
+            .delete()
+            .eq('user_id', userProfile.id);
+
+        const { error: insertError } = await supabase
+            .from('password_reset_tokens')
+            .insert({
+                user_id: userProfile.id,
+                email: userProfile.email,
+                token_hash: tokenHash,
+                expires_at: expiresAt,
+                requested_ip: ip,
+                user_agent: String(req.headers['user-agent'] || '').slice(0, 500) || null
+            });
+
+        if (insertError) {
+            console.error('[Forgot Password] Error storing token:', insertError);
+            return res.status(500).json({
+                success: false,
+                error: 'No se pudo generar la recuperacion de contrasena.'
+            });
+        }
+
+        const mail = buildResetPasswordEmail(req, {
+            recipientName: userProfile.full_name,
+            recipientEmail: userProfile.email,
+            resetToken
+        });
+
+        const transport = await createMailTransport(req);
+        await transport.sendMail({
+            from: getMailFromHeader(),
+            to: userProfile.email,
+            subject: mail.subject,
+            text: mail.text,
+            html: mail.html
+        });
+
+        res.json(genericResponse);
+    } catch (error) {
+        console.error('[Forgot Password] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error?.message || 'No se pudo procesar la recuperacion de contrasena.'
+        });
+    }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const token = String(req.body?.token || '').trim();
+        const newPassword = String(req.body?.newPassword || '').trim();
+
+        if (!token || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'Token y nueva contrasena son requeridos.'
+            });
+        }
+
+        if (newPassword.length < 8) {
+            return res.status(400).json({
+                success: false,
+                error: 'La nueva contrasena debe tener al menos 8 caracteres.'
+            });
+        }
+
+        const tokenHash = sha256(token);
+        const { data: resetRecord, error: tokenError } = await supabase
+            .from('password_reset_tokens')
+            .select('*')
+            .eq('token_hash', tokenHash)
+            .maybeSingle();
+
+        if (tokenError) {
+            throw tokenError;
+        }
+
+        const nowIso = new Date().toISOString();
+        if (!resetRecord || resetRecord.used_at || String(resetRecord.expires_at || '') <= nowIso) {
+            return res.status(400).json({
+                success: false,
+                error: 'El enlace ya no es valido o ha expirado.'
+            });
+        }
+
+        const { error: updateAuthError } = await supabase.auth.admin.updateUserById(resetRecord.user_id, {
+            password: newPassword
+        });
+
+        if (updateAuthError) {
+            throw updateAuthError;
+        }
+
+        await supabase
+            .from('password_reset_tokens')
+            .delete()
+            .eq('user_id', resetRecord.user_id);
+
+        res.json({
+            success: true,
+            message: 'Contrasena actualizada correctamente. Ya puedes iniciar sesion.'
+        });
+    } catch (error) {
+        console.error('[Reset Password] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error?.message || 'No se pudo restablecer la contrasena.'
         });
     }
 });
