@@ -153,7 +153,12 @@ export class EquipoComponent implements OnInit {
         if (!confirm.isConfirmed) return;
 
         try {
-            await this.supabaseService.deleteTeamUser(member.id, behavior);
+            const memberId = member?.member_id || member?.id;
+            if (!memberId) {
+                throw new Error('No se pudo identificar al integrante a eliminar.');
+            }
+
+            await this.supabaseService.deleteTeamUser(memberId, behavior);
             this.showSnackBar('Usuario eliminado', 'success-snackbar');
             await this.loadTeam();
         } catch (error: any) {
