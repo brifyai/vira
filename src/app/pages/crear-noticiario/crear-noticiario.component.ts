@@ -776,12 +776,19 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         });
     }
 
+    getBlockPlaceholder(item: TimelineEvent): string {
+        if (item.type === 'intro') return 'Bienvenidos al noticiero...';
+        if (item.type === 'outro') return 'Gracias por acompañarnos. Hasta la próxima edición...';
+        if (item.type === 'text') return 'Escribe aquí un texto breve para dar continuidad o contexto al noticiero...';
+        return 'Escribe el contenido...';
+    }
+
     addBlock(type: 'text' | 'intro' | 'outro') {
         const newItem: TimelineEvent = {
             id: this.generateUUID(),
             type: type,
             title: type === 'intro' ? 'Introducción' : type === 'outro' ? 'Cierre' : 'Nuevo Texto',
-            description: type === 'intro' ? 'Bienvenidos al noticiero...' : type === 'outro' ? 'Gracias por sintonizar...' : 'Escribe aquí...',
+            description: '',
             startTime: 0,
             duration: 30,
             order: this.timelineEvents.length,

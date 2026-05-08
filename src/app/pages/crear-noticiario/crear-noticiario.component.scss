@@ -96,6 +96,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             &::placeholder {
                 color: $text-muted;
             }
+
+            option {
+                background: #0f172a;
+                color: #f8fafc;
+            }
         }
 
         .time-input {
@@ -263,6 +268,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             &:focus {
                 outline: none;
                 border-color: $primary-color;
+            }
+
+            option {
+                background: #0f172a;
+                color: #f8fafc;
             }
         }
 
@@ -521,6 +531,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         &:focus {
             outline: none;
             border-color: $primary-color;
+        }
+
+        option {
+            background: #0f172a;
+            color: #f8fafc;
         }
     }
 
@@ -893,6 +908,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     &:focus {
                         outline: none;
                         border-color: $primary-color;
+                    }
+
+                    option {
+                        background: #0f172a;
+                        color: #f8fafc;
                     }
                 }
 
@@ -1277,6 +1297,10 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             &:focus {
                 outline: none;
                 border-color: $primary-color;
+            }
+
+            &::placeholder {
+                color: rgba(148, 163, 184, 0.95);
             }
         }
     }

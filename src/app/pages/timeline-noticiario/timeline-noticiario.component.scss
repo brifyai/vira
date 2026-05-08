@@ -87,6 +87,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 outline: none;
                 border-color: $primary-color;
             }
+
+            option {
+                background: #0f172a;
+                color: #f8fafc;
+            }
         }
     }
 
@@ -772,6 +777,11 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     outline: none;
                     border-color: rgba(99, 102, 241, 0.7);
                 }
+
+                option {
+                    background: #0f172a;
+                    color: #f8fafc;
+                }
             }
 
             .music-panel {
@@ -818,6 +828,10 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     outline: none;
                     border-color: $primary-color;
                     background: rgba(0, 0, 0, 0.3);
+                }
+
+                &::placeholder {
+                    color: rgba(148, 163, 184, 0.95);
                 }
             }
 

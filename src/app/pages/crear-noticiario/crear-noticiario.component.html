@@ -245,7 +245,7 @@
                                       [(ngModel)]="item.description" 
                                       (ngModelChange)="invalidateAudio(item)"
                                       class="item-description-input"
-                                      placeholder="Escribe el contenido..."></textarea>
+                                      [placeholder]="getBlockPlaceholder(item)"></textarea>
                             <p class="item-description" *ngIf="item.type === 'news' || item.type === 'ad'">
                                 {{ item.description }}
                             </p>

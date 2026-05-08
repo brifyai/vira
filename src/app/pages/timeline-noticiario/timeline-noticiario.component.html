@@ -324,7 +324,7 @@
                                 <textarea 
                                     [(ngModel)]="event.description" 
                                     (blur)="updateBlockText(event, event.description)"
-                                    placeholder="Escribe el texto aquí..."
+                                    [placeholder]="getBlockPlaceholder(event)"
                                     class="block-editor"
                                     [readonly]="!isEditingCopy"
                                     rows="3"></textarea>

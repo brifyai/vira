@@ -4343,13 +4343,47 @@ app.post('/api/gemini', async (req, res) => {
 });
 
 app.get('/api/mail/status', (req, res) => {
-    res.json({
-        configured: isMailSendingConfigured(req),
-        oauthClientConfigured: hasMailOAuthClientConfig(req),
-        hasRefreshToken: !!GOOGLE_MAIL_REFRESH_TOKEN,
-        fromAddress: maskEmail(MAIL_FROM_ADDRESS),
-        redirectUri: buildMailRedirectUri(req),
-        loginUrl: MAIL_LOGIN_URL || appPublicUrl || ''
+    (async () => {
+        const baseStatus = {
+            configured: isMailSendingConfigured(req),
+            oauthClientConfigured: hasMailOAuthClientConfig(req),
+            hasRefreshToken: !!GOOGLE_MAIL_REFRESH_TOKEN,
+            fromAddress: maskEmail(MAIL_FROM_ADDRESS),
+            redirectUri: buildMailRedirectUri(req),
+            loginUrl: MAIL_LOGIN_URL || appPublicUrl || '',
+            smtpVerified: false,
+            smtpError: null
+        };
+
+        if (!baseStatus.configured) {
+            return res.json(baseStatus);
+        }
+
+        try {
+            const transport = await createMailTransport(req);
+            await transport.verify();
+            return res.json({
+                ...baseStatus,
+                smtpVerified: true
+            });
+        } catch (error) {
+            return res.json({
+                ...baseStatus,
+                smtpVerified: false,
+                smtpError: error?.message || 'No se pudo verificar Gmail OAuth.'
+            });
+        }
+    })().catch(error => {
+        res.status(500).json({
+            configured: false,
+            oauthClientConfigured: hasMailOAuthClientConfig(req),
+            hasRefreshToken: !!GOOGLE_MAIL_REFRESH_TOKEN,
+            fromAddress: maskEmail(MAIL_FROM_ADDRESS),
+            redirectUri: buildMailRedirectUri(req),
+            loginUrl: MAIL_LOGIN_URL || appPublicUrl || '',
+            smtpVerified: false,
+            smtpError: error?.message || 'Error verificando el estado del correo.'
+        });
     });
 });
 

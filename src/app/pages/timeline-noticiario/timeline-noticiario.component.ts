@@ -135,6 +135,13 @@ export class TimelineNoticiarioComponent implements OnInit {
         return Math.max(0.05, Math.min(1, n));
     }
 
+    getBlockPlaceholder(event: TimelineEvent): string {
+        if (event.type === 'intro') return 'Bienvenidos al noticiero...';
+        if (event.type === 'outro') return 'Gracias por acompañarnos. Hasta la próxima edición...';
+        if (event.type === 'text') return 'Escribe aquí un texto breve para dar continuidad o contexto al noticiero...';
+        return 'Escribe el texto aquí...';
+    }
+
     isTopActionPending(action: 'intro' | 'text' | 'audio' | 'outro'): boolean {
         return this.pendingTopAction === action;
     }
@@ -452,7 +459,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                 broadcast_id: this.selectedBroadcast.id,
                 type: type,
                 custom_title: type === 'intro' ? 'Introducción' : type === 'outro' ? 'Cierre' : 'Nuevo Texto',
-                custom_content: type === 'intro' ? 'Bienvenidos al noticiero...' : type === 'outro' ? 'Gracias por sintonizar...' : 'Escribe aquí...',
+                custom_content: '',
                 order_index: this.timelineEvents.length,
                 duration_seconds: 30,
                 voice_id: defaultVoice,
