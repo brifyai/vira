@@ -142,6 +142,17 @@ export class TimelineNoticiarioComponent implements OnInit {
         return 'Escribe el texto aquí...';
     }
 
+    get editingModeLabel(): string {
+        return this.isEditingCopy ? 'Copia editable' : 'Original en solo lectura';
+    }
+
+    get editingHelpText(): string {
+        if (this.isEditingCopy) {
+            return 'Los cambios se guardan en una copia nueva de este noticiero.';
+        }
+        return 'Presiona Editar para crear una copia del noticiero y habilitar la edición de sus bloques.';
+    }
+
     isTopActionPending(action: 'intro' | 'text' | 'audio' | 'outro'): boolean {
         return this.pendingTopAction === action;
     }
@@ -743,7 +754,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                 createdBy: 'Usuario'
             };
 
-            this.snackBar.open('Edición habilitada: guardando cambios en una copia', 'Cerrar', { duration: 3500 });
+            this.snackBar.open('Edición habilitada: ahora trabajas sobre una copia del noticiero', 'Cerrar', { duration: 3500 });
             await this.loadTimeline(created.id);
         } catch (error) {
             console.error('Error enabling editing by copy:', error);

@@ -185,28 +185,30 @@
                 </button>
                 <div class="broadcast-info">
                     <h2 class="broadcast-title">{{ selectedBroadcast.title }}</h2>
+                    <p class="broadcast-description">{{ editingHelpText }}</p>
                 </div>
             </div>
             
             <div class="timeline-actions">
+                <span class="edit-mode-badge" [class.editing]="isEditingCopy">{{ editingModeLabel }}</span>
                 <button class="tool-btn primary" *ngIf="!isEditingCopy" (click)="enableEditingByCopy()">
                     <span class="spinner-inline" *ngIf="pendingCopy"></span>
-                    <span>{{ pendingCopy ? 'Creando copia...' : 'Guardar como nuevo' }}</span>
+                    <span>{{ pendingCopy ? 'Preparando edición...' : 'Editar' }}</span>
                 </button>
-                <button class="tool-btn" (click)="addBlock('intro')" [disabled]="pendingTopAction !== null || pendingCopy">
+                <button class="tool-btn" *ngIf="isEditingCopy" (click)="addBlock('intro')" [disabled]="pendingTopAction !== null || pendingCopy">
                     <span class="spinner-inline" *ngIf="isTopActionPending('intro')"></span>
                     <span class="icon" *ngIf="!isTopActionPending('intro')">+</span> Intro
                 </button>
-                <button class="tool-btn" (click)="addBlock('text')" [disabled]="pendingTopAction !== null || pendingCopy">
+                <button class="tool-btn" *ngIf="isEditingCopy" (click)="addBlock('text')" [disabled]="pendingTopAction !== null || pendingCopy">
                     <span class="spinner-inline" *ngIf="isTopActionPending('text')"></span>
                     <span class="icon" *ngIf="!isTopActionPending('text')">+</span> Texto
                 </button>
-                <button class="tool-btn" (click)="fileInput.click()" [disabled]="pendingTopAction !== null || pendingCopy">
+                <button class="tool-btn" *ngIf="isEditingCopy" (click)="fileInput.click()" [disabled]="pendingTopAction !== null || pendingCopy">
                     <span class="spinner-inline" *ngIf="isTopActionPending('audio')"></span>
                     <span class="icon" *ngIf="!isTopActionPending('audio')">+</span> Audio/Ad
                 </button>
                 <input #fileInput type="file" (change)="onFileSelected($event)" accept="audio/*" hidden>
-                <button class="tool-btn" (click)="addBlock('outro')" [disabled]="pendingTopAction !== null || pendingCopy">
+                <button class="tool-btn" *ngIf="isEditingCopy" (click)="addBlock('outro')" [disabled]="pendingTopAction !== null || pendingCopy">
                     <span class="spinner-inline" *ngIf="isTopActionPending('outro')"></span>
                     <span class="icon" *ngIf="!isTopActionPending('outro')">+</span> Cierre
                 </button>
@@ -229,8 +231,18 @@
 
         <!-- Timeline Content -->
         <div class="timeline-content" *ngIf="!loadingTimeline">
+            <div class="edit-cta-panel" *ngIf="!isEditingCopy">
+                <div class="edit-cta-copy">
+                    <h3>Este noticiero está en modo lectura</h3>
+                    <p>Para modificar bloques, voces, música o agregar nuevos contenidos, primero crea una copia editable.</p>
+                </div>
+                <button class="tool-btn primary" (click)="enableEditingByCopy()" [disabled]="pendingCopy">
+                    <span class="spinner-inline" *ngIf="pendingCopy"></span>
+                    <span>{{ pendingCopy ? 'Preparando edición...' : 'Editar' }}</span>
+                </button>
+            </div>
             <div class="timeline-list" cdkDropList (cdkDropListDropped)="drop($event)">
-                <div class="timeline-item" *ngFor="let event of timelineEvents" cdkDrag [class]="getEventTypeClass(event.type)">
+                <div class="timeline-item" *ngFor="let event of timelineEvents" cdkDrag [cdkDragDisabled]="!isEditingCopy" [class]="getEventTypeClass(event.type)" [class.read-only]="!isEditingCopy">
                     
                     <div class="item-handle" cdkDragHandle>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -462,7 +474,9 @@
                     <span class="summary-value">{{ timelineEvents.length }}</span>
                 </div>
                 <div class="summary-item" *ngIf="!isEditingCopy">
-                    <button class="tool-btn primary" (click)="enableEditingByCopy()">Guardar como nuevo</button>
+                    <button class="tool-btn primary" (click)="enableEditingByCopy()" [disabled]="pendingCopy">
+                        {{ pendingCopy ? 'Preparando edición...' : 'Editar' }}
+                    </button>
                 </div>
             </div>
         </div>
