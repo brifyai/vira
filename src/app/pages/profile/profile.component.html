@@ -1,0 +1,66 @@
+<div class="profile-container">
+    <div class="profile-grid" *ngIf="!loading; else loadingState">
+        <section class="profile-card">
+            <div class="profile-header">
+                <div class="avatar-wrap">
+                    <img [src]="user?.avatar" [alt]="user?.name || 'Usuario'" class="avatar-img">
+                </div>
+                <div>
+                    <h1>Mi perfil</h1>
+                    <p>Revisa tu información y administra tu acceso.</p>
+                </div>
+            </div>
+
+            <div class="info-list">
+                <div class="info-item">
+                    <span class="label">Nombre</span>
+                    <span class="value">{{ profile?.full_name || user?.name || 'Sin nombre' }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Correo</span>
+                    <span class="value">{{ profile?.email || user?.email }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Rol</span>
+                    <span class="value role">{{ profile?.role || user?.role || 'user' }}</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="profile-card">
+            <div class="section-head">
+                <h2>Cambiar contraseña</h2>
+                <p>Define una nueva clave para tu cuenta.</p>
+            </div>
+
+            <div *ngIf="errorMessage" class="message error">{{ errorMessage }}</div>
+            <div *ngIf="successMessage" class="message success">{{ successMessage }}</div>
+
+            <div class="form-group">
+                <label>Estado de sesión</label>
+                <div class="readonly-box">{{ currentPasswordPlaceholder }}</div>
+            </div>
+
+            <div class="form-group">
+                <label for="newPassword">Nueva contraseña</label>
+                <input id="newPassword" type="password" [(ngModel)]="newPassword" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Confirmar contraseña</label>
+                <input id="confirmPassword" type="password" [(ngModel)]="confirmPassword" placeholder="Repite la nueva contraseña" autocomplete="new-password">
+            </div>
+
+            <button class="primary-btn" (click)="changePassword()" [disabled]="savingPassword">
+                {{ savingPassword ? 'Guardando...' : 'Actualizar contraseña' }}
+            </button>
+        </section>
+    </div>
+
+    <ng-template #loadingState>
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Cargando perfil...</p>
+        </div>
+    </ng-template>
+</div>

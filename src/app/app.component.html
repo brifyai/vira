@@ -97,21 +97,26 @@
         </nav>
 
         <div class="header-right" *ngIf="isLoggedIn">
-            <div class="user-info">
-                <div class="user-avatar">
-                    <img [src]="user?.avatar" [alt]="user?.name" class="avatar-img">
-                </div>
-                <div class="user-details">
-                    <span class="user-name">{{ user?.name }}</span>
-                    <span class="user-email">{{ user?.email }}</span>
-                </div>
-                <button class="logout-btn" (click)="logout()" aria-label="Cerrar sesión">
-                    <svg class="logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <polyline points="16 17 21 12 16 7"></polyline>
-                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
+            <div class="user-menu" [class.open]="isUserMenuOpen">
+                <button class="user-info user-trigger" (click)="toggleUserMenu()" aria-label="Abrir menú de usuario">
+                    <div class="user-avatar">
+                        <img [src]="user?.avatar" [alt]="user?.name" class="avatar-img">
+                    </div>
+                    <div class="user-details">
+                        <span class="user-name">{{ user?.name }}</span>
+                        <span class="user-email">{{ user?.email }}</span>
+                    </div>
+                    <span class="user-caret">▾</span>
                 </button>
+
+                <div class="user-dropdown" *ngIf="isUserMenuOpen">
+                    <button class="dropdown-item" (click)="navigateToProfile()">
+                        Ver perfil
+                    </button>
+                    <button class="dropdown-item danger" (click)="logout()">
+                        Cerrar sesión
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -123,4 +128,5 @@
 
     <!-- Overlay for mobile menu -->
     <div class="menu-overlay" *ngIf="isLoggedIn" [class.active]="isMenuOpen" (click)="toggleMenu()"></div>
+    <div class="user-menu-overlay" *ngIf="isLoggedIn && isUserMenuOpen" (click)="closeUserMenu()"></div>
 </div>

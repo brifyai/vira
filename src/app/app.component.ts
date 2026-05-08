@@ -14,6 +14,7 @@ export class AppComponent implements OnInit {
     title = 'VIRA';
     currentRoute = '';
     isMenuOpen = false;
+    isUserMenuOpen = false;
     currentUser: User | null = null;
 
     // Menu items
@@ -78,13 +79,27 @@ export class AppComponent implements OnInit {
         this.isMenuOpen = !this.isMenuOpen;
     }
 
+    toggleUserMenu() {
+        this.isUserMenuOpen = !this.isUserMenuOpen;
+    }
+
+    closeUserMenu() {
+        this.isUserMenuOpen = false;
+    }
+
     navigateTo(path: string) {
         this.router.navigate([path]);
         this.isMenuOpen = false;
+        this.isUserMenuOpen = false;
+    }
+
+    navigateToProfile() {
+        this.navigateTo('/perfil');
     }
 
     async logout() {
         try {
+            this.closeUserMenu();
             await this.authService.logout();
         } catch (error) {
             console.error('Error during logout:', error);

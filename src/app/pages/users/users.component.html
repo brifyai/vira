@@ -104,9 +104,10 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Contraseña</label>
-                    <input type="password" [(ngModel)]="newUser.password" placeholder="Mínimo 6 caracteres">
-                    <small>Se enviará como contraseña temporal en el correo de bienvenida.</small>
+                    <label>Acceso inicial</label>
+                    <div class="helper-text">
+                        El sistema generará un acceso seguro y enviará un enlace para que el usuario cree su propia contraseña.
+                    </div>
                 </div>
 
                 <div class="form-group">

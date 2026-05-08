@@ -151,11 +151,9 @@ export class SupabaseService {
     async sendWelcomeEmail(payload: {
         recipientEmail: string;
         recipientName?: string;
-        temporaryPassword: string;
         profileType: 'admin' | 'user' | 'team_user';
         createdByRole?: string;
         createdByName?: string;
-        loginUrl?: string;
     }) {
         const apiBaseUrl = this.getApiBaseUrl();
 
@@ -186,6 +184,27 @@ export class SupabaseService {
         }
 
         return data;
+    }
+
+    generateSecurePassword(length: number = 24): string {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+        const cryptoObject = globalThis.crypto;
+        const values = new Uint32Array(length);
+
+        if (cryptoObject?.getRandomValues) {
+            cryptoObject.getRandomValues(values);
+        } else {
+            for (let i = 0; i < length; i += 1) {
+                values[i] = Math.floor(Math.random() * chars.length);
+            }
+        }
+
+        let password = 'Tmp1!';
+        for (let i = 0; i < length; i += 1) {
+            password += chars[values[i] % chars.length];
+        }
+
+        return password;
     }
 
     async requestPasswordReset(email: string) {
@@ -230,6 +249,15 @@ export class SupabaseService {
         }
 
         return data;
+    }
+
+    async updateCurrentUserPassword(newPassword: string) {
+        const { data, error } = await this.supabase.auth.updateUser({
+            password: newPassword
+        });
+
+        if (error) throw error;
+        return data.user;
     }
 
     async getTeamMembersWithUsage(adminId?: string) {

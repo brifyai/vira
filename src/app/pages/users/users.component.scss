@@ -393,6 +393,16 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     border-color: $primary-color;
                 }
             }
+
+            .helper-text {
+                color: $text-secondary;
+                font-size: 13px;
+                line-height: 1.5;
+                padding: 12px;
+                background: rgba(99, 102, 241, 0.08);
+                border: 1px solid rgba(99, 102, 241, 0.14);
+                border-radius: 8px;
+            }
         }
     }
 

@@ -203,6 +203,16 @@
     color: #fff;
 }
 
+.helper-text {
+    color: rgba(226, 232, 240, 0.88);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(99, 102, 241, 0.16);
+    background: rgba(99, 102, 241, 0.1);
+}
+
 .modal-footer {
     display: flex;
     justify-content: flex-end;
@@ -227,4 +237,3 @@
 .save-btn {
     background: rgba(99, 102, 241, 0.6);
 }
-

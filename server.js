@@ -252,6 +252,15 @@ function sha256(value) {
     return crypto.createHash('sha256').update(String(value || '')).digest('hex');
 }
 
+function createPasswordResetTokenRecord() {
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    return {
+        resetToken,
+        tokenHash: sha256(resetToken),
+        expiresAt: new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000).toISOString()
+    };
+}
+
 const rateLimitBuckets = new Map();
 
 function isRateLimited(key, limit, windowMs) {
@@ -270,27 +279,27 @@ function getRequestIp(req) {
     return cleaned.slice(0, 64) || null;
 }
 
-function buildWelcomeEmail(payload = {}) {
+function buildWelcomeEmail(req, payload = {}) {
     const recipientName = String(payload.recipientName || '').trim();
     const recipientEmail = String(payload.recipientEmail || '').trim();
-    const temporaryPassword = String(payload.temporaryPassword || '').trim();
     const profileType = String(payload.profileType || 'user').trim();
     const createdByRole = String(payload.createdByRole || '').trim();
     const createdByName = String(payload.createdByName || '').trim();
-    const loginUrl = String(payload.loginUrl || MAIL_LOGIN_URL || appPublicUrl || '').trim();
+    const resetToken = String(payload.resetToken || '').trim();
+    const loginUrl = `${buildRuntimeAppUrl(req)}/reset-password?token=${encodeURIComponent(resetToken)}&mode=invite`;
     const safeDisplayName = escapeXml(recipientName || recipientEmail || 'usuario');
     const safeLoginUrl = escapeXml(loginUrl);
-    const safePassword = escapeXml(temporaryPassword);
     const safeCreator = escapeXml(createdByName || createdByRole || 'el equipo de administración');
     const profileLabel = resolveProfileLabel(profileType);
+    const ttlLabel = `${PASSWORD_RESET_TOKEN_TTL_MINUTES} minutos`;
 
-    let subject = `${APP_NAME}: acceso habilitado`;
-    if (profileType === 'admin') subject = `${APP_NAME}: acceso de administrador`;
-    if (profileType === 'team_user') subject = `${APP_NAME}: acceso a tu equipo`;
+    let subject = `${APP_NAME}: activa tu acceso`;
+    if (profileType === 'admin') subject = `${APP_NAME}: activa tu acceso de administrador`;
+    if (profileType === 'team_user') subject = `${APP_NAME}: activa tu acceso al equipo`;
 
     const intro = profileType === 'team_user'
-        ? 'Ya puedes ingresar con tu cuenta asociada al equipo.'
-        : 'Ya puedes ingresar al sistema con las credenciales temporales de acceso.';
+        ? 'Tu cuenta asociada al equipo ya esta creada. Usa este enlace para definir tu contrasena y entrar por primera vez.'
+        : 'Tu cuenta ya esta lista. Usa este enlace para crear tu contrasena y entrar por primera vez.';
 
     const html = `
       <div style="font-family:Arial,Helvetica,sans-serif;background:#0f172a;color:#e2e8f0;padding:24px;">
@@ -302,23 +311,26 @@ function buildWelcomeEmail(payload = {}) {
           <div style="padding:24px;">
             <p style="margin:0 0 16px;">Hola ${safeDisplayName},</p>
             <p style="margin:0 0 16px;">${escapeXml(intro)}</p>
-            <p style="margin:0 0 20px;">Esta cuenta fue creada por ${safeCreator}.</p>
+            <p style="margin:0 0 20px;">Esta cuenta fue creada por ${safeCreator}. El enlace vence en <strong>${ttlLabel}</strong> y solo puede usarse una vez.</p>
 
             <div style="background:#0b1220;border:1px solid #334155;border-radius:12px;padding:16px;margin:0 0 20px;">
               <p style="margin:0 0 8px;"><strong>Usuario:</strong> ${escapeXml(recipientEmail)}</p>
-              <p style="margin:0 0 8px;"><strong>Contrasena temporal:</strong> ${safePassword}</p>
-              <p style="margin:0;"><strong>URL de acceso:</strong> <a href="${safeLoginUrl}" style="color:#93c5fd;">${safeLoginUrl}</a></p>
+              <p style="margin:0;"><strong>Enlace de acceso:</strong> <a href="${safeLoginUrl}" style="color:#93c5fd;">${safeLoginUrl}</a></p>
             </div>
+
+            <p style="margin:0 0 24px;">
+              <a href="${safeLoginUrl}" style="display:inline-block;background:#6366f1;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;">Crear contrasena</a>
+            </p>
 
             <div style="background:#1e293b;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin:0 0 20px;">
               <p style="margin:0 0 10px;"><strong>Recomendaciones de seguridad</strong></p>
-              <p style="margin:0 0 8px;">1. Cambia esta contrasena apenas ingreses por primera vez.</p>
-              <p style="margin:0 0 8px;">2. No reutilices esta clave en otros sistemas.</p>
-              <p style="margin:0 0 8px;">3. Guardala en un gestor de contrasenas y no la compartas por chat.</p>
+              <p style="margin:0 0 8px;">1. Crea una contrasena nueva y unica para esta cuenta.</p>
+              <p style="margin:0 0 8px;">2. No compartas este enlace ni por correo ni por chat.</p>
+              <p style="margin:0 0 8px;">3. Guarda tu contrasena en un gestor seguro.</p>
               <p style="margin:0;">4. Si no reconoces esta cuenta, responde a este correo para invalidarla.</p>
             </div>
 
-            <p style="margin:0;color:#94a3b8;font-size:13px;">Este correo contiene una clave temporal. Si mas adelante quieres forzar cambio de contrasena al primer ingreso, se puede dejar automatizado desde el backend y la base de datos.</p>
+            <p style="margin:0;color:#94a3b8;font-size:13px;">Por seguridad, este mensaje no incluye ninguna contrasena. El acceso queda habilitado cuando defines tu propia clave.</p>
           </div>
         </div>
       </div>
@@ -329,15 +341,15 @@ function buildWelcomeEmail(payload = {}) {
         '',
         `Perfil asignado: ${profileLabel}`,
         `Usuario: ${recipientEmail}`,
-        `Contrasena temporal: ${temporaryPassword}`,
-        `URL de acceso: ${loginUrl}`,
+        `Enlace de acceso: ${loginUrl}`,
         '',
         `Cuenta creada por: ${createdByName || createdByRole || 'el equipo de administracion'}`,
+        `El enlace vence en ${ttlLabel}.`,
         '',
         'Recomendaciones de seguridad:',
-        '- Cambia la contrasena apenas ingreses por primera vez.',
-        '- No reutilices esta clave en otros sistemas.',
-        '- Guardala en un gestor de contrasenas y no la compartas.',
+        '- Crea una contrasena nueva y unica para esta cuenta.',
+        '- No compartas este enlace ni por correo ni por chat.',
+        '- Guarda tu contrasena en un gestor seguro.',
         '- Si no reconoces esta cuenta, responde a este correo para invalidarla.'
     ].join('\n');
 
@@ -397,6 +409,72 @@ function buildResetPasswordEmail(req, payload = {}) {
     ].join('\n');
 
     return { subject, html, text, resetUrl };
+}
+
+async function issuePasswordAccessEmail(req, payload = {}) {
+    const email = String(payload.email || payload.recipientEmail || '').trim().toLowerCase();
+
+    const { data: userProfile, error: userError } = await supabase
+        .from('users')
+        .select('id, email, full_name, role')
+        .ilike('email', email)
+        .maybeSingle();
+
+    if (userError) {
+        throw userError;
+    }
+
+    if (!userProfile?.id || !userProfile?.email) {
+        return { delivered: false, userProfile: null };
+    }
+
+    const { resetToken, tokenHash, expiresAt } = createPasswordResetTokenRecord();
+
+    await supabase
+        .from('password_reset_tokens')
+        .delete()
+        .eq('user_id', userProfile.id);
+
+    const { error: insertError } = await supabase
+        .from('password_reset_tokens')
+        .insert({
+            user_id: userProfile.id,
+            email: userProfile.email,
+            token_hash: tokenHash,
+            expires_at: expiresAt,
+            requested_ip: getRequestIp(req),
+            user_agent: String(req.headers['user-agent'] || '').slice(0, 500) || null
+        });
+
+    if (insertError) {
+        throw insertError;
+    }
+
+    const mailBuilder = String(payload.mode || 'reset').trim() === 'invite' ? buildWelcomeEmail : buildResetPasswordEmail;
+    const mail = mailBuilder(req, {
+        recipientName: userProfile.full_name || payload.recipientName,
+        recipientEmail: userProfile.email,
+        resetToken,
+        profileType: payload.profileType || userProfile.role,
+        createdByRole: payload.createdByRole,
+        createdByName: payload.createdByName
+    });
+
+    const transport = await createMailTransport(req);
+    const info = await transport.sendMail({
+        from: getMailFromHeader(),
+        to: userProfile.email,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html
+    });
+
+    return {
+        delivered: true,
+        userProfile,
+        messageId: info.messageId,
+        accepted: info.accepted || []
+    };
 }
 
 function normalizeTerm(input) {
@@ -4472,13 +4550,12 @@ app.get('/api/mail/google/callback', async (req, res) => {
 app.post('/api/mail/send-welcome', async (req, res) => {
     try {
         const recipientEmail = String(req.body?.recipientEmail || '').trim();
-        const temporaryPassword = String(req.body?.temporaryPassword || '').trim();
         const profileType = String(req.body?.profileType || 'user').trim();
 
-        if (!recipientEmail || !temporaryPassword) {
+        if (!recipientEmail) {
             return res.status(400).json({
                 success: false,
-                error: 'recipientEmail y temporaryPassword son requeridos.'
+                error: 'recipientEmail es requerido.'
             });
         }
 
@@ -4490,24 +4567,22 @@ app.post('/api/mail/send-welcome', async (req, res) => {
             });
         }
 
-        const mail = buildWelcomeEmail({
+        const info = await issuePasswordAccessEmail(req, {
+            email: recipientEmail,
             recipientName: req.body?.recipientName,
-            recipientEmail,
-            temporaryPassword,
             profileType,
             createdByRole: req.body?.createdByRole,
             createdByName: req.body?.createdByName,
-            loginUrl: req.body?.loginUrl
+            mode: 'invite'
         });
 
-        const transport = await createMailTransport(req);
-        const info = await transport.sendMail({
-            from: getMailFromHeader(),
-            to: recipientEmail,
-            subject: mail.subject,
-            text: mail.text,
-            html: mail.html
-        });
+        if (!info.delivered) {
+            return res.status(404).json({
+                success: false,
+                configured: true,
+                error: 'No se encontro la cuenta para preparar el acceso.'
+            });
+        }
 
         res.json({
             success: true,
@@ -4560,63 +4635,20 @@ app.post('/api/auth/forgot-password', async (req, res) => {
             message: 'Si el correo existe, enviaremos instrucciones para restablecer la contrasena.'
         };
 
-        const { data: userProfile, error: userError } = await supabase
-            .from('users')
-            .select('id, email, full_name')
-            .ilike('email', email)
-            .maybeSingle();
-
-        if (userError) {
-            console.error('[Forgot Password] Error loading user profile:', userError);
+        let mailResult;
+        try {
+            mailResult = await issuePasswordAccessEmail(req, {
+                email,
+                mode: 'reset'
+            });
+        } catch (mailError) {
+            console.error('[Forgot Password] Error preparing reset email:', mailError);
             return res.json(genericResponse);
         }
 
-        if (!userProfile?.id || !userProfile?.email) {
+        if (!mailResult?.delivered) {
             return res.json(genericResponse);
         }
-
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        const tokenHash = sha256(resetToken);
-        const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000).toISOString();
-
-        await supabase
-            .from('password_reset_tokens')
-            .delete()
-            .eq('user_id', userProfile.id);
-
-        const { error: insertError } = await supabase
-            .from('password_reset_tokens')
-            .insert({
-                user_id: userProfile.id,
-                email: userProfile.email,
-                token_hash: tokenHash,
-                expires_at: expiresAt,
-                requested_ip: ip,
-                user_agent: String(req.headers['user-agent'] || '').slice(0, 500) || null
-            });
-
-        if (insertError) {
-            console.error('[Forgot Password] Error storing token:', insertError);
-            return res.status(500).json({
-                success: false,
-                error: 'No se pudo generar la recuperacion de contrasena.'
-            });
-        }
-
-        const mail = buildResetPasswordEmail(req, {
-            recipientName: userProfile.full_name,
-            recipientEmail: userProfile.email,
-            resetToken
-        });
-
-        const transport = await createMailTransport(req);
-        await transport.sendMail({
-            from: getMailFromHeader(),
-            to: userProfile.email,
-            subject: mail.subject,
-            text: mail.text,
-            html: mail.html
-        });
 
         res.json(genericResponse);
     } catch (error) {

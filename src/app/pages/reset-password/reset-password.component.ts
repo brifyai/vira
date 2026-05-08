@@ -13,6 +13,7 @@ import { SupabaseService } from '../../services/supabase.service';
 })
 export class ResetPasswordComponent implements OnInit {
     token = '';
+    mode: 'reset' | 'invite' = 'reset';
     newPassword = '';
     confirmPassword = '';
     loading = false;
@@ -27,6 +28,7 @@ export class ResetPasswordComponent implements OnInit {
 
     ngOnInit(): void {
         this.token = String(this.route.snapshot.queryParamMap.get('token') || '').trim();
+        this.mode = this.route.snapshot.queryParamMap.get('mode') === 'invite' ? 'invite' : 'reset';
         if (!this.token) {
             this.errorMessage = 'El enlace de recuperacion no es valido o esta incompleto.';
         }
@@ -78,5 +80,15 @@ export class ResetPasswordComponent implements OnInit {
 
     navigateToLogin(): void {
         this.router.navigate(['/login']);
+    }
+
+    get title(): string {
+        return this.mode === 'invite' ? 'Activar Acceso' : 'Restablecer Contraseña';
+    }
+
+    get subtitle(): string {
+        return this.mode === 'invite'
+            ? 'Crea tu contraseña para ingresar por primera vez'
+            : 'Crea una nueva contraseña para volver a ingresar';
     }
 }

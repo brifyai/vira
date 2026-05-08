@@ -20,7 +20,7 @@ export class EquipoComponent implements OnInit {
     creatingMember = false;
 
     showCreateModal = false;
-    newMember = { email: '', password: '', fullName: '' };
+    newMember = { email: '', fullName: '' };
 
     totals = { broadcasts: 0, cost: 0 };
 
@@ -55,7 +55,7 @@ export class EquipoComponent implements OnInit {
     }
 
     openCreateModal() {
-        this.newMember = { email: '', password: '', fullName: '' };
+        this.newMember = { email: '', fullName: '' };
         this.showCreateModal = true;
     }
 
@@ -85,38 +85,38 @@ export class EquipoComponent implements OnInit {
     }
 
     async createMember() {
-        if (!this.newMember.email || !this.newMember.password) {
-            this.showSnackBar('Email y contraseña son requeridos', 'error-snackbar');
-            return;
-        }
-        if (String(this.newMember.password).length < 6) {
-            this.showSnackBar('La contraseña debe tener mínimo 6 caracteres', 'error-snackbar');
+        const email = String(this.newMember.email || '').trim().toLowerCase();
+        const fullName = String(this.newMember.fullName || '').trim();
+
+        if (!email) {
+            this.showSnackBar('El email es requerido', 'error-snackbar');
             return;
         }
 
         this.creatingMember = true;
 
         try {
+            const generatedPassword = this.supabaseService.generateSecurePassword();
+
             await this.supabaseService.createTeamUser({
-                email: this.newMember.email,
-                password: this.newMember.password,
-                fullName: this.newMember.fullName
+                email,
+                password: generatedPassword,
+                fullName
             });
 
             const mailResult = await this.supabaseService.sendWelcomeEmail({
-                recipientEmail: this.newMember.email,
-                recipientName: this.newMember.fullName,
-                temporaryPassword: this.newMember.password,
+                recipientEmail: email,
+                recipientName: fullName,
                 profileType: 'team_user',
                 createdByRole: this.currentUserRole,
                 createdByName: this.currentUserName
             });
 
             if (mailResult?.success) {
-                this.showSnackBar('Usuario de equipo creado y correo enviado', 'success-snackbar');
+                this.showSnackBar('Usuario de equipo creado y enlace de acceso enviado', 'success-snackbar');
             } else {
                 this.showSnackBar(
-                    `Usuario de equipo creado, pero el correo falló: ${mailResult?.error || 'Error desconocido.'}`,
+                    `Usuario de equipo creado, pero el enlace de acceso falló: ${mailResult?.error || 'Error desconocido.'}`,
                     'error-snackbar'
                 );
             }

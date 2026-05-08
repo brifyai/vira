@@ -28,7 +28,6 @@ export class UsersComponent implements OnInit {
   
   newUser = {
     email: '',
-    password: '',
     fullName: '',
     role: 'user'
   };
@@ -46,7 +45,7 @@ export class UsersComponent implements OnInit {
   
   openCreateUserModal() {
     if (this.currentUserRole !== 'super_admin') return;
-    this.newUser = { email: '', password: '', fullName: '', role: 'user' };
+    this.newUser = { email: '', fullName: '', role: 'user' };
     this.showCreateUserModal = true;
   }
 
@@ -56,33 +55,39 @@ export class UsersComponent implements OnInit {
 
   async createUser() {
     if (this.currentUserRole !== 'super_admin') return;
-    if (!this.newUser.email || !this.newUser.password) {
-      this.showSnackBar('Email y contraseña son requeridos', 'error-snackbar');
-      return;
-    }
-    if (String(this.newUser.password).length < 6) {
-      this.showSnackBar('La contraseña debe tener mínimo 6 caracteres', 'error-snackbar');
+    const email = String(this.newUser.email || '').trim().toLowerCase();
+    const fullName = String(this.newUser.fullName || '').trim();
+
+    if (!email) {
+      this.showSnackBar('El email es requerido', 'error-snackbar');
       return;
     }
 
     this.creatingUser = true;
 
     try {
-      await this.supabaseService.createUser(this.newUser);
+      const generatedPassword = this.supabaseService.generateSecurePassword();
+
+      await this.supabaseService.createUser({
+        email,
+        password: generatedPassword,
+        role: this.newUser.role,
+        fullName
+      });
+
       const mailResult = await this.supabaseService.sendWelcomeEmail({
-        recipientEmail: this.newUser.email,
-        recipientName: this.newUser.fullName,
-        temporaryPassword: this.newUser.password,
+        recipientEmail: email,
+        recipientName: fullName,
         profileType: this.newUser.role === 'admin' ? 'admin' : 'user',
         createdByRole: this.currentUserRole,
         createdByName: this.currentUserName
       });
 
       if (mailResult?.success) {
-        this.showSnackBar('Usuario creado y correo de bienvenida enviado', 'success-snackbar');
+        this.showSnackBar('Usuario creado y enlace de acceso enviado', 'success-snackbar');
       } else {
         this.showSnackBar(
-          `Usuario creado, pero el correo falló: ${mailResult?.error || 'Error desconocido.'}`,
+          `Usuario creado, pero el enlace de acceso falló: ${mailResult?.error || 'Error desconocido.'}`,
           'error-snackbar'
         );
       }
