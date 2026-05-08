@@ -116,7 +116,7 @@ export class EquipoComponent implements OnInit {
                 this.showSnackBar('Usuario de equipo creado y correo enviado', 'success-snackbar');
             } else {
                 this.showSnackBar(
-                    'Usuario de equipo creado. El correo no se pudo enviar; revisa la configuración de Gmail.',
+                    `Usuario de equipo creado, pero el correo falló: ${mailResult?.error || 'Error desconocido.'}`,
                     'error-snackbar'
                 );
             }

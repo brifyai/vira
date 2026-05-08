@@ -82,7 +82,7 @@ export class UsersComponent implements OnInit {
         this.showSnackBar('Usuario creado y correo de bienvenida enviado', 'success-snackbar');
       } else {
         this.showSnackBar(
-          'Usuario creado. El correo no se pudo enviar; revisa la configuración de Gmail.',
+          `Usuario creado, pero el correo falló: ${mailResult?.error || 'Error desconocido.'}`,
           'error-snackbar'
         );
       }
