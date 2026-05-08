@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SupabaseService } from '../../services/supabase.service';
@@ -24,17 +24,33 @@ export class ProfileComponent implements OnInit {
 
     constructor(
         private authService: AuthService,
-        private supabaseService: SupabaseService
+        private supabaseService: SupabaseService,
+        private cdr: ChangeDetectorRef
     ) {}
 
     async ngOnInit(): Promise<void> {
         this.user = this.authService.getCurrentUser();
+        this.profile = this.buildFallbackProfile(this.user);
+        this.loading = false;
+        this.cdr.detectChanges();
 
-        if (this.user?.id) {
-            this.profile = await this.supabaseService.getUserProfile(this.user.id);
+        if (!this.user?.id) {
+            return;
         }
 
-        this.loading = false;
+        try {
+            const profile = await Promise.race([
+                this.supabaseService.getUserProfile(this.user.id),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+            ]);
+
+            if (profile) {
+                this.profile = profile;
+            }
+        } finally {
+            this.loading = false;
+            this.cdr.detectChanges();
+        }
     }
 
     async changePassword(): Promise<void> {
@@ -70,5 +86,15 @@ export class ProfileComponent implements OnInit {
         } finally {
             this.savingPassword = false;
         }
+    }
+
+    private buildFallbackProfile(user: User | null) {
+        if (!user) return null;
+
+        return {
+            full_name: user.name || 'Sin nombre',
+            email: user.email || '',
+            role: user.role || 'user'
+        };
     }
 }
