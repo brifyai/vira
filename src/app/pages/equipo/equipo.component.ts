@@ -30,6 +30,25 @@ export class EquipoComponent implements OnInit {
         private snackBar: MatSnackBar
     ) { }
 
+    private getDeleteSwalTheme() {
+        return {
+            background: '#0f172a',
+            color: '#e2e8f0',
+            heightAuto: false,
+            reverseButtons: true,
+            buttonsStyling: false,
+            customClass: {
+                popup: 'vira-swal-popup',
+                title: 'vira-swal-title',
+                htmlContainer: 'vira-swal-text',
+                actions: 'vira-swal-actions',
+                confirmButton: 'vira-swal-confirm',
+                denyButton: 'vira-swal-deny',
+                cancelButton: 'vira-swal-cancel'
+            }
+        };
+    }
+
     async ngOnInit() {
         await this.loadCurrentUserContext();
         await this.loadTeam();
@@ -132,7 +151,7 @@ export class EquipoComponent implements OnInit {
             confirmButtonText: 'Transferir al admin',
             denyButtonText: 'Borrar todo',
             cancelButtonText: 'Cancelar',
-            reverseButtons: true
+            ...this.getDeleteSwalTheme()
         });
 
         if (result.isDismissed) return;
@@ -147,7 +166,8 @@ export class EquipoComponent implements OnInit {
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Confirmar',
-            cancelButtonText: 'Cancelar'
+            cancelButtonText: 'Cancelar',
+            ...this.getDeleteSwalTheme()
         });
 
         if (!confirm.isConfirmed) return;
