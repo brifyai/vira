@@ -16,6 +16,8 @@ export class UsersComponent implements OnInit {
   radios: any[] = [];
   loading = true;
   currentUserRole: string = 'user';
+  currentUserName = '';
+  creatingUser = false;
 
   // Modal states
   showRadioModal = false;
@@ -58,15 +60,40 @@ export class UsersComponent implements OnInit {
       this.showSnackBar('Email y contraseña son requeridos', 'error-snackbar');
       return;
     }
+    if (String(this.newUser.password).length < 6) {
+      this.showSnackBar('La contraseña debe tener mínimo 6 caracteres', 'error-snackbar');
+      return;
+    }
+
+    this.creatingUser = true;
 
     try {
       await this.supabaseService.createUser(this.newUser);
-      this.showSnackBar('Usuario creado exitosamente', 'success-snackbar');
+      const mailResult = await this.supabaseService.sendWelcomeEmail({
+        recipientEmail: this.newUser.email,
+        recipientName: this.newUser.fullName,
+        temporaryPassword: this.newUser.password,
+        profileType: this.newUser.role === 'admin' ? 'admin' : 'user',
+        createdByRole: this.currentUserRole,
+        createdByName: this.currentUserName
+      });
+
+      if (mailResult?.success) {
+        this.showSnackBar('Usuario creado y correo de bienvenida enviado', 'success-snackbar');
+      } else {
+        this.showSnackBar(
+          'Usuario creado. El correo no se pudo enviar; revisa la configuración de Gmail.',
+          'error-snackbar'
+        );
+      }
+
       this.closeCreateUserModal();
       await this.loadData();
     } catch (error: any) {
       console.error('Error creating user:', error);
       this.showSnackBar(error.message || 'Error al crear usuario', 'error-snackbar');
+    } finally {
+      this.creatingUser = false;
     }
   }
 
@@ -75,6 +102,7 @@ export class UsersComponent implements OnInit {
     if (user) {
       const profile = await this.supabaseService.getUserProfile(user.id);
       this.currentUserRole = profile?.role || 'user';
+      this.currentUserName = profile?.full_name || user.email || '';
     }
   }
 

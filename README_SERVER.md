@@ -4,10 +4,12 @@ Este servidor Node.js/Express proporciona los endpoints necesarios para la funci
 
 ## Instalación
 
-Las dependencias ya están instaladas en el proyecto:
+Las dependencias usadas por el backend incluyen:
 - express
 - cors
 - @supabase/supabase-js
+- nodemailer
+- googleapis
 
 ## Ejecución
 
@@ -62,6 +64,33 @@ El servidor se iniciará en el puerto **8888**.
 El servidor está configurado con:
 - **Supabase URL:** https://xetifamvebflkytbwmir.supabase.co
 - **ScrapingBee API Key:** Configurada en el código del servidor
+
+### Correo de bienvenida con Gmail OAuth
+
+Estas variables deben existir solo en el backend:
+
+```env
+BACKEND_PUBLIC_URL=https://tu-backend.com
+APP_URL=https://tu-frontend.com
+MAIL_LOGIN_URL=https://tu-frontend.com/login
+MAIL_FROM_NAME=VIRA
+MAIL_FROM_ADDRESS=notificaciones@tu-dominio.com
+GOOGLE_MAIL_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
+GOOGLE_MAIL_CLIENT_SECRET=tu_secreto_privado
+GOOGLE_MAIL_REDIRECT_URI=https://tu-backend.com/api/mail/google/callback
+GOOGLE_MAIL_REFRESH_TOKEN=se_obtiene_despues_del_callback
+```
+
+Flujo recomendado:
+
+1. Configura en Google Cloud Console un OAuth Client de tipo `Web application`.
+2. En `Authorized redirect URIs` agrega `https://tu-backend.com/api/mail/google/callback`.
+3. Levanta el backend y abre `GET /api/mail/google/auth-url`.
+4. Autoriza la cuenta Gmail que enviará correos.
+5. Copia el `refresh token` mostrado por el callback y guárdalo como `GOOGLE_MAIL_REFRESH_TOKEN`.
+6. Verifica el estado con `GET /api/mail/status`.
+
+El frontend ya no expone `googleClientSecret`, `googleClientId`, `googleRedirectUri` ni `googleCloudTtsApiKey` en `public/env.js`.
 
 ## Integración con la Aplicación Angular
 

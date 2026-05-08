@@ -23,6 +23,13 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     margin-bottom: 18px;
 }
 
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .page-title {
     font-size: 32px;
     font-weight: 700;
@@ -50,12 +57,8 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
 .filters-row {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 12px;
-
-    @media (max-width: 1100px) {
-        grid-template-columns: 1fr 1fr;
-    }
 }
 
 .filter-group {
@@ -386,7 +389,8 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .primary-btn,
-.secondary-btn {
+.secondary-btn,
+.ghost-btn {
     padding: 10px 12px;
     border-radius: 10px;
     border: 1px solid $dark-border;
@@ -406,6 +410,18 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 .primary-btn {
     background: linear-gradient(135deg, $primary-color 0%, $secondary-color 100%);
     border: none;
+}
+
+.ghost-btn {
+    background: transparent;
+    border-color: rgba(99, 102, 241, 0.35);
+    color: $text-secondary;
+
+    &:hover:not(:disabled) {
+        color: $text-primary;
+        border-color: rgba(99, 102, 241, 0.6);
+        background: rgba(99, 102, 241, 0.08);
+    }
 }
 
 .loading-state {

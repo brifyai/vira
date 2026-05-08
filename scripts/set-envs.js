@@ -20,11 +20,6 @@ const envConfig = {
   supabaseAnonKey: getEnv('supabaseAnonKey', 'SUPABASE_ANON_KEY'),
   scrapingBeeApiKey: getEnv('scrapingBeeApiKey', 'SCRAPING_BEE_API_KEY'),
   cronSecret: getEnv('cronSecret', 'CRON_SECRET'),
-  googleClientId: getEnv('googleClientId', 'GOOGLE_CLIENT_ID'),
-  googleClientSecret: getEnv('googleClientSecret', 'GOOGLE_CLIENT_SECRET'),
-  googleRedirectUri: getEnv('googleRedirectUri', 'GOOGLE_REDIRECT_URI', 'https://vira-swart.vercel.app/api/auth/google/callback'),
-  // geminiApiKey: REMOVED FOR SECURITY - NOW ON SERVER SIDE ONLY
-  googleCloudTtsApiKey: getEnv('googleCloudTtsApiKey', 'GOOGLE_CLOUD_TTS_API_KEY'),
   defaultVoiceSettings: {
     language: 'es-ES',
     voice: 'es-ES-Wavenet-B',
@@ -46,10 +41,6 @@ const getEnvFileContent = () => {
   window.__env.supabaseAnonKey = '${envConfig.supabaseAnonKey}';
   window.__env.scrapingBeeApiKey = '${envConfig.scrapingBeeApiKey}';
   window.__env.cronSecret = '${envConfig.cronSecret}';
-  window.__env.googleClientId = '${envConfig.googleClientId}';
-  window.__env.googleClientSecret = '${envConfig.googleClientSecret}';
-  window.__env.googleRedirectUri = '${envConfig.googleRedirectUri}';
-  window.__env.googleCloudTtsApiKey = '${envConfig.googleCloudTtsApiKey}';
   window.__env.defaultVoiceSettings = ${JSON.stringify(envConfig.defaultVoiceSettings)};
 
 }(this));

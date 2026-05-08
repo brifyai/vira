@@ -84,14 +84,16 @@
                 <div class="form-group">
                     <label>Contraseña</label>
                     <input type="password" [(ngModel)]="newMember.password" placeholder="Mínimo 6 caracteres">
+                    <small>Se enviará como contraseña temporal en el correo de bienvenida.</small>
                 </div>
             </div>
 
             <div class="modal-footer">
-                <button class="cancel-btn" (click)="closeCreateModal()">Cancelar</button>
-                <button class="save-btn" (click)="createMember()">Crear</button>
+                <button class="cancel-btn" (click)="closeCreateModal()" [disabled]="creatingMember">Cancelar</button>
+                <button class="save-btn" (click)="createMember()" [disabled]="creatingMember">
+                    {{ creatingMember ? 'Creando...' : 'Crear' }}
+                </button>
             </div>
         </div>
     </div>
 </div>
-

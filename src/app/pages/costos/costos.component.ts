@@ -27,6 +27,8 @@ export class CostosComponent implements OnInit {
 
     selectedUserId = 'all';
     selectedAction = 'all';
+    selectedRole = 'all';
+    selectedManagerId = 'all';
     fromDate = '';
     toDate = '';
 
@@ -54,7 +56,7 @@ export class CostosComponent implements OnInit {
 
     get totalCostByCurrency(): Array<{ currency: string; total: number }> {
         const map = new Map<string, number>();
-        for (const e of this.events) {
+        for (const e of this.filteredEvents) {
             const currency = String(e.currency || 'USD');
             const total = Number(e.total_cost || 0);
             map.set(currency, (map.get(currency) || 0) + total);
@@ -76,10 +78,43 @@ export class CostosComponent implements OnInit {
         return this.currentUserRole === 'admin';
     }
 
+    get hasActiveFilters(): boolean {
+        return this.selectedUserId !== 'all'
+            || this.selectedAction !== 'all'
+            || this.selectedRole !== 'all'
+            || this.selectedManagerId !== 'all'
+            || !!this.fromDate
+            || !!this.toDate;
+    }
+
+    get availableRoleFilters(): Array<{ value: string; label: string }> {
+        return [
+            { value: 'all', label: 'Todos' },
+            { value: 'super_admin', label: 'Super Admin' },
+            { value: 'admin', label: 'Admin' },
+            { value: 'user', label: 'Usuario' }
+        ];
+    }
+
+    get availableManagerFilters(): any[] {
+        return this.users
+            .filter(u => u?.role === 'admin')
+            .sort((a, b) => this.displayUser(a).localeCompare(this.displayUser(b), 'es'));
+    }
+
+    get filteredEvents(): any[] {
+        return this.events.filter(event => this.matchesAdvancedFilters(event.user));
+    }
+
+    get filteredBroadcasts(): any[] {
+        return this.broadcasts.filter(broadcast => this.matchesAdvancedFilters(broadcast.creator));
+    }
+
     get activitySummary(): any[] {
         const summary = new Map<string, any>();
+        const baseUsers = this.users.filter(user => this.matchesAdvancedFilters(user));
 
-        for (const user of this.users) {
+        for (const user of baseUsers) {
             summary.set(user.id, {
                 userId: user.id,
                 user,
@@ -89,7 +124,7 @@ export class CostosComponent implements OnInit {
             });
         }
 
-        for (const event of this.events) {
+        for (const event of this.filteredEvents) {
             const userId = event.user_id;
             if (!summary.has(userId)) {
                 summary.set(userId, {
@@ -106,7 +141,7 @@ export class CostosComponent implements OnInit {
             row.totalCost += Number(event.total_cost || 0);
         }
 
-        for (const broadcast of this.broadcasts) {
+        for (const broadcast of this.filteredBroadcasts) {
             const userId = broadcast.created_by;
             if (!summary.has(userId)) {
                 summary.set(userId, {
@@ -123,7 +158,7 @@ export class CostosComponent implements OnInit {
         }
 
         return Array.from(summary.values())
-            .filter(row => !!row.user)
+            .filter(row => !!row.user && (row.eventCount > 0 || row.broadcastCount > 0))
             .sort((a, b) => {
                 if (this.canViewCosts) {
                     const costDiff = Number(b.totalCost || 0) - Number(a.totalCost || 0);
@@ -136,20 +171,15 @@ export class CostosComponent implements OnInit {
     get adminTeamMonitoring(): any[] {
         if (this.currentUserRole !== 'super_admin') return [];
 
-        const userById = new Map<string, any>();
-        for (const user of this.users) {
-            userById.set(user.id, user);
-        }
-
         const broadcastCountByUser = new Map<string, number>();
-        for (const broadcast of this.broadcasts) {
+        for (const broadcast of this.filteredBroadcasts) {
             const userId = String(broadcast.created_by || '');
             if (!userId) continue;
             broadcastCountByUser.set(userId, (broadcastCountByUser.get(userId) || 0) + 1);
         }
 
         const costByUser = new Map<string, number>();
-        for (const event of this.events) {
+        for (const event of this.filteredEvents) {
             const userId = String(event.user_id || '');
             if (!userId) continue;
             costByUser.set(userId, (costByUser.get(userId) || 0) + Number(event.total_cost || 0));
@@ -157,8 +187,9 @@ export class CostosComponent implements OnInit {
 
         const admins = this.users
             .filter(u => u?.role === 'admin')
+            .filter(u => this.selectedManagerId === 'all' || u.id === this.selectedManagerId)
             .map(admin => {
-                const members = this.users
+                const allMembers = this.users
                     .filter(u => u?.manager_id === admin.id)
                     .map(member => ({
                         user: member,
@@ -167,14 +198,17 @@ export class CostosComponent implements OnInit {
                     }))
                     .sort((a, b) => Number(b.broadcastCount || 0) - Number(a.broadcastCount || 0));
 
-                const adminBroadcastCount = broadcastCountByUser.get(admin.id) || 0;
-                const adminCost = costByUser.get(admin.id) || 0;
-                const membersBroadcastCount = members.reduce((sum, item) => sum + Number(item.broadcastCount || 0), 0);
-                const membersCost = members.reduce((sum, item) => sum + Number(item.totalCost || 0), 0);
+                const includeAdmin = this.selectedRole !== 'user';
+                const visibleMembers = this.selectedRole === 'admin' ? [] : allMembers;
+
+                const adminBroadcastCount = includeAdmin ? (broadcastCountByUser.get(admin.id) || 0) : 0;
+                const adminCost = includeAdmin ? (costByUser.get(admin.id) || 0) : 0;
+                const membersBroadcastCount = visibleMembers.reduce((sum, item) => sum + Number(item.broadcastCount || 0), 0);
+                const membersCost = visibleMembers.reduce((sum, item) => sum + Number(item.totalCost || 0), 0);
 
                 return {
                     admin,
-                    members,
+                    members: visibleMembers,
                     adminBroadcastCount,
                     adminCost,
                     membersBroadcastCount,
@@ -189,14 +223,17 @@ export class CostosComponent implements OnInit {
                 return Number(b.totalCost || 0) - Number(a.totalCost || 0);
             });
 
-        return admins;
+        return admins.filter(group => {
+            if (this.selectedRole === 'super_admin') return false;
+            return group.totalBroadcastCount > 0 || group.totalCost > 0 || group.members.length > 0;
+        });
     }
 
     get teamBroadcastRows(): any[] {
         if (this.currentUserRole === 'admin') {
-            return this.broadcasts.filter(b => b?.creator?.manager_id === this.currentUserId);
+            return this.filteredBroadcasts.filter(b => b?.creator?.manager_id === this.currentUserId);
         }
-        return this.broadcasts;
+        return this.filteredBroadcasts;
     }
 
     get teamBroadcastCount(): number {
@@ -320,6 +357,17 @@ export class CostosComponent implements OnInit {
         await Promise.all(tasks);
     }
 
+    async clearFilters(): Promise<void> {
+        if (!this.hasActiveFilters) return;
+        this.selectedUserId = 'all';
+        this.selectedAction = 'all';
+        this.selectedRole = 'all';
+        this.selectedManagerId = 'all';
+        this.fromDate = '';
+        this.toDate = '';
+        await this.refreshAll();
+    }
+
     async saveRate(rate: any): Promise<void> {
         if (!rate?.action) return;
         this.savingRate = true;
@@ -368,6 +416,27 @@ export class CostosComponent implements OnInit {
         if (!user?.manager_id) return 'Cuenta propia';
         const manager = this.users.find(u => u.id === user.manager_id);
         return manager ? this.displayUser(manager) : 'Equipo';
+    }
+
+    private getResponsibleAdminId(user: any): string | null {
+        if (!user) return null;
+        if (user.role === 'admin') return user.id || null;
+        return user.manager_id || null;
+    }
+
+    private matchesAdvancedFilters(user: any): boolean {
+        if (this.currentUserRole !== 'super_admin') return true;
+        if (!user) return this.selectedRole === 'all' && this.selectedManagerId === 'all';
+
+        if (this.selectedRole !== 'all' && user.role !== this.selectedRole) {
+            return false;
+        }
+
+        if (this.selectedManagerId !== 'all') {
+            return this.getResponsibleAdminId(user) === this.selectedManagerId;
+        }
+
+        return true;
     }
 
     displayRole(user: any): string {

@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
 
 function getEnvValue(name) {
     const direct = process.env[name];
@@ -55,6 +57,37 @@ const MINIMAX_API_KEY = getEnvValue('REACT_MINIMAX_API_KEY');
 const GROQ_API_KEY = getEnvValue('REACT_GROQ_API_KEY');
 const CHATTERBOX_DEBUG = ['1', 'true', 'yes', 'on'].includes(getEnvValue('CHATTERBOX_DEBUG').toLowerCase());
 const CRON_SECRET = getEnvValue('CRON_SECRET');
+const APP_NAME = getEnvValue('APP_NAME') || 'VIRA';
+
+function normalizeBaseUrl(value) {
+    return String(value || '')
+        .trim()
+        .replace(/\/+$/, '')
+        .replace(/\/api$/, '');
+}
+
+const backendPublicUrl = normalizeBaseUrl(
+    getEnvValue('BACKEND_PUBLIC_URL') ||
+    getEnvValue('API_URL') ||
+    getEnvValue('apiUrl')
+);
+const appPublicUrl = normalizeBaseUrl(
+    getEnvValue('APP_URL') ||
+    getEnvValue('appUrl') ||
+    backendPublicUrl
+);
+const GOOGLE_MAIL_CLIENT_ID = getEnvValue('GOOGLE_MAIL_CLIENT_ID');
+const GOOGLE_MAIL_CLIENT_SECRET = getEnvValue('GOOGLE_MAIL_CLIENT_SECRET');
+const GOOGLE_MAIL_REFRESH_TOKEN = getEnvValue('GOOGLE_MAIL_REFRESH_TOKEN');
+const GOOGLE_MAIL_REDIRECT_URI = getEnvValue('GOOGLE_MAIL_REDIRECT_URI') || (
+    backendPublicUrl ? `${backendPublicUrl}/api/mail/google/callback` : ''
+);
+const MAIL_FROM_NAME = getEnvValue('MAIL_FROM_NAME') || APP_NAME;
+const MAIL_FROM_ADDRESS = getEnvValue('MAIL_FROM_ADDRESS');
+const MAIL_LOGIN_URL = normalizeBaseUrl(
+    getEnvValue('MAIL_LOGIN_URL') ||
+    appPublicUrl
+);
 
 // --- Debug Environment Variables (Safe Log) ---
 console.log('[Server] Starting...');
@@ -66,6 +99,11 @@ console.log(`- REACT_MINIMAX_API_KEY Present: ${!!MINIMAX_API_KEY}`);
 console.log(`- REACT_GROQ_API_KEY Present: ${!!GROQ_API_KEY}`);
 console.log(`- RUNPOD_API_KEY Present: ${!!RUNPOD_API_KEY}`);
 console.log(`- CRON_SECRET Present: ${!!CRON_SECRET}`);
+console.log(`- GOOGLE_MAIL_CLIENT_ID Present: ${!!GOOGLE_MAIL_CLIENT_ID}`);
+console.log(`- GOOGLE_MAIL_CLIENT_SECRET Present: ${!!GOOGLE_MAIL_CLIENT_SECRET}`);
+console.log(`- GOOGLE_MAIL_REFRESH_TOKEN Present: ${!!GOOGLE_MAIL_REFRESH_TOKEN}`);
+console.log(`- GOOGLE_MAIL_REDIRECT_URI: ${GOOGLE_MAIL_REDIRECT_URI || '(auto pendiente de BACKEND_PUBLIC_URL/API_URL)'}`);
+console.log(`- MAIL_FROM_ADDRESS Present: ${!!MAIL_FROM_ADDRESS}`);
 // ----------------------------------------------
 
 // Helper for escaping XML
@@ -119,6 +157,162 @@ const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
         }
     }
 };
+
+function maskEmail(value) {
+    const email = String(value || '').trim();
+    if (!email.includes('@')) return '';
+    const [name, domain] = email.split('@');
+    const safeName = name.length <= 2 ? `${name[0] || '*'}*` : `${name.slice(0, 2)}***`;
+    return `${safeName}@${domain}`;
+}
+
+function buildRuntimeBaseUrl(req) {
+    if (backendPublicUrl) return backendPublicUrl;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    return host ? `${protocol}://${host}` : '';
+}
+
+function buildMailRedirectUri(req) {
+    return GOOGLE_MAIL_REDIRECT_URI || `${buildRuntimeBaseUrl(req)}/api/mail/google/callback`;
+}
+
+function hasMailOAuthClientConfig(req) {
+    return !!(GOOGLE_MAIL_CLIENT_ID && GOOGLE_MAIL_CLIENT_SECRET && buildMailRedirectUri(req));
+}
+
+function isMailSendingConfigured(req) {
+    return !!(hasMailOAuthClientConfig(req) && GOOGLE_MAIL_REFRESH_TOKEN && MAIL_FROM_ADDRESS);
+}
+
+function createMailOAuthClient(req) {
+    return new google.auth.OAuth2(
+        GOOGLE_MAIL_CLIENT_ID,
+        GOOGLE_MAIL_CLIENT_SECRET,
+        buildMailRedirectUri(req)
+    );
+}
+
+async function createMailTransport(req) {
+    if (!isMailSendingConfigured(req)) {
+        throw new Error('El correo no está configurado. Faltan GOOGLE_MAIL_* o MAIL_FROM_ADDRESS.');
+    }
+
+    const oauth2Client = createMailOAuthClient(req);
+    oauth2Client.setCredentials({ refresh_token: GOOGLE_MAIL_REFRESH_TOKEN });
+
+    const accessTokenResponse = await oauth2Client.getAccessToken();
+    const accessToken = typeof accessTokenResponse === 'string'
+        ? accessTokenResponse
+        : accessTokenResponse?.token;
+
+    if (!accessToken) {
+        throw new Error('No se pudo obtener el access token de Gmail.');
+    }
+
+    return nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            type: 'OAuth2',
+            user: MAIL_FROM_ADDRESS,
+            clientId: GOOGLE_MAIL_CLIENT_ID,
+            clientSecret: GOOGLE_MAIL_CLIENT_SECRET,
+            refreshToken: GOOGLE_MAIL_REFRESH_TOKEN,
+            accessToken
+        }
+    });
+}
+
+function getMailFromHeader() {
+    if (!MAIL_FROM_NAME) return MAIL_FROM_ADDRESS;
+    const safeName = String(MAIL_FROM_NAME).replace(/"/g, '\\"');
+    return `"${safeName}" <${MAIL_FROM_ADDRESS}>`;
+}
+
+function resolveProfileLabel(profileType) {
+    switch (String(profileType || '').trim()) {
+        case 'admin':
+            return 'Administrador';
+        case 'team_user':
+            return 'Integrante de equipo';
+        default:
+            return 'Usuario';
+    }
+}
+
+function buildWelcomeEmail(payload = {}) {
+    const recipientName = String(payload.recipientName || '').trim();
+    const recipientEmail = String(payload.recipientEmail || '').trim();
+    const temporaryPassword = String(payload.temporaryPassword || '').trim();
+    const profileType = String(payload.profileType || 'user').trim();
+    const createdByRole = String(payload.createdByRole || '').trim();
+    const createdByName = String(payload.createdByName || '').trim();
+    const loginUrl = String(payload.loginUrl || MAIL_LOGIN_URL || appPublicUrl || '').trim();
+    const safeDisplayName = escapeXml(recipientName || recipientEmail || 'usuario');
+    const safeLoginUrl = escapeXml(loginUrl);
+    const safePassword = escapeXml(temporaryPassword);
+    const safeCreator = escapeXml(createdByName || createdByRole || 'el equipo de administración');
+    const profileLabel = resolveProfileLabel(profileType);
+
+    let subject = `${APP_NAME}: acceso habilitado`;
+    if (profileType === 'admin') subject = `${APP_NAME}: acceso de administrador`;
+    if (profileType === 'team_user') subject = `${APP_NAME}: acceso a tu equipo`;
+
+    const intro = profileType === 'team_user'
+        ? 'Ya puedes ingresar con tu cuenta asociada al equipo.'
+        : 'Ya puedes ingresar al sistema con las credenciales temporales de acceso.';
+
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;background:#0f172a;color:#e2e8f0;padding:24px;">
+        <div style="max-width:640px;margin:0 auto;background:#111827;border:1px solid #334155;border-radius:16px;overflow:hidden;">
+          <div style="padding:24px 24px 8px;">
+            <h1 style="margin:0 0 8px;font-size:24px;color:#f8fafc;">Bienvenido a ${escapeXml(APP_NAME)}</h1>
+            <p style="margin:0;color:#cbd5e1;">Perfil asignado: <strong>${escapeXml(profileLabel)}</strong></p>
+          </div>
+          <div style="padding:24px;">
+            <p style="margin:0 0 16px;">Hola ${safeDisplayName},</p>
+            <p style="margin:0 0 16px;">${escapeXml(intro)}</p>
+            <p style="margin:0 0 20px;">Esta cuenta fue creada por ${safeCreator}.</p>
+
+            <div style="background:#0b1220;border:1px solid #334155;border-radius:12px;padding:16px;margin:0 0 20px;">
+              <p style="margin:0 0 8px;"><strong>Usuario:</strong> ${escapeXml(recipientEmail)}</p>
+              <p style="margin:0 0 8px;"><strong>Contrasena temporal:</strong> ${safePassword}</p>
+              <p style="margin:0;"><strong>URL de acceso:</strong> <a href="${safeLoginUrl}" style="color:#93c5fd;">${safeLoginUrl}</a></p>
+            </div>
+
+            <div style="background:#1e293b;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin:0 0 20px;">
+              <p style="margin:0 0 10px;"><strong>Recomendaciones de seguridad</strong></p>
+              <p style="margin:0 0 8px;">1. Cambia esta contrasena apenas ingreses por primera vez.</p>
+              <p style="margin:0 0 8px;">2. No reutilices esta clave en otros sistemas.</p>
+              <p style="margin:0 0 8px;">3. Guardala en un gestor de contrasenas y no la compartas por chat.</p>
+              <p style="margin:0;">4. Si no reconoces esta cuenta, responde a este correo para invalidarla.</p>
+            </div>
+
+            <p style="margin:0;color:#94a3b8;font-size:13px;">Este correo contiene una clave temporal. Si mas adelante quieres forzar cambio de contrasena al primer ingreso, se puede dejar automatizado desde el backend y la base de datos.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const text = [
+        `Bienvenido a ${APP_NAME}`,
+        '',
+        `Perfil asignado: ${profileLabel}`,
+        `Usuario: ${recipientEmail}`,
+        `Contrasena temporal: ${temporaryPassword}`,
+        `URL de acceso: ${loginUrl}`,
+        '',
+        `Cuenta creada por: ${createdByName || createdByRole || 'el equipo de administracion'}`,
+        '',
+        'Recomendaciones de seguridad:',
+        '- Cambia la contrasena apenas ingreses por primera vez.',
+        '- No reutilices esta clave en otros sistemas.',
+        '- Guardala en un gestor de contrasenas y no la compartas.',
+        '- Si no reconoces esta cuenta, responde a este correo para invalidarla.'
+    ].join('\n');
+
+    return { subject, html, text };
+}
 
 function normalizeTerm(input) {
     return String(input || '')
@@ -4060,6 +4254,155 @@ app.post('/api/gemini', async (req, res) => {
         }
         
         res.status(500).json({ error: msg });
+    }
+});
+
+app.get('/api/mail/status', (req, res) => {
+    res.json({
+        configured: isMailSendingConfigured(req),
+        oauthClientConfigured: hasMailOAuthClientConfig(req),
+        hasRefreshToken: !!GOOGLE_MAIL_REFRESH_TOKEN,
+        fromAddress: maskEmail(MAIL_FROM_ADDRESS),
+        redirectUri: buildMailRedirectUri(req),
+        loginUrl: MAIL_LOGIN_URL || appPublicUrl || ''
+    });
+});
+
+app.get('/api/mail/google/auth-url', async (req, res) => {
+    try {
+        if (!hasMailOAuthClientConfig(req)) {
+            return res.status(500).json({
+                error: 'Faltan GOOGLE_MAIL_CLIENT_ID, GOOGLE_MAIL_CLIENT_SECRET o GOOGLE_MAIL_REDIRECT_URI.'
+            });
+        }
+
+        const oauth2Client = createMailOAuthClient(req);
+        const authUrl = oauth2Client.generateAuthUrl({
+            access_type: 'offline',
+            prompt: 'consent',
+            scope: ['https://www.googleapis.com/auth/gmail.send']
+        });
+
+        res.json({
+            authUrl,
+            redirectUri: buildMailRedirectUri(req),
+            configured: isMailSendingConfigured(req),
+            message: 'Abre authUrl, autoriza Gmail y luego guarda el refresh token entregado por el callback.'
+        });
+    } catch (error) {
+        console.error('[Mail OAuth URL] Error:', error);
+        res.status(500).json({ error: error?.message || 'No se pudo generar la URL de autorizacion.' });
+    }
+});
+
+app.get('/api/mail/google/callback', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+
+    try {
+        const code = String(req.query.code || '').trim();
+        if (!code) {
+            return res.status(400).send('<h1>Falta el parametro code</h1>');
+        }
+
+        if (!hasMailOAuthClientConfig(req)) {
+            return res.status(500).send('<h1>Falta configuracion OAuth de Gmail en el backend.</h1>');
+        }
+
+        const oauth2Client = createMailOAuthClient(req);
+        const { tokens } = await oauth2Client.getToken(code);
+        const refreshToken = String(tokens?.refresh_token || '').trim();
+
+        if (!refreshToken) {
+            return res.status(200).send(`
+              <html>
+                <body style="font-family:Arial,Helvetica,sans-serif;padding:24px;">
+                  <h1>Autorizacion completada sin refresh token</h1>
+                  <p>Google no devolvio <code>refresh_token</code>. Revoca el acceso otorgado, vuelve a intentar y asegúrate de usar el flujo con <code>prompt=consent</code>.</p>
+                </body>
+              </html>
+            `);
+        }
+
+        return res.status(200).send(`
+          <html>
+            <body style="font-family:Arial,Helvetica,sans-serif;padding:24px;background:#0f172a;color:#e2e8f0;">
+              <div style="max-width:760px;margin:0 auto;background:#111827;border:1px solid #334155;border-radius:16px;padding:24px;">
+                <h1 style="margin-top:0;">Refresh token generado</h1>
+                <p>Copia este valor y guardalo como <code>GOOGLE_MAIL_REFRESH_TOKEN</code> en las variables privadas del backend.</p>
+                <textarea style="width:100%;min-height:120px;background:#020617;color:#e2e8f0;border:1px solid #334155;border-radius:10px;padding:12px;">${escapeXml(refreshToken)}</textarea>
+                <p style="margin-top:16px;">Callback usado: <code>${escapeXml(buildMailRedirectUri(req))}</code></p>
+                <p>Despues de guardar la variable, reinicia el backend y prueba <code>/api/mail/status</code>.</p>
+              </div>
+            </body>
+          </html>
+        `);
+    } catch (error) {
+        console.error('[Mail OAuth Callback] Error:', error);
+        res.status(500).send(`
+          <html>
+            <body style="font-family:Arial,Helvetica,sans-serif;padding:24px;">
+              <h1>Error en callback de Gmail</h1>
+              <p>${escapeXml(error?.message || 'No se pudo completar el callback.')}</p>
+            </body>
+          </html>
+        `);
+    }
+});
+
+app.post('/api/mail/send-welcome', async (req, res) => {
+    try {
+        const recipientEmail = String(req.body?.recipientEmail || '').trim();
+        const temporaryPassword = String(req.body?.temporaryPassword || '').trim();
+        const profileType = String(req.body?.profileType || 'user').trim();
+
+        if (!recipientEmail || !temporaryPassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'recipientEmail y temporaryPassword son requeridos.'
+            });
+        }
+
+        if (!isMailSendingConfigured(req)) {
+            return res.status(503).json({
+                success: false,
+                configured: false,
+                error: 'El correo no esta configurado en el backend.'
+            });
+        }
+
+        const mail = buildWelcomeEmail({
+            recipientName: req.body?.recipientName,
+            recipientEmail,
+            temporaryPassword,
+            profileType,
+            createdByRole: req.body?.createdByRole,
+            createdByName: req.body?.createdByName,
+            loginUrl: req.body?.loginUrl
+        });
+
+        const transport = await createMailTransport(req);
+        const info = await transport.sendMail({
+            from: getMailFromHeader(),
+            to: recipientEmail,
+            subject: mail.subject,
+            text: mail.text,
+            html: mail.html
+        });
+
+        res.json({
+            success: true,
+            configured: true,
+            messageId: info.messageId,
+            accepted: info.accepted || [],
+            profileType
+        });
+    } catch (error) {
+        console.error('[Mail Send Welcome] Error:', error);
+        res.status(500).json({
+            success: false,
+            configured: isMailSendingConfigured(req),
+            error: error?.message || 'No se pudo enviar el correo de bienvenida.'
+        });
     }
 });
 

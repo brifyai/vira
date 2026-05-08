@@ -15,6 +15,9 @@ import { SupabaseService } from '../../services/supabase.service';
 export class EquipoComponent implements OnInit {
     loading = true;
     members: any[] = [];
+    currentUserName = '';
+    currentUserRole = 'admin';
+    creatingMember = false;
 
     showCreateModal = false;
     newMember = { email: '', password: '', fullName: '' };
@@ -28,6 +31,7 @@ export class EquipoComponent implements OnInit {
     ) { }
 
     async ngOnInit() {
+        await this.loadCurrentUserContext();
         await this.loadTeam();
     }
 
@@ -71,19 +75,50 @@ export class EquipoComponent implements OnInit {
             return;
         }
 
+        this.creatingMember = true;
+
         try {
             await this.supabaseService.createTeamUser({
                 email: this.newMember.email,
                 password: this.newMember.password,
                 fullName: this.newMember.fullName
             });
-            this.showSnackBar('Usuario de equipo creado', 'success-snackbar');
+
+            const mailResult = await this.supabaseService.sendWelcomeEmail({
+                recipientEmail: this.newMember.email,
+                recipientName: this.newMember.fullName,
+                temporaryPassword: this.newMember.password,
+                profileType: 'team_user',
+                createdByRole: this.currentUserRole,
+                createdByName: this.currentUserName
+            });
+
+            if (mailResult?.success) {
+                this.showSnackBar('Usuario de equipo creado y correo enviado', 'success-snackbar');
+            } else {
+                this.showSnackBar(
+                    'Usuario de equipo creado. El correo no se pudo enviar; revisa la configuración de Gmail.',
+                    'error-snackbar'
+                );
+            }
+
             this.closeCreateModal();
             await this.loadTeam();
         } catch (error: any) {
             console.error('Error creating team user:', error);
             this.showSnackBar(error?.message || 'Error al crear usuario de equipo', 'error-snackbar');
+        } finally {
+            this.creatingMember = false;
         }
+    }
+
+    async loadCurrentUserContext() {
+        const user = await this.supabaseService.getCurrentUser();
+        if (!user) return;
+
+        const profile = await this.supabaseService.getUserProfile(user.id);
+        this.currentUserRole = profile?.role || 'admin';
+        this.currentUserName = profile?.full_name || user.email || '';
     }
 
     async deleteMember(member: any) {
@@ -134,4 +169,3 @@ export class EquipoComponent implements OnInit {
         });
     }
 }
-

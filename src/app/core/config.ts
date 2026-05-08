@@ -7,10 +7,6 @@ export const config = (window as any).__env || {
     supabaseAnonKey: '',
     scrapingBeeApiKey: '',
     cronSecret: '',
-    googleClientId: '',
-    googleClientSecret: '',
-    googleRedirectUri: '',
-    googleCloudTtsApiKey: '',
     defaultVoiceSettings: {
         language: 'es-ES',
         voice: 'es-ES-Wavenet-B',

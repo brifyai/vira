@@ -20,6 +20,10 @@ export class SupabaseService {
         return this.supabase;
     }
 
+    private getApiBaseUrl(): string {
+        return String(config.apiUrl || '').replace(/\/+$/, '');
+    }
+
     /**
      * Executes a promise with automatic retry logic and timeout protection.
      * This ensures the application recovers from temporary network glitches or tab suspensions
@@ -141,6 +145,46 @@ export class SupabaseService {
         });
 
         if (error) throw error;
+        return data;
+    }
+
+    async sendWelcomeEmail(payload: {
+        recipientEmail: string;
+        recipientName?: string;
+        temporaryPassword: string;
+        profileType: 'admin' | 'user' | 'team_user';
+        createdByRole?: string;
+        createdByName?: string;
+        loginUrl?: string;
+    }) {
+        const apiBaseUrl = this.getApiBaseUrl();
+
+        if (!apiBaseUrl) {
+            return {
+                success: false,
+                configured: false,
+                error: 'API_URL no esta configurado.'
+            };
+        }
+
+        const response = await fetch(`${apiBaseUrl}/api/mail/send-welcome`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            return {
+                success: false,
+                configured: data?.configured ?? false,
+                error: data?.error || 'No se pudo enviar el correo de bienvenida.'
+            };
+        }
+
         return data;
     }
 

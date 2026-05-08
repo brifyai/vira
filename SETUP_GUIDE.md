@@ -135,16 +135,24 @@ virafinal/
 
 ## 🔑 Variables de Entorno Configuradas
 
-### environment.ts (Desarrollo)
+### public/env.js (Frontend seguro)
 ```typescript
 supabaseUrl: 'https://xetifamvebflkytbwmir.supabase.co'
 supabaseAnonKey: 'YOUR_SUPABASE_ANON_KEY'
 scrapingBeeApiKey: 'YOUR_SCRAPING_BEE_API_KEY'
-geminiApiKey: 'YOUR_GEMINI_API_KEY'
-googleCloudTtsApiKey: 'YOUR_GOOGLE_CLOUD_TTS_API_KEY'
-googleClientId: 'YOUR_GOOGLE_CLIENT_ID'
-googleClientSecret: 'YOUR_GOOGLE_CLIENT_SECRET'
-googleRedirectUri: 'http://localhost:8888/api/auth/google/callback'
+appUrl: 'https://tu-frontend.com'
+apiUrl: 'https://tu-backend.com'
+```
+
+### Variables privadas del backend
+```env
+GOOGLE_CLOUD_TTS_API_KEY=tu_api_key_privada
+GOOGLE_MAIL_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
+GOOGLE_MAIL_CLIENT_SECRET=tu_secreto_privado
+GOOGLE_MAIL_REDIRECT_URI=https://tu-backend.com/api/mail/google/callback
+GOOGLE_MAIL_REFRESH_TOKEN=se_obtiene_despues_del_callback
+MAIL_FROM_ADDRESS=notificaciones@tu-dominio.com
+MAIL_LOGIN_URL=https://tu-frontend.com/login
 ```
 
 ## 🎨 Características de la Interfaz
@@ -196,8 +204,8 @@ googleRedirectUri: 'http://localhost:8888/api/auth/google/callback'
 
 - Row Level Security (RLS) en todas las tablas
 - Políticas basadas en roles (admin, editor, viewer)
-- Autenticación con Google OAuth (pendiente de implementar)
-- Variables de entorno para credenciales
+- Variables sensibles solo en backend
+- Callback propio del backend para Gmail OAuth
 - Validación de permisos en cada operación
 
 ## 📊 Servicios de Supabase
@@ -262,16 +270,15 @@ async humanizeNews(content: string) {
 ```
 
 ### 4. Implementar TTS con Google Cloud
-Crear un servicio que use Google Cloud Text-to-Speech:
+Crear un endpoint backend que use Google Cloud Text-to-Speech:
 ```typescript
 async generateAudio(text: string, voiceSettings: any) {
-  const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${environment.googleCloudTtsApiKey}`, {
+  const response = await fetch(`${config.apiUrl}/api/tts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      input: { text },
-      voice: voiceSettings,
-      audioConfig: { speakingRate: 1.0, pitch: 1.0 }
+      text,
+      voiceSettings
     })
   });
   const data = await response.json();
@@ -279,17 +286,12 @@ async generateAudio(text: string, voiceSettings: any) {
 }
 ```
 
-### 5. Implementar Autenticación
-Crear un servicio de autenticación:
-```typescript
-async signInWithGoogle() {
-  const { data, error } = await this.supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`
-    }
-  });
-}
+### 5. Configurar Gmail OAuth en backend
+```bash
+GET /api/mail/google/auth-url
+GET /api/mail/google/callback
+GET /api/mail/status
+POST /api/mail/send-welcome
 ```
 
 ## 📝 Notas Importantes

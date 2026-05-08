@@ -6,6 +6,7 @@
             <p class="page-subtitle" *ngIf="currentUserRole === 'admin'">Seguimiento de actividad y noticieros creados por tu equipo</p>
         </div>
         <div class="header-right">
+            <button class="ghost-btn" type="button" (click)="clearFilters()" [disabled]="loading || loadingBroadcasts || !hasActiveFilters">Limpiar filtros</button>
             <button class="secondary-btn" type="button" (click)="refreshAll()" [disabled]="loading || loadingBroadcasts">Actualizar</button>
         </div>
     </div>
@@ -28,6 +29,21 @@
                 </select>
             </div>
 
+            <div class="filter-group" *ngIf="currentUserRole === 'super_admin'">
+                <label>Rol</label>
+                <select [(ngModel)]="selectedRole">
+                    <option *ngFor="let role of availableRoleFilters" [value]="role.value">{{ role.label }}</option>
+                </select>
+            </div>
+
+            <div class="filter-group" *ngIf="currentUserRole === 'super_admin'">
+                <label>Admin Responsable</label>
+                <select [(ngModel)]="selectedManagerId">
+                    <option value="all">Todos</option>
+                    <option *ngFor="let admin of availableManagerFilters" [value]="admin.id">{{ displayUser(admin) }}</option>
+                </select>
+            </div>
+
             <div class="filter-group">
                 <label>Desde</label>
                 <input type="date" [(ngModel)]="fromDate" (change)="refreshAll()">
@@ -43,7 +59,7 @@
     <div class="summary-row">
         <div class="summary-card">
             <div class="summary-label">Eventos</div>
-            <div class="summary-value">{{ events.length }}</div>
+            <div class="summary-value">{{ filteredEvents.length }}</div>
         </div>
         <ng-container *ngIf="canViewCosts">
             <div class="summary-card" *ngFor="let t of totalCostByCurrency">
@@ -187,7 +203,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr *ngFor="let e of events">
+                        <tr *ngFor="let e of filteredEvents">
                             <td class="mono">{{ formatDate(e.created_at) }}</td>
                             <td>{{ displayUser(e.user) || e.user_id }}</td>
                             <td>{{ displayRole(e.user) }}</td>
@@ -201,7 +217,7 @@
                     </tbody>
                 </table>
 
-                <div class="empty-state" *ngIf="!loading && events.length === 0">
+                <div class="empty-state" *ngIf="!loading && filteredEvents.length === 0">
                     <p>No hay actividad para los filtros seleccionados.</p>
                 </div>
             </div>
