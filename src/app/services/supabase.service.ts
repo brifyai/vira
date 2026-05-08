@@ -190,6 +190,10 @@ export class SupabaseService {
 
     async requestPasswordReset(email: string) {
         const apiBaseUrl = this.getApiBaseUrl();
+        if (!apiBaseUrl) {
+            throw new Error('API_URL no esta configurado.');
+        }
+
         const response = await fetch(`${apiBaseUrl}/api/auth/forgot-password`, {
             method: 'POST',
             headers: {
@@ -208,6 +212,10 @@ export class SupabaseService {
 
     async resetPassword(token: string, newPassword: string) {
         const apiBaseUrl = this.getApiBaseUrl();
+        if (!apiBaseUrl) {
+            throw new Error('API_URL no esta configurado.');
+        }
+
         const response = await fetch(`${apiBaseUrl}/api/auth/reset-password`, {
             method: 'POST',
             headers: {
