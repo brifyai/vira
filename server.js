@@ -4399,7 +4399,8 @@ app.get('/api/mail/google/auth-url', async (req, res) => {
         const authUrl = oauth2Client.generateAuthUrl({
             access_type: 'offline',
             prompt: 'consent',
-            scope: ['https://www.googleapis.com/auth/gmail.send']
+            // Nodemailer authenticates through Gmail SMTP (XOAUTH2), which requires the mail.google.com scope.
+            scope: ['https://mail.google.com/']
         });
 
         res.json({
