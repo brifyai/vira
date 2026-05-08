@@ -190,28 +190,28 @@
             </div>
             
             <div class="timeline-actions">
-                <span class="edit-mode-badge" [class.editing]="isEditingCopy">{{ editingModeLabel }}</span>
-                <button class="tool-btn primary" *ngIf="!isEditingCopy" (click)="enableEditingByCopy()">
-                    <span class="spinner-inline" *ngIf="pendingCopy"></span>
-                    <span>{{ pendingCopy ? 'Preparando edición...' : 'Editar' }}</span>
-                </button>
-                <button class="tool-btn" *ngIf="isEditingCopy" (click)="addBlock('intro')" [disabled]="pendingTopAction !== null || pendingCopy">
-                    <span class="spinner-inline" *ngIf="isTopActionPending('intro')"></span>
-                    <span class="icon" *ngIf="!isTopActionPending('intro')">+</span> Intro
-                </button>
-                <button class="tool-btn" *ngIf="isEditingCopy" (click)="addBlock('text')" [disabled]="pendingTopAction !== null || pendingCopy">
-                    <span class="spinner-inline" *ngIf="isTopActionPending('text')"></span>
-                    <span class="icon" *ngIf="!isTopActionPending('text')">+</span> Texto
-                </button>
-                <button class="tool-btn" *ngIf="isEditingCopy" (click)="fileInput.click()" [disabled]="pendingTopAction !== null || pendingCopy">
-                    <span class="spinner-inline" *ngIf="isTopActionPending('audio')"></span>
-                    <span class="icon" *ngIf="!isTopActionPending('audio')">+</span> Audio/Ad
-                </button>
+                <div class="timeline-status-group">
+                    <span class="edit-mode-badge" [class.editing]="isEditingCopy">{{ editingModeLabel }}</span>
+                </div>
+                <div class="timeline-edit-tools" *ngIf="isEditingCopy">
+                    <button class="tool-btn" (click)="addBlock('intro')" [disabled]="pendingTopAction !== null || pendingCopy">
+                        <span class="spinner-inline" *ngIf="isTopActionPending('intro')"></span>
+                        <span class="icon" *ngIf="!isTopActionPending('intro')">+</span> Intro
+                    </button>
+                    <button class="tool-btn" (click)="addBlock('text')" [disabled]="pendingTopAction !== null || pendingCopy">
+                        <span class="spinner-inline" *ngIf="isTopActionPending('text')"></span>
+                        <span class="icon" *ngIf="!isTopActionPending('text')">+</span> Texto
+                    </button>
+                    <button class="tool-btn" (click)="fileInput.click()" [disabled]="pendingTopAction !== null || pendingCopy">
+                        <span class="spinner-inline" *ngIf="isTopActionPending('audio')"></span>
+                        <span class="icon" *ngIf="!isTopActionPending('audio')">+</span> Audio/Ad
+                    </button>
+                    <button class="tool-btn" (click)="addBlock('outro')" [disabled]="pendingTopAction !== null || pendingCopy">
+                        <span class="spinner-inline" *ngIf="isTopActionPending('outro')"></span>
+                        <span class="icon" *ngIf="!isTopActionPending('outro')">+</span> Cierre
+                    </button>
+                </div>
                 <input #fileInput type="file" (change)="onFileSelected($event)" accept="audio/*" hidden>
-                <button class="tool-btn" *ngIf="isEditingCopy" (click)="addBlock('outro')" [disabled]="pendingTopAction !== null || pendingCopy">
-                    <span class="spinner-inline" *ngIf="isTopActionPending('outro')"></span>
-                    <span class="icon" *ngIf="!isTopActionPending('outro')">+</span> Cierre
-                </button>
                 <button class="export-btn" (click)="exportTimeline()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
