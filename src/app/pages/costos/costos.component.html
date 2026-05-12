@@ -454,7 +454,7 @@
                                 <span class="history-title-meta">Audio final exportado</span>
                             </div>
                         </td>
-                        <td class="mono">{{ (Number(item.duration_seconds || 0) / 60) | number:'1.0-1' }} min</td>
+                        <td class="mono">{{ formatDurationSeconds(item.duration_seconds || 0) }}</td>
                         <td class="mono strong">{{ item.charged_minutes || 0 }} min</td>
                     </tr>
                 </tbody>
