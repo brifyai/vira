@@ -318,7 +318,7 @@
                         
                         <!-- Audio Player for Ads -->
                         <div class="audio-preview" *ngIf="item.type === 'ad' && item.file">
-                            <audio class="audio-slim" controls [src]="item.audioUrl"></audio>
+                            <audio class="audio-slim" controls controlsList="nodownload noplaybackrate" disableRemotePlayback [src]="item.audioUrl" (contextmenu)="$event.preventDefault()"></audio>
                         </div>
 
                         <div class="embedded-audio-panel" *ngIf="item.type === 'ad' && item.showAudioPanel" (click)="$event.stopPropagation()">
@@ -396,7 +396,7 @@
                                 </div>
 
                                  <div class="audio-player" *ngIf="item.originalItem.generatedAudioUrl">
-                                    <audio class="audio-slim" [src]="item.originalItem.generatedAudioUrl" controls></audio>
+                                    <audio class="audio-slim" [src]="item.originalItem.generatedAudioUrl" controls controlsList="nodownload noplaybackrate" disableRemotePlayback (contextmenu)="$event.preventDefault()"></audio>
                                 </div>
                              </div>
                         </div>
@@ -473,7 +473,7 @@
                                </div>
 
                                 <div class="audio-player" *ngIf="item.audioUrl || ((item.type === 'intro' || item.type === 'outro') && item.musicUrl && !item.description.trim())">
-                                   <audio class="audio-slim" [src]="item.audioUrl || item.musicUrl" controls></audio>
+                                   <audio class="audio-slim" [src]="item.audioUrl || item.musicUrl" controls controlsList="nodownload noplaybackrate" disableRemotePlayback (contextmenu)="$event.preventDefault()"></audio>
                                </div>
                             </div>
                        </div>

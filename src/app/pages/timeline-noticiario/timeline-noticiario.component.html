@@ -430,7 +430,7 @@
                             </p>
                             
                             <div class="audio-player" *ngIf="event.audioUrl">
-                                <audio class="audio-slim" [src]="event.audioUrl" controls controlsList="nodownload"></audio>
+                                <audio class="audio-slim" [src]="event.audioUrl" controls controlsList="nodownload noplaybackrate" disableRemotePlayback (contextmenu)="$event.preventDefault()"></audio>
                             </div>
                         </div>
                     </div>
