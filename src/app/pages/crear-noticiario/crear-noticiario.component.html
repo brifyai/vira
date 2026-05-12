@@ -236,7 +236,12 @@
                     <div class="item-content-wrapper">
                         <div class="item-header">
                             <span class="item-type" [ngClass]="item.type">{{ item.type | titlecase }}</span>
-                            <span class="item-duration">{{ formatReadingTime(item.duration) }}</span>
+                            <div class="item-duration-group">
+                                <span class="item-duration">{{ formatReadingTime(getBlockDurationSeconds(item)) }}</span>
+                                <span class="item-duration-mode" [class.real]="getBlockDurationMode(item) === 'real'">
+                                    {{ getBlockDurationMode(item) }}
+                                </span>
+                            </div>
                         </div>
                         
                         <div class="item-body">
@@ -539,7 +544,7 @@
                         <span class="stat-value">{{ timelineEvents.length }}</span>
                     </div>
                     <div class="summary-stat">
-                        <span class="stat-label">Tiempo total:</span>
+                        <span class="stat-label">Tiempo proyectado:</span>
                         <span class="stat-value">{{ formatReadingTime(getTotalReadingTime()) }}</span>
                     </div>
                     <div class="summary-stat">
@@ -555,6 +560,9 @@
                         <span class="stat-value">{{ currentQuotaSummary.unlimited ? 'Ilimitado' : (estimatedMinutesToConsume + ' min') }}</span>
                     </div>
                 </div>
+                <p class="summary-footnote">
+                    Se muestra una proyección de audio por bloque basada en texto, voz y desfase. Cuando el audio existe, el tiempo pasa a real.
+                </p>
                 <div class="progress-bar">
                     <div class="progress-fill" [style.width.%]="(getTotalReadingTime() / (duration * 60)) * 100"></div>
                 </div>

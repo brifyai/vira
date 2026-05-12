@@ -227,6 +227,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     private readonly exportDecodeConcurrency = 4;
     private readonly broadcastPersistConcurrency = 3;
     private readonly humanizeConcurrency = 2;
+    private readonly estimatedSpeechWordsPerSecond = 2.35;
 
     constructor(
         private supabaseService: SupabaseService,
@@ -396,9 +397,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
             // Map database fields to interface
             this.availableNews = (data || []).map(item => {
-                // Calculate reading time based on content length (approx 150 words/min = 2.5 words/sec)
-                const wordCount = item.content ? item.content.split(/\s+/).length : 0;
-                const calculatedReadingTime = Math.ceil(wordCount / 2.5) || 30; // Default to 30s if empty
+                const calculatedReadingTime = this.estimateSpeechDurationSeconds(item.content || '', 1, 'news') || 30;
 
                 return {
                     id: item.id,
@@ -785,11 +784,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     calculateTimelineTimes() {
         let currentTime = 0;
         this.timelineEvents.forEach(event => {
-            // Update duration if it's a news item that might have been updated (e.g. audio generated)
-            if (event.type === 'news' && event.originalItem) {
-                event.duration = event.originalItem.readingTime || event.duration;
-            }
-            
+            event.duration = this.getProjectedDurationSeconds(event);
             event.startTime = currentTime;
             currentTime += event.duration;
         });
@@ -836,9 +831,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     }
 
     private estimateDurationSecondsForText(text: string): number {
-        const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
-        const seconds = Math.ceil(words / 2.5); // ~150 wpm
-        return Math.max(6, Math.min(20, seconds || 10));
+        return this.estimateSpeechDurationSeconds(text, 1, 'script');
     }
 
     async onFileSelected(event: any) {
@@ -1267,7 +1260,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
     getTotalReadingTime(): number {
         return this.timelineEvents.reduce((acc, curr) => {
-            const seconds = Math.max(0, Math.round(Number(curr?.duration || 0)));
+            const seconds = Math.max(0, Math.round(this.getProjectedDurationSeconds(curr)));
             return acc + seconds;
         }, 0);
     }
@@ -1706,6 +1699,14 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         return `${seconds}s`;
     }
 
+    getBlockDurationSeconds(item: TimelineEvent): number {
+        return this.getProjectedDurationSeconds(item);
+    }
+
+    getBlockDurationMode(item: TimelineEvent): 'real' | 'estimado' {
+        return this.hasActualAudioForEvent(item) ? 'real' : 'estimado';
+    }
+
     viewNewsDetail(news: ScrapedNews): void {
         this.selectedNewsDetail = news;
     }
@@ -1763,8 +1764,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             // Calculate optimal speed if target duration is set
             if (news.targetDuration) {
                 // Estimate natural duration at speed 1.0 (approx 150 words/min = 2.5 words/sec)
-                const wordCount = textToSpeech.split(/\s+/).length;
-                const estimatedBaseDuration = wordCount / 2.5;
+                const estimatedBaseDuration = this.estimateSpeechDurationSeconds(textToSpeech, 1, 'news');
                 
                 // Required speed = Estimated / Target
                 let calculatedSpeed = estimatedBaseDuration / news.targetDuration;
@@ -1908,8 +1908,97 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
         this.audiosReady = false;
         this.audioGenerationAttempted = false;
-        
+        this.calculateTimelineTimes();
         this.cdr.detectChanges();
+    }
+
+    private hasActualAudioForEvent(item: TimelineEvent): boolean {
+        if (!item) return false;
+        if (item.type === 'ad') {
+            return !!String(item.audioUrl || '').trim() || !!item.file;
+        }
+        if (item.type === 'news' && item.originalItem) {
+            return !!String(item.originalItem.generatedAudioUrl || item.originalItem.uploadedAudioUrl || '').trim();
+        }
+        if (String(item.audioUrl || '').trim()) return true;
+        if ((item.type === 'intro' || item.type === 'outro') && !String(item.description || '').trim() && String(item.musicUrl || '').trim()) {
+            return true;
+        }
+        return false;
+    }
+
+    private getEffectiveSpeed(value: any): number {
+        const speed = Number(value || 1);
+        if (!Number.isFinite(speed) || speed <= 0) return 1;
+        return Math.max(0.75, Math.min(1.25, speed));
+    }
+
+    private estimateSpeechDurationSeconds(text: string, speed: number = 1, mode: 'news' | 'script' = 'news'): number {
+        const source = String(text || '').trim();
+        if (!source) return 0;
+
+        const words = source.split(/\s+/).filter(Boolean).length;
+        const commas = (source.match(/[,;]/g) || []).length;
+        const sentenceStops = (source.match(/[.!?]/g) || []).length;
+        const lineBreaks = (source.match(/\n/g) || []).length;
+        const safeSpeed = this.getEffectiveSpeed(speed);
+        const baseSeconds = words / (this.estimatedSpeechWordsPerSecond * safeSpeed);
+        const pauseSeconds = (commas * 0.12) + (sentenceStops * 0.28) + (lineBreaks * 0.08);
+        const estimated = Math.ceil(baseSeconds + pauseSeconds);
+        const minSeconds = mode === 'news' ? 8 : 4;
+        return Math.max(minSeconds, estimated || minSeconds);
+    }
+
+    private estimateConfiguredNewsDuration(news: ScrapedNews | undefined): number {
+        if (!news) return 0;
+        const hasActualAudio = !!String(news.generatedAudioUrl || news.uploadedAudioUrl || '').trim();
+        if (hasActualAudio) {
+            return Math.max(0, Math.round(Number(news.readingTime || 0)));
+        }
+
+        const text = String(news.humanizedContent || news.content || '').trim();
+        const estimatedSpeech = this.estimateSpeechDurationSeconds(text, news.selectedSpeed || 1, 'news');
+        const delay = Math.max(0, Number(news.voiceDelay || 0));
+        const placement = this.normalizeMusicPlacement(news.musicPlacement, 'during');
+        const tail = String(news.musicUrl || '').trim() && placement === 'during'
+            ? this.normalizeSeconds(news.musicTailSeconds, 0.8, 0, 10)
+            : 0;
+
+        const total = Math.round(estimatedSpeech + delay + tail);
+        return Math.max(estimatedSpeech || 0, total || 0);
+    }
+
+    private estimateConfiguredScriptDuration(item: TimelineEvent): number {
+        const hasActualAudio = !!String(item.audioUrl || '').trim();
+        if (hasActualAudio) {
+            return Math.max(0, Math.round(Number(item.duration || 0)));
+        }
+
+        const text = String(item.description || '').trim();
+        if (!text) {
+            return Math.max(0, Math.round(Number(item.duration || 0)));
+        }
+
+        const estimatedSpeech = this.estimateSpeechDurationSeconds(text, item.selectedSpeed || 1, 'script');
+        const delay = Math.max(0, Number(item.voiceDelay || 0));
+        const placement = this.normalizeMusicPlacement(item.musicPlacement, item.type === 'outro' ? 'after' : 'during');
+        const tail = String(item.musicUrl || '').trim() && placement === 'during'
+            ? this.normalizeSeconds(item.musicTailSeconds, 0.8, 0, 10)
+            : 0;
+
+        const total = Math.round(estimatedSpeech + delay + tail);
+        return Math.max(estimatedSpeech || 0, total || 0);
+    }
+
+    private getProjectedDurationSeconds(item: TimelineEvent | undefined): number {
+        if (!item) return 0;
+        if (item.type === 'ad') {
+            return Math.max(0, Math.round(Number(item.duration || item.baseDuration || 0)));
+        }
+        if (item.type === 'news') {
+            return this.estimateConfiguredNewsDuration(item.originalItem);
+        }
+        return this.estimateConfiguredScriptDuration(item);
     }
 
     onVoiceChange(item: TimelineEvent, voiceName: string) {
@@ -2014,8 +2103,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             news.humanizedContent = finalText;
                             news.humanizeStatus = 'ok';
 
-                            const words = finalText.split(/\s+/).length;
-                            news.readingTime = Math.ceil((words / 150) * 60);
+                            news.readingTime = this.estimateConfiguredNewsDuration(news);
 
                             news.generatedAudioUrl = undefined;
 

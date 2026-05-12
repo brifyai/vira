@@ -1263,6 +1263,32 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             color: $text-secondary;
             font-family: monospace;
         }
+
+        .item-duration-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .item-duration-mode {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.24);
+            color: #93c5fd;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+
+            &.real {
+                background: rgba(16, 185, 129, 0.12);
+                border-color: rgba(16, 185, 129, 0.24);
+                color: #86efac;
+            }
+        }
     }
 
     .item-body {
@@ -1604,6 +1630,13 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 color: $primary-color;
             }
         }
+    }
+
+    .summary-footnote {
+        margin-top: -4px;
+        color: $text-secondary;
+        font-size: 12px;
+        line-height: 1.5;
     }
 
     .progress-bar {
