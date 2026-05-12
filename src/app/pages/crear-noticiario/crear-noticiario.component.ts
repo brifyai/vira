@@ -226,6 +226,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     private readonly generationRequestSpacingMs = 250;
     private readonly exportDecodeConcurrency = 4;
     private readonly broadcastPersistConcurrency = 3;
+    private readonly humanizeConcurrency = 2;
 
     constructor(
         private supabaseService: SupabaseService,
@@ -1968,22 +1969,13 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 let failed = 0;
                 let stoppedByRateLimit = false;
 
-                const needsCleaning = (t: string) => {
-                    const s = String(t || '');
-                    if (!s.trim()) return true;
-                    if (/\[[^\]]+\]/.test(s)) return true;
-                    if (/[*_#]/.test(s)) return true;
-                    if (/aquí tienes|aqui tienes|texto reescrito|reescrito:|claro, aquí|claro, aqui/i.test(s)) return true;
-                    return false;
-                };
-
                 const items = this.selectedNews.slice();
                 items.forEach(n => {
                     n.humanizeStatus = 'pending';
                     n.humanizeError = undefined;
                 });
                 let cursor = 0;
-                const concurrency = Math.min(2, items.length);
+                const concurrency = Math.min(this.humanizeConcurrency, items.length);
 
                 const worker = async () => {
                     while (cursor < items.length && !stoppedByRateLimit) {
@@ -1999,17 +1991,17 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                             if (humanized?.model) minimaxTotals.model = humanized.model;
                             minimaxTotals.requests += 1;
 
-                            let finalText = humanized.text;
-                            if (needsCleaning(finalText)) {
-                                const cleaned = await this.geminiService.cleanText(finalText);
-                                if (cleaned?.usage) {
-                                    minimaxTotals.promptTokens += cleaned.usage.promptTokens || 0;
-                                    minimaxTotals.outputTokens += cleaned.usage.outputTokens || 0;
+                            const finalText = await this.resolveHumanizedText(
+                                humanized.text,
+                                (cleaned) => {
+                                    if (cleaned?.usage) {
+                                        minimaxTotals.promptTokens += cleaned.usage.promptTokens || 0;
+                                        minimaxTotals.outputTokens += cleaned.usage.outputTokens || 0;
+                                    }
+                                    if (cleaned?.model) minimaxTotals.model = cleaned.model;
+                                    minimaxTotals.requests += 1;
                                 }
-                                if (cleaned?.model) minimaxTotals.model = cleaned.model;
-                                minimaxTotals.requests += 1;
-                                finalText = cleaned.text;
-                            }
+                            );
 
                             news.humanizedContent = finalText;
                             news.humanizeStatus = 'ok';
@@ -2099,34 +2091,25 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 let okScripts = 0;
                 let failedScripts = 0;
 
-                const needsCleaning = (t: string) => {
-                    const s = String(t || '');
-                    if (!s.trim()) return true;
-                    if (/\[[^\]]+\]/.test(s)) return true;
-                    if (/[*_#]/.test(s)) return true;
-                    if (/aquí tienes|aqui tienes|texto reescrito|reescrito:|claro, aquí|claro, aqui/i.test(s)) return true;
-                    return false;
-                };
+                await this.mapWithConcurrency(
+                    scriptBlocks,
+                    Math.min(this.humanizeConcurrency, scriptBlocks.length),
+                    async (block) => {
+                        try {
+                            const refined = await this.geminiService.refineScript(String(block.description || ''));
+                            const finalText = await this.resolveHumanizedText(refined.text);
 
-                for (const block of scriptBlocks) {
-                    try {
-                        const refined = await this.geminiService.refineScript(String(block.description || ''));
-                        let finalText = refined.text;
-                        if (needsCleaning(finalText)) {
-                            const cleaned = await this.geminiService.cleanText(finalText);
-                            finalText = cleaned.text;
+                            block.description = finalText;
+                            this.invalidateAudio(block);
+                            okScripts += 1;
+                        } catch (e) {
+                            console.error(`Error refining script ${block.id}`, e);
+                            failedScripts += 1;
+                        } finally {
+                            updateHumanizeProgress();
                         }
-
-                        block.description = finalText;
-                        this.invalidateAudio(block);
-                        okScripts += 1;
-                    } catch (e) {
-                        console.error(`Error refining script ${block.id}`, e);
-                        failedScripts += 1;
-                    } finally {
-                        updateHumanizeProgress();
                     }
-                }
+                );
 
                 if (failedScripts > 0) {
                     this.snackBar.open(`Intro/Cierre afinados con errores: ${okScripts} ok · ${failedScripts} fallidos.`, 'Cerrar', {
@@ -2703,6 +2686,51 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     private async delay(ms: number): Promise<void> {
         if (ms <= 0) return;
         await new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    private needsAiCleanup(text: string): boolean {
+        const s = String(text || '');
+        if (!s.trim()) return true;
+        if (/\[[^\]]+\]/.test(s)) return true;
+        if (/[*_#]/.test(s)) return true;
+        if (/aquí tienes|aqui tienes|texto reescrito|reescrito:|claro, aquí|claro, aqui/i.test(s)) return true;
+        return false;
+    }
+
+    private sanitizeHumanizedTextLocally(text: string): string {
+        let cleaned = String(text || '').trim();
+        if (!cleaned) return '';
+
+        cleaned = cleaned
+            .replace(/^\s*(aquí tienes|aqui tienes|claro, aquí|claro, aqui)\s*:?\s*/i, '')
+            .replace(/^\s*texto reescrito\s*:?\s*/i, '')
+            .replace(/^\s*reescrito\s*:?\s*/i, '')
+            .replace(/^\s*[-*#]+\s*/gm, '')
+            .replace(/\[[^\]]+\]/g, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+        return cleaned;
+    }
+
+    private async resolveHumanizedText(
+        text: string,
+        onRemoteCleanup?: (result: { text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }) => void
+    ): Promise<string> {
+        let finalText = String(text || '').trim();
+        if (!this.needsAiCleanup(finalText)) {
+            return finalText;
+        }
+
+        const locallyCleaned = this.sanitizeHumanizedTextLocally(finalText);
+        if (locallyCleaned && !this.needsAiCleanup(locallyCleaned)) {
+            return locallyCleaned;
+        }
+
+        const cleaned = await this.geminiService.cleanText(finalText);
+        onRemoteCleanup?.(cleaned);
+        return this.sanitizeHumanizedTextLocally(cleaned.text) || String(cleaned.text || '').trim();
     }
 
     private async mapWithConcurrency<T, R>(
