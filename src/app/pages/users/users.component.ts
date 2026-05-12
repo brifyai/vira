@@ -14,18 +14,13 @@ import { QuotaService } from '../../services/quota.service';
 })
 export class UsersComponent implements OnInit {
   users: any[] = [];
-  radios: any[] = [];
   loading = true;
   currentUserRole: string = 'user';
   currentUserName = '';
   creatingUser = false;
 
   // Modal states
-  showRadioModal = false;
   showCreateUserModal = false;
-  selectedUser: any = null;
-  userRadios: any[] = []; // Radios assigned to selected user
-  availableRadios: any[] = []; // Radios NOT assigned to selected user
   quotaInputs: Record<string, number> = {};
   quotaSummaries: Record<string, AudioQuotaSummary> = {};
   savingQuotaUserId = '';
@@ -125,7 +120,6 @@ export class UsersComponent implements OnInit {
     this.loading = true;
     try {
       this.users = await this.supabaseService.getUsers() || [];
-      this.radios = await this.supabaseService.getRadios() || [];
       await this.loadQuotaSummaries();
     } catch (error) {
       console.error('Error loading data:', error);
@@ -137,6 +131,11 @@ export class UsersComponent implements OnInit {
   }
 
   async updateUserRole(user: any, newRole: string) {
+    if (this.currentUserRole !== 'super_admin') return;
+    if (user?.role === 'super_admin') {
+      this.showSnackBar('El rol Super Admin no se puede editar desde esta vista', 'error-snackbar');
+      return;
+    }
     if (user.role === newRole) return;
     
     try {
@@ -178,6 +177,10 @@ export class UsersComponent implements OnInit {
     return this.savingQuotaUserId === userId;
   }
 
+  canEditRole(user: any): boolean {
+    return this.currentUserRole === 'super_admin' && user?.role !== 'super_admin';
+  }
+
   private async loadQuotaSummaries() {
     const entries = await Promise.all((this.users || []).map(async (user: any) => {
       try {
@@ -196,61 +199,6 @@ export class UsersComponent implements OnInit {
       if (!summary) continue;
       this.quotaSummaries[userId] = summary;
       this.quotaInputs[userId] = summary.quota_total_minutes;
-    }
-  }
-
-  async openRadioModal(user: any) {
-    this.selectedUser = user;
-    this.showRadioModal = true;
-    await this.loadUserRadios(user.id);
-  }
-
-  closeRadioModal() {
-    this.showRadioModal = false;
-    this.selectedUser = null;
-    this.userRadios = [];
-    this.availableRadios = [];
-  }
-
-  async loadUserRadios(userId: string) {
-    try {
-      const assignments = await this.supabaseService.getUserRadios(userId) || [];
-      // Handle case where assignment.radio might be null if radio was deleted but assignment wasn't cascade deleted properly?
-      // But FK has ON DELETE CASCADE so should be fine.
-      this.userRadios = assignments.map((a: any) => a.radio).filter((r: any) => r);
-      
-      // Filter available radios
-      const assignedIds = new Set(this.userRadios.map(r => r.id));
-      this.availableRadios = this.radios.filter(r => !assignedIds.has(r.id));
-      
-      this.cdr.detectChanges();
-    } catch (error) {
-      console.error('Error loading user radios:', error);
-      this.showSnackBar('Error al cargar radios del usuario', 'error-snackbar');
-    }
-  }
-
-  async assignRadio(radio: any) {
-    if (!this.selectedUser) return;
-    try {
-      await this.supabaseService.assignRadioToUser(this.selectedUser.id, radio.id);
-      await this.loadUserRadios(this.selectedUser.id);
-      this.showSnackBar('Radio asignada', 'success-snackbar');
-    } catch (error) {
-      console.error('Error assigning radio:', error);
-      this.showSnackBar('Error al asignar radio', 'error-snackbar');
-    }
-  }
-
-  async removeRadio(radio: any) {
-    if (!this.selectedUser) return;
-    try {
-      await this.supabaseService.removeRadioFromUser(this.selectedUser.id, radio.id);
-      await this.loadUserRadios(this.selectedUser.id);
-      this.showSnackBar('Radio removida', 'success-snackbar');
-    } catch (error) {
-      console.error('Error removing radio:', error);
-      this.showSnackBar('Error al remover radio', 'error-snackbar');
     }
   }
 

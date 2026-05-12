@@ -466,7 +466,7 @@
         </div>
     </div>
 
-    <div class="panel panel-full">
+    <div class="panel panel-full broadcasts-panel">
         <div class="panel-header">
             <h2 class="panel-title">{{ currentUserRole === 'admin' ? 'Noticieros del Admin + Team' : 'Noticieros por Usuario' }}</h2>
         </div>
@@ -499,7 +499,7 @@
                         <td>{{ b.title }}</td>
                         <td><span class="pill">{{ b.status || 'draft' }}</span></td>
                         <td class="mono">{{ b.total_news_count || 0 }}</td>
-                        <td class="mono">{{ b.duration_minutes || 0 }} min</td>
+                        <td class="mono strong">{{ formatDurationSeconds(getBroadcastActualDurationSeconds(b)) }}</td>
                     </tr>
                 </tbody>
             </table>

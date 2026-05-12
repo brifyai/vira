@@ -2,7 +2,7 @@
     <div class="page-header">
         <div class="header-content">
             <h1 class="page-title">Gestión de Usuarios</h1>
-            <p class="page-subtitle">Administra roles y asignación de radios</p>
+            <p class="page-subtitle">Administra roles y cuotas de minutos</p>
         </div>
         <button class="create-btn" (click)="openCreateUserModal()" *ngIf="currentUserRole === 'super_admin'">
             <span>+</span> Nuevo Usuario
@@ -50,17 +50,12 @@
                 <div class="role-select-container">
                     <label>Rol:</label>
                     <select [ngModel]="user.role" (ngModelChange)="updateUserRole(user, $event)" 
-                            [disabled]="currentUserRole !== 'super_admin' && (currentUserRole !== 'admin' || user.role === 'super_admin')">
+                            [disabled]="!canEditRole(user)">
                         <option value="user">Usuario</option>
                         <option value="admin">Admin</option>
                         <option value="super_admin" *ngIf="currentUserRole === 'super_admin'">Super Admin</option>
                     </select>
                 </div>
-
-                <button class="action-btn" (click)="openRadioModal(user)">
-                    <span class="icon">📻</span>
-                    Asignar Radios
-                </button>
 
                 <div class="quota-editor" *ngIf="user.role !== 'super_admin'">
                     <label>Cuota de minutos</label>
@@ -70,44 +65,6 @@
                             {{ isSavingQuota(user.id) ? 'Guardando...' : 'Guardar cuota' }}
                         </button>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Radio Assignment Modal -->
-    <div class="modal-overlay" *ngIf="showRadioModal" (click)="closeRadioModal()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
-            <div class="modal-header">
-                <h2>Radios para {{ selectedUser?.full_name || selectedUser?.email }}</h2>
-                <button class="close-btn" (click)="closeRadioModal()">×</button>
-            </div>
-            
-            <div class="modal-body">
-                <div class="assigned-section">
-                    <h3>Radios Asignadas</h3>
-                    <div class="radio-list" *ngIf="userRadios.length > 0; else noAssigned">
-                        <div class="radio-item assigned" *ngFor="let radio of userRadios">
-                            <span>{{ radio.name }}</span>
-                            <button (click)="removeRadio(radio)" class="remove-btn" title="Remover">×</button>
-                        </div>
-                    </div>
-                    <ng-template #noAssigned>
-                        <p class="empty-text">No tiene radios asignadas.</p>
-                    </ng-template>
-                </div>
-
-                <div class="available-section">
-                    <h3>Radios Disponibles</h3>
-                    <div class="radio-list" *ngIf="availableRadios.length > 0; else noAvailable">
-                        <div class="radio-item available" *ngFor="let radio of availableRadios" (click)="assignRadio(radio)">
-                            <span>{{ radio.name }}</span>
-                            <span class="add-icon">+</span>
-                        </div>
-                    </div>
-                    <ng-template #noAvailable>
-                        <p class="empty-text">No hay más radios disponibles.</p>
-                    </ng-template>
                 </div>
             </div>
         </div>

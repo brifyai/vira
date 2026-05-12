@@ -573,6 +573,37 @@ export class CostosComponent implements OnInit {
         }
     }
 
+    getBroadcastActualDurationSeconds(broadcast: any): number {
+        const broadcastId = String(broadcast?.id || '').trim();
+        if (!broadcastId) return 0;
+
+        const generated = this.generatedHistory.find(item => String(item?.broadcast_id || '').trim() === broadcastId);
+        const generatedSeconds = Number(generated?.duration_seconds || 0);
+        if (generatedSeconds > 0) return generatedSeconds;
+
+        const readingSeconds = Number(broadcast?.total_reading_time_seconds || 0);
+        if (readingSeconds > 0) return readingSeconds;
+
+        const draftMinutes = Number(broadcast?.duration_minutes || 0);
+        if (draftMinutes > 0) return Math.round(draftMinutes * 60);
+
+        return 0;
+    }
+
+    formatDurationSeconds(seconds: number): string {
+        const totalSeconds = Math.max(0, Math.round(Number(seconds || 0)));
+        const minutes = Math.floor(totalSeconds / 60);
+        const remainingSeconds = totalSeconds % 60;
+
+        if (minutes > 0 && remainingSeconds > 0) {
+            return `${minutes} min ${remainingSeconds}s`;
+        }
+        if (minutes > 0) {
+            return `${minutes} min`;
+        }
+        return `${remainingSeconds}s`;
+    }
+
     displayUser(user: any): string {
         const name = String(user?.full_name || '').trim();
         const email = String(user?.email || '').trim();

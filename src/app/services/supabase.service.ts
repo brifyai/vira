@@ -838,7 +838,7 @@ export class SupabaseService {
     async getBroadcastsForCosts(options?: { limit?: number; offset?: number; creatorId?: string; from?: string; to?: string }) {
         let query = this.supabase
             .from('news_broadcasts')
-            .select('id, title, status, duration_minutes, total_news_count, created_at, created_by, creator:users!news_broadcasts_created_by_fkey(id, email, full_name, role, manager_id)')
+            .select('id, title, status, duration_minutes, total_reading_time_seconds, total_news_count, created_at, created_by, creator:users!news_broadcasts_created_by_fkey(id, email, full_name, role, manager_id)')
             .order('created_at', { ascending: false });
 
         if (options?.limit) query = query.limit(options.limit);
