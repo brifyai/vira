@@ -275,6 +275,23 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border-color: rgba(148, 163, 184, 0.26);
 }
 
+.history-title-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.history-title-main {
+    color: $text-primary;
+    font-weight: 700;
+}
+
+.history-title-meta {
+    color: $text-secondary;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 .admin-team-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));

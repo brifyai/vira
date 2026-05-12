@@ -268,10 +268,34 @@
                 <tbody>
                     <tr *ngFor="let e of filteredMinuteEvents">
                         <td class="mono">{{ formatDate(e.created_at) }}</td>
-                        <td>{{ displayUser(resolveMinuteEventUser(e)) || e.user_id }}</td>
-                        <td>{{ displayRole(resolveMinuteEventUser(e)) }}</td>
-                        <td>{{ displayResponsible(resolveMinuteEventUser(e)) }}</td>
-                        <td>{{ getMinuteEventTitle(e) }}</td>
+                        <ng-container *ngIf="resolveMinuteEventUser(e) as minuteUser">
+                            <td>
+                                <div class="summary-user-cell">
+                                    <span class="summary-user-name">{{ displayUser(minuteUser) }}</span>
+                                    <span class="summary-user-meta">{{ getResponsibleContextLabel(minuteUser) }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span [class]="getRoleBadgeClass(minuteUser)">{{ displayRole(minuteUser) }}</span>
+                            </td>
+                            <td>
+                                <div class="summary-responsible-cell">
+                                    <span [class]="getResponsibleBadgeClass(minuteUser)">{{ getResponsibleContextLabel(minuteUser) }}</span>
+                                    <span class="summary-responsible-text">{{ displayResponsible(minuteUser) }}</span>
+                                </div>
+                            </td>
+                        </ng-container>
+                        <ng-container *ngIf="!resolveMinuteEventUser(e)">
+                            <td>{{ e.user_id }}</td>
+                            <td><span class="role-pill role-pill-user">Usuario</span></td>
+                            <td><span class="responsible-badge responsible-badge-neutral">Sin contexto</span></td>
+                        </ng-container>
+                        <td>
+                            <div class="history-title-cell">
+                                <span class="history-title-main">{{ getMinuteEventTitle(e) }}</span>
+                                <span class="history-title-meta">Cobro de exportación final</span>
+                            </div>
+                        </td>
                         <td class="mono">{{ (getMinuteEventDurationSeconds(e) / 60) | number:'1.0-1' }} min</td>
                         <td class="mono strong">{{ e.consumed_minutes }} min</td>
                     </tr>
@@ -402,10 +426,34 @@
                 <tbody>
                     <tr *ngFor="let item of filteredGeneratedHistory">
                         <td class="mono">{{ formatDate(item.created_at) }}</td>
-                        <td>{{ displayUser(resolveGeneratedUser(item)) || item.charged_user_id }}</td>
-                        <td>{{ displayRole(resolveGeneratedUser(item)) }}</td>
-                        <td>{{ displayResponsible(resolveGeneratedUser(item)) }}</td>
-                        <td>{{ item.title }}</td>
+                        <ng-container *ngIf="resolveGeneratedUser(item) as generatedUser">
+                            <td>
+                                <div class="summary-user-cell">
+                                    <span class="summary-user-name">{{ displayUser(generatedUser) }}</span>
+                                    <span class="summary-user-meta">{{ getResponsibleContextLabel(generatedUser) }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span [class]="getRoleBadgeClass(generatedUser)">{{ displayRole(generatedUser) }}</span>
+                            </td>
+                            <td>
+                                <div class="summary-responsible-cell">
+                                    <span [class]="getResponsibleBadgeClass(generatedUser)">{{ getResponsibleContextLabel(generatedUser) }}</span>
+                                    <span class="summary-responsible-text">{{ displayResponsible(generatedUser) }}</span>
+                                </div>
+                            </td>
+                        </ng-container>
+                        <ng-container *ngIf="!resolveGeneratedUser(item)">
+                            <td>{{ item.charged_user_id }}</td>
+                            <td><span class="role-pill role-pill-user">Usuario</span></td>
+                            <td><span class="responsible-badge responsible-badge-neutral">Sin contexto</span></td>
+                        </ng-container>
+                        <td>
+                            <div class="history-title-cell">
+                                <span class="history-title-main">{{ item.title }}</span>
+                                <span class="history-title-meta">Audio final exportado</span>
+                            </div>
+                        </td>
                         <td class="mono">{{ (Number(item.duration_seconds || 0) / 60) | number:'1.0-1' }} min</td>
                         <td class="mono strong">{{ item.charged_minutes || 0 }} min</td>
                     </tr>
