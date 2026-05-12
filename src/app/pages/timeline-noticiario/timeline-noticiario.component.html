@@ -212,13 +212,13 @@
                     </button>
                 </div>
                 <input #fileInput type="file" (change)="onFileSelected($event)" accept="audio/*" hidden>
-                <button class="export-btn" (click)="exportTimeline()">
+                <button class="export-btn" (click)="runPrimaryTimelineAction()" [disabled]="isTimelineBusy || (isEditingCopy && !canSaveEditedBroadcast)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
-                    Exportar
+                    {{ isEditingCopy ? 'Guardar noticiero' : 'Exportar' }}
                 </button>
             </div>
         </div>
@@ -439,7 +439,7 @@
                         <button class="action-btn" 
                                 *ngIf="event.type !== 'ad'" 
                                 (click)="generateBlockAudio(event)" 
-                                [disabled]="isGeneratingAudio || !isEditingCopy"
+                                [disabled]="isGeneratingAudio || !isEditingCopy || requiresHumanizationForEvent(event) || !canGenerateAudioForEvent(event)"
                                 [title]="event.audioUrl ? 'Regenerar Audio' : 'Generar Audio'">
                             <span class="spinner-small" *ngIf="pendingGenerateId === event.id"></span>
                             <svg *ngIf="pendingGenerateId !== event.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -473,10 +473,24 @@
                     <span class="summary-label">Bloques:</span>
                     <span class="summary-value">{{ timelineEvents.length }}</span>
                 </div>
-                <div class="summary-item" *ngIf="!isEditingCopy">
-                    <button class="tool-btn primary" (click)="enableEditingByCopy()" [disabled]="pendingCopy">
-                        {{ pendingCopy ? 'Preparando edición...' : 'Editar' }}
-                    </button>
+                <div class="summary-item summary-item--actions">
+                    <div class="summary-action-card">
+                        <div class="summary-action-copy">
+                            <span class="summary-action-label">Siguiente paso</span>
+                            <p class="summary-action-hint">{{ timelinePrimaryActionHint }}</p>
+                        </div>
+                        <button
+                            *ngIf="showTimelinePrimaryAction"
+                            class="summary-action-btn"
+                            [class.is-edit]="!isEditingCopy"
+                            [class.is-processing]="isEditingCopy && (pendingHumanizationCount > 0 || pendingAudioCount > 0)"
+                            [class.is-save]="canSaveEditedBroadcast"
+                            (click)="runPrimaryTimelineAction()"
+                            [disabled]="isTimelineBusy || (isEditingCopy && !canSaveEditedBroadcast && pendingHumanizationCount === 0 && pendingAudioCount === 0)">
+                            <span class="spinner-inline" *ngIf="isTimelineBusy"></span>
+                            <span>{{ timelinePrimaryActionLabel }}</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

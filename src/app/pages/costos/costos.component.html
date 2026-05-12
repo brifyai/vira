@@ -1,13 +1,12 @@
 <div class="costos-container">
     <div class="page-header">
         <div class="header-left">
-            <h1 class="page-title">Costos</h1>
-            <p class="page-subtitle" *ngIf="currentUserRole === 'super_admin'">Registro global de actividad, costos y responsables por usuario</p>
-            <p class="page-subtitle" *ngIf="currentUserRole === 'admin'">Seguimiento de actividad y noticieros creados por tu equipo</p>
+            <h1 class="page-title">{{ pageTitle }}</h1>
+            <p class="page-subtitle">{{ pageSubtitle }}</p>
         </div>
         <div class="header-right">
-            <button class="ghost-btn" type="button" (click)="clearFilters()" [disabled]="loading || loadingBroadcasts || !hasActiveFilters">Limpiar filtros</button>
-            <button class="secondary-btn" type="button" (click)="refreshAll()" [disabled]="loading || loadingBroadcasts">Actualizar</button>
+            <button class="ghost-btn" type="button" (click)="clearFilters()" [disabled]="loading || loadingBroadcasts || loadingMinuteEvents || loadingGeneratedHistory || !hasActiveFilters">Limpiar filtros</button>
+            <button class="secondary-btn" type="button" (click)="refreshAll()" [disabled]="loading || loadingBroadcasts || loadingMinuteEvents || loadingGeneratedHistory">Actualizar</button>
         </div>
     </div>
 
@@ -21,7 +20,7 @@
                 </select>
             </div>
 
-            <div class="filter-group">
+            <div class="filter-group" *ngIf="canViewCosts">
                 <label>Actividad</label>
                 <select [(ngModel)]="selectedAction" (change)="loadEvents()">
                     <option value="all">Todas</option>
@@ -58,6 +57,22 @@
 
     <div class="summary-row">
         <div class="summary-card">
+            <div class="summary-label">Minutos usados</div>
+            <div class="summary-value">{{ totalMinutesUsed }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Exportaciones finales</div>
+            <div class="summary-value">{{ totalFinalExports }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Noticieros registrados</div>
+            <div class="summary-value">{{ filteredBroadcasts.length }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Eventos de minutos</div>
+            <div class="summary-value">{{ filteredMinuteEvents.length }}</div>
+        </div>
+        <div class="summary-card" *ngIf="canViewCosts">
             <div class="summary-label">Eventos</div>
             <div class="summary-value">{{ filteredEvents.length }}</div>
         </div>
@@ -75,6 +90,10 @@
             <div class="summary-label">Noticieros del Admin</div>
             <div class="summary-value">{{ ownBroadcastCount }}</div>
         </div>
+        <div class="summary-card" *ngIf="currentUserRole === 'admin'">
+            <div class="summary-label">Audios finales del Admin</div>
+            <div class="summary-value">{{ ownFinalExportCount }}</div>
+        </div>
     </div>
 
     <div class="panel panel-full" *ngIf="currentUserRole === 'super_admin' || currentUserRole === 'admin'">
@@ -89,6 +108,8 @@
                         <th>Usuario</th>
                         <th>Rol</th>
                         <th>Responsable</th>
+                        <th>Minutos usados</th>
+                        <th>Audios finales</th>
                         <th>Eventos</th>
                         <th>Noticieros</th>
                         <th *ngIf="canViewCosts">Costo Total</th>
@@ -96,9 +117,23 @@
                 </thead>
                 <tbody>
                     <tr *ngFor="let row of activitySummary">
-                        <td>{{ displayUser(row.user) }}</td>
-                        <td>{{ displayRole(row.user) }}</td>
-                        <td>{{ displayResponsible(row.user) }}</td>
+                        <td>
+                            <div class="summary-user-cell">
+                                <span class="summary-user-name">{{ displayUser(row.user) }}</span>
+                                <span class="summary-user-meta">{{ getResponsibleContextLabel(row.user) }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span [class]="getRoleBadgeClass(row.user)">{{ displayRole(row.user) }}</span>
+                        </td>
+                        <td>
+                            <div class="summary-responsible-cell">
+                                <span [class]="getResponsibleBadgeClass(row.user)">{{ getResponsibleContextLabel(row.user) }}</span>
+                                <span class="summary-responsible-text">{{ displayResponsible(row.user) }}</span>
+                            </div>
+                        </td>
+                        <td class="mono strong">{{ row.usedMinutes }}</td>
+                        <td class="mono">{{ row.finalExportCount }}</td>
                         <td class="mono">{{ row.eventCount }}</td>
                         <td class="mono">{{ row.broadcastCount }}</td>
                         <td class="mono strong" *ngIf="canViewCosts">{{ row.totalCost | number:'1.2-2' }}</td>
@@ -121,27 +156,49 @@
             <div class="admin-team-grid" *ngIf="adminTeamMonitoring.length > 0">
                 <div class="admin-team-card" *ngFor="let group of adminTeamMonitoring">
                     <div class="admin-team-header">
-                        <div>
+                        <div class="admin-team-headline">
+                            <div class="section-badges">
+                                <span class="scope-badge scope-badge-admin">Admin</span>
+                                <span class="scope-badge scope-badge-team">Team</span>
+                            </div>
                             <div class="admin-team-title">{{ displayUser(group.admin) }}</div>
-                            <div class="admin-team-subtitle">Admin</div>
+                            <div class="admin-team-subtitle">Responsable del equipo y de su consumo consolidado</div>
                         </div>
                         <div class="admin-team-total">
-                            <div class="summary-mini-label">Admin + Team</div>
-                            <div class="summary-mini-value">{{ group.totalBroadcastCount }} noticieros</div>
-                            <div class="summary-mini-cost">Costo {{ group.totalCost | number:'1.2-2' }}</div>
+                            <div class="summary-mini-label">Total consolidado</div>
+                            <div class="summary-mini-chips">
+                                <span class="metric-chip metric-chip-primary">{{ group.totalUsedMinutes }} min</span>
+                                <span class="metric-chip">{{ group.totalFinalExportCount }} audios finales</span>
+                                <span class="metric-chip">{{ group.totalBroadcastCount }} noticieros</span>
+                                <span class="metric-chip" *ngIf="canViewCosts">Costo {{ group.totalCost | number:'1.2-2' }}</span>
+                            </div>
                         </div>
                     </div>
 
                     <div class="admin-team-stats">
-                        <div class="mini-stat">
-                            <span class="mini-stat-label">Admin</span>
-                            <span class="mini-stat-value">{{ group.adminBroadcastCount }} noticieros</span>
-                            <span class="mini-stat-cost">Costo {{ group.adminCost | number:'1.2-2' }}</span>
+                        <div class="mini-stat mini-stat-admin">
+                            <div class="mini-stat-top">
+                                <span class="mini-stat-label">Admin</span>
+                                <span class="scope-badge scope-badge-admin">Cuenta propia</span>
+                            </div>
+                            <div class="mini-stat-metrics">
+                                <span class="mini-stat-pill mini-stat-pill-primary">{{ group.adminUsedMinutes }} min</span>
+                                <span class="mini-stat-pill">{{ group.adminFinalExportCount }} finales</span>
+                                <span class="mini-stat-pill">{{ group.adminBroadcastCount }} noticieros</span>
+                                <span class="mini-stat-pill" *ngIf="canViewCosts">Costo {{ group.adminCost | number:'1.2-2' }}</span>
+                            </div>
                         </div>
-                        <div class="mini-stat">
-                            <span class="mini-stat-label">Integrantes</span>
-                            <span class="mini-stat-value">{{ group.membersBroadcastCount }} noticieros</span>
-                            <span class="mini-stat-cost">Costo {{ group.membersCost | number:'1.2-2' }}</span>
+                        <div class="mini-stat mini-stat-team">
+                            <div class="mini-stat-top">
+                                <span class="mini-stat-label">Integrantes</span>
+                                <span class="scope-badge scope-badge-team">{{ group.members.length }} usuarios</span>
+                            </div>
+                            <div class="mini-stat-metrics">
+                                <span class="mini-stat-pill mini-stat-pill-primary">{{ group.membersUsedMinutes }} min</span>
+                                <span class="mini-stat-pill">{{ group.membersFinalExportCount }} finales</span>
+                                <span class="mini-stat-pill">{{ group.membersBroadcastCount }} noticieros</span>
+                                <span class="mini-stat-pill" *ngIf="canViewCosts">Costo {{ group.membersCost | number:'1.2-2' }}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -150,13 +207,22 @@
                             <thead>
                                 <tr>
                                     <th>Integrante</th>
+                                    <th>Minutos</th>
+                                    <th>Audios finales</th>
                                     <th>Noticieros</th>
                                     <th>Costo</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr *ngFor="let member of group.members">
-                                    <td>{{ displayUser(member.user) }}</td>
+                                    <td>
+                                        <div class="member-user-cell">
+                                            <span class="member-user-name">{{ displayUser(member.user) }}</span>
+                                            <span class="scope-badge scope-badge-team">Integrante</span>
+                                        </div>
+                                    </td>
+                                    <td class="mono strong">{{ member.usedMinutes }} min</td>
+                                    <td class="mono">{{ member.finalExportCount }}</td>
                                     <td class="mono">{{ member.broadcastCount }}</td>
                                     <td class="mono strong">{{ member.totalCost | number:'1.2-2' }}</td>
                                 </tr>
@@ -176,10 +242,52 @@
         </div>
     </div>
 
-    <div class="grid">
+    <div class="panel panel-full">
+        <div class="panel-header">
+            <h2 class="panel-title">Historial de minutos</h2>
+        </div>
+
+        <div class="panel-body table-wrap">
+            <div class="loading-state" *ngIf="loadingMinuteEvents">
+                <div class="spinner"></div>
+                <p>Cargando historial de minutos...</p>
+            </div>
+
+            <table class="table" *ngIf="!loadingMinuteEvents && filteredMinuteEvents.length > 0">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Responsable</th>
+                        <th>Noticiero</th>
+                        <th>Duración</th>
+                        <th>Minutos cobrados</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let e of filteredMinuteEvents">
+                        <td class="mono">{{ formatDate(e.created_at) }}</td>
+                        <td>{{ displayUser(resolveMinuteEventUser(e)) || e.user_id }}</td>
+                        <td>{{ displayRole(resolveMinuteEventUser(e)) }}</td>
+                        <td>{{ displayResponsible(resolveMinuteEventUser(e)) }}</td>
+                        <td>{{ getMinuteEventTitle(e) }}</td>
+                        <td class="mono">{{ (getMinuteEventDurationSeconds(e) / 60) | number:'1.0-1' }} min</td>
+                        <td class="mono strong">{{ e.consumed_minutes }} min</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="empty-state" *ngIf="!loadingMinuteEvents && filteredMinuteEvents.length === 0">
+                <p>No hay consumos de minutos para los filtros seleccionados.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid" *ngIf="canViewCosts">
         <div class="panel">
             <div class="panel-header">
-                <h2 class="panel-title">Actividad</h2>
+                <h2 class="panel-title">Actividad de costos</h2>
             </div>
 
             <div class="panel-body table-wrap">
@@ -270,7 +378,49 @@
 
     <div class="panel panel-full">
         <div class="panel-header">
-            <h2 class="panel-title">{{ currentUserRole === 'admin' ? 'Noticieros del Team' : 'Noticieros por Usuario' }}</h2>
+            <h2 class="panel-title">Historial de audios finales</h2>
+        </div>
+
+        <div class="panel-body table-wrap">
+            <div class="loading-state" *ngIf="loadingGeneratedHistory">
+                <div class="spinner"></div>
+                <p>Cargando audios finales...</p>
+            </div>
+
+            <table class="table" *ngIf="!loadingGeneratedHistory && filteredGeneratedHistory.length > 0">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Responsable</th>
+                        <th>Título</th>
+                        <th>Duración</th>
+                        <th>Minutos cobrados</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let item of filteredGeneratedHistory">
+                        <td class="mono">{{ formatDate(item.created_at) }}</td>
+                        <td>{{ displayUser(resolveGeneratedUser(item)) || item.charged_user_id }}</td>
+                        <td>{{ displayRole(resolveGeneratedUser(item)) }}</td>
+                        <td>{{ displayResponsible(resolveGeneratedUser(item)) }}</td>
+                        <td>{{ item.title }}</td>
+                        <td class="mono">{{ (Number(item.duration_seconds || 0) / 60) | number:'1.0-1' }} min</td>
+                        <td class="mono strong">{{ item.charged_minutes || 0 }} min</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="empty-state" *ngIf="!loadingGeneratedHistory && filteredGeneratedHistory.length === 0">
+                <p>No hay audios finales para los filtros seleccionados.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel panel-full">
+        <div class="panel-header">
+            <h2 class="panel-title">{{ currentUserRole === 'admin' ? 'Noticieros del Admin + Team' : 'Noticieros por Usuario' }}</h2>
         </div>
 
         <div class="panel-body table-wrap">

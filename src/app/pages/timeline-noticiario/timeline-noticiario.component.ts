@@ -8,6 +8,7 @@ import Swal from 'sweetalert2';
 import { SupabaseService } from '../../services/supabase.service';
 import { TtsService } from '../../services/tts.service';
 import { QuotaService } from '../../services/quota.service';
+import { GeminiService } from '../../services/gemini.service';
 
 declare var lamejs: any;
 
@@ -37,6 +38,11 @@ interface TimelineEvent {
     musicPlacement?: 'before' | 'during' | 'after';
     musicTailSeconds?: number;
     musicFadeOutSeconds?: number;
+    isNewBlock?: boolean;
+    requiresHumanization?: boolean;
+    audioDirty?: boolean;
+    humanizeStatus?: 'pending' | 'ok' | 'error';
+    humanizeError?: string;
 }
 
 @Component({
@@ -64,10 +70,12 @@ export class TimelineNoticiarioComponent implements OnInit {
     loading = false;
     loadingTimeline = false;
     isGeneratingAudio = false;
+    humanizing = false;
     pendingTopAction: 'intro' | 'text' | 'audio' | 'outro' | null = null;
     pendingDeleteId: string | null = null;
     pendingGenerateId: string | null = null;
     pendingCopy = false;
+    savingTimeline = false;
 
     // View mode
     viewMode = 'grid'; // 'grid' or 'list'
@@ -96,6 +104,7 @@ export class TimelineNoticiarioComponent implements OnInit {
     currentAudio: HTMLAudioElement | null = null;
     playingBroadcastId: string | null = null;
     private isCreatingEditableCopy = false;
+    private readonly humanizeConcurrency = 2;
 
     constructor(
         private supabaseService: SupabaseService,
@@ -103,7 +112,8 @@ export class TimelineNoticiarioComponent implements OnInit {
         private snackBar: MatSnackBar,
         private cdr: ChangeDetectorRef,
         private route: ActivatedRoute,
-        private quotaService: QuotaService
+        private quotaService: QuotaService,
+        private geminiService: GeminiService
     ) { 
         // Voices will be loaded asynchronously
     }
@@ -153,6 +163,62 @@ export class TimelineNoticiarioComponent implements OnInit {
             return 'Los cambios se guardan en una copia nueva de este noticiero.';
         }
         return 'Presiona Editar para crear una copia del noticiero y habilitar la edición de sus bloques.';
+    }
+
+    get pendingHumanizationCount(): number {
+        if (!this.isEditingCopy) return 0;
+        return this.timelineEvents.filter(event => this.requiresHumanizationForEvent(event)).length;
+    }
+
+    get pendingAudioCount(): number {
+        if (!this.isEditingCopy) return 0;
+        return this.timelineEvents.filter(event => this.needsAudioGeneration(event)).length;
+    }
+
+    get incompleteEditableBlocksCount(): number {
+        if (!this.isEditingCopy) return 0;
+        return this.timelineEvents.filter(event => this.isIncompleteEditableBlock(event)).length;
+    }
+
+    get canSaveEditedBroadcast(): boolean {
+        return this.isEditingCopy &&
+            this.timelineEvents.length > 0 &&
+            !this.isTimelineBusy &&
+            this.incompleteEditableBlocksCount === 0 &&
+            this.pendingHumanizationCount === 0 &&
+            this.pendingAudioCount === 0;
+    }
+
+    get isTimelineBusy(): boolean {
+        return this.loadingTimeline || this.humanizing || this.isGeneratingAudio || this.pendingCopy || this.savingTimeline;
+    }
+
+    get timelinePrimaryActionLabel(): string {
+        if (!this.isEditingCopy) return this.pendingCopy ? 'Preparando edición...' : 'Editar';
+        if (this.pendingHumanizationCount > 0) return `Humanizar ${this.pendingHumanizationCount} bloque${this.pendingHumanizationCount === 1 ? '' : 's'}`;
+        if (this.pendingAudioCount > 0) return `Generar ${this.pendingAudioCount} audio${this.pendingAudioCount === 1 ? '' : 's'}`;
+        return this.savingTimeline ? 'Guardando...' : 'Guardar noticiero';
+    }
+
+    get timelinePrimaryActionHint(): string {
+        if (!this.isEditingCopy) {
+            return 'Crea una copia editable para trabajar sobre una nueva versión del noticiero.';
+        }
+        if (this.incompleteEditableBlocksCount > 0) {
+            return `Completa o elimina ${this.incompleteEditableBlocksCount} bloque${this.incompleteEditableBlocksCount === 1 ? '' : 's'} vacío${this.incompleteEditableBlocksCount === 1 ? '' : 's'} antes de guardar.`;
+        }
+        if (this.pendingHumanizationCount > 0) {
+            return 'Los bloques nuevos de texto, intro o cierre deben pasar por humanización antes de generar su audio.';
+        }
+        if (this.pendingAudioCount > 0) {
+            return 'Hay bloques nuevos o modificados que necesitan generar audio antes de guardar.';
+        }
+        return 'La edición está lista para guardarse como un nuevo noticiero.';
+    }
+
+    get showTimelinePrimaryAction(): boolean {
+        if (!this.isEditingCopy) return true;
+        return this.incompleteEditableBlocksCount === 0 || this.canSaveEditedBroadcast;
     }
 
     isTopActionPending(action: 'intro' | 'text' | 'audio' | 'outro'): boolean {
@@ -338,7 +404,12 @@ export class TimelineNoticiarioComponent implements OnInit {
                     musicVolume: item.music_volume || 0.25,
                     musicPlacement: (item.music_position || (item.type === 'outro' ? 'after' : 'during')) as any,
                     musicTailSeconds: item.music_tail_seconds == null ? 0.8 : Number(item.music_tail_seconds),
-                    musicFadeOutSeconds: item.music_fade_out_seconds == null ? 0.5 : Number(item.music_fade_out_seconds)
+                    musicFadeOutSeconds: item.music_fade_out_seconds == null ? 0.5 : Number(item.music_fade_out_seconds),
+                    isNewBlock: false,
+                    requiresHumanization: false,
+                    audioDirty: false,
+                    humanizeStatus: 'ok',
+                    humanizeError: undefined
                 };
             });
 
@@ -408,16 +479,126 @@ export class TimelineNoticiarioComponent implements OnInit {
             musicVolume: this.normalizeMusicVolume(item.music_volume, 0.25),
             musicPlacement: (item.music_position || (item.type === 'outro' ? 'after' : 'during')) as any,
             musicTailSeconds: item.music_tail_seconds == null ? 0.8 : Number(item.music_tail_seconds),
-            musicFadeOutSeconds: item.music_fade_out_seconds == null ? 0.5 : Number(item.music_fade_out_seconds)
+            musicFadeOutSeconds: item.music_fade_out_seconds == null ? 0.5 : Number(item.music_fade_out_seconds),
+            isNewBlock: false,
+            requiresHumanization: false,
+            audioDirty: false,
+            humanizeStatus: 'ok',
+            humanizeError: undefined
         };
     }
 
     private appendTimelineItem(createdItem: any): void {
         const next = this.createTimelineEventFromItem(createdItem);
         next.order = this.timelineEvents.length;
+        next.isNewBlock = next.type !== 'news' && next.type !== 'ad';
+        next.requiresHumanization = false;
+        next.audioDirty = next.type !== 'ad';
+        next.humanizeStatus = 'pending';
         this.timelineEvents = [...this.timelineEvents, next];
         this.calculateTimes();
         this.cdr.detectChanges();
+    }
+
+    private isScriptBlock(event: TimelineEvent): boolean {
+        return event.type === 'intro' || event.type === 'outro' || event.type === 'text';
+    }
+
+    private hasScriptContent(event: TimelineEvent): boolean {
+        return !!String(event.description || '').trim();
+    }
+
+    private isIncompleteEditableBlock(event: TimelineEvent): boolean {
+        return this.isScriptBlock(event) && event.isNewBlock === true && !this.hasScriptContent(event);
+    }
+
+    requiresHumanizationForEvent(event: TimelineEvent): boolean {
+        return this.isScriptBlock(event) && !!event.requiresHumanization && this.hasScriptContent(event);
+    }
+
+    canGenerateAudioForEvent(event: TimelineEvent): boolean {
+        if (event.type === 'ad') return false;
+        if (this.isScriptBlock(event)) return this.hasScriptContent(event);
+        return !!String(event.description || event.title || '').trim();
+    }
+
+    private needsAudioGeneration(event: TimelineEvent): boolean {
+        if (event.type === 'ad') return false;
+        if (this.requiresHumanizationForEvent(event)) return false;
+        if (!this.canGenerateAudioForEvent(event)) return false;
+        return !String(event.audioUrl || '').trim() || !!event.audioDirty;
+    }
+
+    private estimateDurationFromText(text: string, fallback = 30): number {
+        const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
+        if (!words) return fallback;
+        return Math.max(5, Math.ceil((words / 150) * 60));
+    }
+
+    private markAudioDirtyLocal(event: TimelineEvent): void {
+        event.audioDirty = true;
+        event.audioUrl = undefined;
+        if (this.isScriptBlock(event) && this.hasScriptContent(event)) {
+            event.duration = this.estimateDurationFromText(event.description, event.duration || 30);
+        }
+        this.calculateTimes();
+    }
+
+    private needsAiCleanup(text: string): boolean {
+        const s = String(text || '');
+        if (!s.trim()) return true;
+        if (/\[[^\]]+\]/.test(s)) return true;
+        if (/[*_#]/.test(s)) return true;
+        if (/aquí tienes|aqui tienes|texto reescrito|reescrito:|claro, aquí|claro, aqui/i.test(s)) return true;
+        return false;
+    }
+
+    private sanitizeHumanizedTextLocally(text: string): string {
+        let cleaned = String(text || '').trim();
+        if (!cleaned) return '';
+
+        cleaned = cleaned
+            .replace(/^\s*(aquí tienes|aqui tienes|claro, aquí|claro, aqui)\s*:?\s*/i, '')
+            .replace(/^\s*texto reescrito\s*:?\s*/i, '')
+            .replace(/^\s*reescrito\s*:?\s*/i, '')
+            .replace(/^\s*[-*#]+\s*/gm, '')
+            .replace(/\[[^\]]+\]/g, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+        return cleaned;
+    }
+
+    private async resolveHumanizedText(text: string): Promise<string> {
+        let finalText = String(text || '').trim();
+        if (!this.needsAiCleanup(finalText)) {
+            return finalText;
+        }
+
+        const locallyCleaned = this.sanitizeHumanizedTextLocally(finalText);
+        if (locallyCleaned && !this.needsAiCleanup(locallyCleaned)) {
+            return locallyCleaned;
+        }
+
+        const cleaned = await this.geminiService.cleanText(finalText);
+        return this.sanitizeHumanizedTextLocally(cleaned.text) || String(cleaned.text || '').trim();
+    }
+
+    private async mapWithConcurrency<T>(
+        items: T[],
+        concurrency: number,
+        worker: (item: T, index: number) => Promise<void>
+    ): Promise<void> {
+        if (items.length === 0) return;
+        let cursor = 0;
+        const workerCount = Math.max(1, Math.min(concurrency, items.length));
+        await Promise.all(Array.from({ length: workerCount }, async () => {
+            while (cursor < items.length) {
+                const index = cursor++;
+                await worker(items[index], index);
+            }
+        }));
     }
 
     async drop(event: CdkDragDrop<any[]>) {
@@ -887,8 +1068,22 @@ export class TimelineNoticiarioComponent implements OnInit {
     async updateBlockText(event: TimelineEvent, newText: string) {
         if (!(await this.ensureEditingCopy(false))) return;
         event.description = newText;
+        if (this.isScriptBlock(event)) {
+            if (event.isNewBlock) {
+                event.originalContent = newText;
+                event.requiresHumanization = !!String(newText || '').trim();
+                event.humanizeStatus = event.requiresHumanization ? 'pending' : 'ok';
+                event.humanizeError = undefined;
+            } else {
+                event.humanizedContent = newText;
+            }
+            this.markAudioDirtyLocal(event);
+        }
         try {
-            await this.supabaseService.updateBroadcastNewsItem(event.id, { custom_content: newText });
+            await this.supabaseService.updateBroadcastNewsItem(event.id, {
+                custom_content: newText,
+                audio_url: null
+            });
             await this.syncBroadcastTotals();
         } catch (error) {
             console.error('Error updating block text:', error);
@@ -902,7 +1097,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         
         // Find selected voice to get default settings if available
         const selectedVoice = this.availableVoices.find(v => v.name === event.voice);
-        const updates: any = { voice_id: event.voice };
+        const updates: any = { voice_id: event.voice, audio_url: null };
 
         if (selectedVoice) {
              if (selectedVoice.speed) updates.voice_speed = selectedVoice.speed;
@@ -911,6 +1106,7 @@ export class TimelineNoticiarioComponent implements OnInit {
 
         try {
             await this.supabaseService.updateBroadcastNewsItem(event.id, updates);
+            this.markAudioDirtyLocal(event);
             
             // Update local event if we changed speed/pitch
             if (updates.voice_speed) event.speed = updates.voice_speed;
@@ -947,11 +1143,13 @@ export class TimelineNoticiarioComponent implements OnInit {
             voice_delay: event.voiceDelay,
             music_position: event.musicUrl ? (event.musicPlacement || (event.type === 'outro' ? 'after' : 'during')) : null,
             music_tail_seconds: event.musicUrl ? event.musicTailSeconds : null,
-            music_fade_out_seconds: event.musicUrl ? event.musicFadeOutSeconds : null
+            music_fade_out_seconds: event.musicUrl ? event.musicFadeOutSeconds : null,
+            audio_url: null
         };
 
         try {
             await this.supabaseService.updateBroadcastNewsItem(event.id, updates);
+            this.markAudioDirtyLocal(event);
             this.snackBar.open('Configuración de música actualizada', 'Cerrar', { duration: 2000 });
             this.calculateTimes();
             await this.syncBroadcastTotals();
@@ -964,8 +1162,118 @@ export class TimelineNoticiarioComponent implements OnInit {
     toggleOriginalText(event: TimelineEvent) {
         event.showOriginalText = !event.showOriginalText;
     }
+
+    async humanizePendingBlocks() {
+        if (!(await this.ensureEditingCopy(false))) return;
+        const pendingBlocks = this.timelineEvents.filter(event => this.requiresHumanizationForEvent(event));
+        if (pendingBlocks.length === 0) {
+            this.snackBar.open('No hay bloques nuevos pendientes de humanización.', 'Cerrar', { duration: 2500 });
+            return;
+        }
+
+        this.humanizing = true;
+        this.cdr.detectChanges();
+
+        let ok = 0;
+        let failed = 0;
+        await this.mapWithConcurrency(
+            pendingBlocks,
+            this.humanizeConcurrency,
+            async (event) => {
+                try {
+                    const baseText = String(event.originalContent || event.description || '').trim();
+                    const refined = await this.geminiService.refineScript(baseText);
+                    const finalText = await this.resolveHumanizedText(refined.text);
+                    event.originalContent = baseText;
+                    event.humanizedContent = finalText;
+                    event.description = finalText;
+                    event.requiresHumanization = false;
+                    event.humanizeStatus = 'ok';
+                    event.humanizeError = undefined;
+                    this.markAudioDirtyLocal(event);
+                    await this.supabaseService.updateBroadcastNewsItem(event.id, {
+                        custom_content: finalText,
+                        audio_url: null
+                    });
+                    ok += 1;
+                } catch (error: any) {
+                    console.error(`Error humanizing block ${event.id}:`, error);
+                    event.humanizeStatus = 'error';
+                    event.humanizeError = String(error?.message || 'error');
+                    failed += 1;
+                } finally {
+                    this.cdr.detectChanges();
+                }
+            }
+        );
+
+        this.humanizing = false;
+        await this.syncBroadcastTotals();
+        this.cdr.detectChanges();
+
+        if (failed > 0) {
+            this.snackBar.open(`Humanización completada con errores: ${ok} ok · ${failed} fallidos.`, 'Cerrar', {
+                duration: 4500,
+                panelClass: ['error-snackbar']
+            });
+            return;
+        }
+
+        this.snackBar.open(`Bloques humanizados: ${ok}/${pendingBlocks.length}.`, 'Cerrar', {
+            duration: 3000,
+            panelClass: ['success-snackbar']
+        });
+    }
+
+    async generatePendingAudios() {
+        if (!(await this.ensureEditingCopy(false))) return;
+        const pendingEvents = this.timelineEvents.filter(event => this.needsAudioGeneration(event));
+        if (pendingEvents.length === 0) {
+            this.snackBar.open('No hay audios pendientes por generar.', 'Cerrar', { duration: 2500 });
+            return;
+        }
+
+        for (const event of pendingEvents) {
+            await this.generateBlockAudio(event);
+        }
+    }
+
+    async runPrimaryTimelineAction() {
+        if (!this.isEditingCopy) {
+            await this.enableEditingByCopy();
+            return;
+        }
+
+        if (this.incompleteEditableBlocksCount > 0) {
+            this.snackBar.open('Completa o elimina los bloques vacíos antes de continuar.', 'Cerrar', {
+                duration: 3500,
+                panelClass: ['error-snackbar']
+            });
+            return;
+        }
+
+        if (this.pendingHumanizationCount > 0) {
+            await this.humanizePendingBlocks();
+            return;
+        }
+
+        if (this.pendingAudioCount > 0) {
+            await this.generatePendingAudios();
+            return;
+        }
+
+        await this.exportTimeline();
+    }
+
     async generateBlockAudio(event: TimelineEvent) {
         if (!(await this.ensureEditingCopy(false))) return;
+        if (this.requiresHumanizationForEvent(event)) {
+            this.snackBar.open('Este bloque nuevo debe pasar por humanización antes de generar audio.', 'Cerrar', {
+                duration: 3500,
+                panelClass: ['error-snackbar']
+            });
+            return;
+        }
         const textToSpeak = event.description || event.title;
         if (!textToSpeak) return;
         this.isGeneratingAudio = true;
@@ -975,7 +1283,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             // 1. Generate Speech Audio (returns Blob URL)
             let audioUrl = await this.ttsService.generateSpeech({
                 text: textToSpeak,
-                voice: event.voice || 'es-MX-DaliaNeural',
+                voice: event.voice || this.getDefaultQwenVoiceName() || '',
                 speed: Number(event.speed) || 1.0,
                 pitch: Number(event.pitch) || 1.0
             });
@@ -1030,6 +1338,10 @@ export class TimelineNoticiarioComponent implements OnInit {
 
             // 6. Update local state
             event.audioUrl = publicUrl;
+            event.audioDirty = false;
+            if (this.isScriptBlock(event)) {
+                event.humanizedContent = event.description;
+            }
             
             // Get duration
             const audio = new Audio(publicUrl);
@@ -1053,8 +1365,16 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     async exportTimeline() {
         if (this.timelineEvents.length === 0) return;
+        if (this.isEditingCopy && !this.canSaveEditedBroadcast) {
+            this.snackBar.open(this.timelinePrimaryActionHint, 'Cerrar', {
+                duration: 4000,
+                panelClass: ['error-snackbar']
+            });
+            return;
+        }
         
         this.loading = true;
+        this.savingTimeline = true;
 
         try {
             const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -1158,11 +1478,15 @@ export class TimelineNoticiarioComponent implements OnInit {
                     total_reading_time_seconds: Math.ceil(renderedBuffer.duration)
                 });
 
+                const exportMessage = quotaResult?.charged_now
+                    ? `El noticiero se ha exportado y guardado en "Mis Noticieros". Se descontaron ${quotaResult.charged_minutes} min.`
+                    : 'El noticiero se actualizó y guardó sin descontar minutos nuevamente.';
+
                 Swal.fire({
                     title: 'Exportación Exitosa',
                     text: missingAudioCount > 0 || failedAudioCount > 0
-                        ? `Exportado y guardado. Bloques sin audio: ${missingAudioCount} · Fallos al cargar audio: ${failedAudioCount}`
-                        : 'El noticiero se ha exportado y guardado en "Mis Noticieros".',
+                        ? `${exportMessage} Bloques sin audio: ${missingAudioCount} · Fallos al cargar audio: ${failedAudioCount}`
+                        : exportMessage,
                     icon: 'success',
                     timer: 2000,
                     showConfirmButton: false
@@ -1179,6 +1503,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             Swal.fire('Error', 'Error al exportar el timeline.', 'error');
         } finally {
             this.loading = false;
+            this.savingTimeline = false;
             this.cdr.detectChanges();
         }
     }

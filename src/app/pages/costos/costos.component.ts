@@ -16,6 +16,8 @@ export class CostosComponent implements OnInit {
     loading = false;
     loadingRates = false;
     loadingBroadcasts = false;
+    loadingMinuteEvents = false;
+    loadingGeneratedHistory = false;
     savingRate = false;
     currentUserId = '';
     currentUserRole: 'super_admin' | 'admin' | 'user' = 'user';
@@ -24,6 +26,8 @@ export class CostosComponent implements OnInit {
     rates: any[] = [];
     events: any[] = [];
     broadcasts: any[] = [];
+    minuteEvents: any[] = [];
+    generatedHistory: any[] = [];
 
     selectedUserId = 'all';
     selectedAction = 'all';
@@ -43,9 +47,20 @@ export class CostosComponent implements OnInit {
         await this.loadContext();
         await this.loadUsers();
 
-        const tasks: Promise<void>[] = [this.loadEvents(), this.loadBroadcasts()];
+        const tasks: Promise<void>[] = [this.loadEvents(), this.loadBroadcasts(), this.loadMinuteEvents(), this.loadGeneratedHistory()];
         if (this.canManageRates) tasks.push(this.loadRates());
         await Promise.all(tasks);
+    }
+
+    get pageTitle(): string {
+        return this.currentUserRole === 'super_admin' ? 'Costos' : 'Actividad';
+    }
+
+    get pageSubtitle(): string {
+        if (this.currentUserRole === 'super_admin') {
+            return 'Registro global de actividad, costos, minutos y responsables por usuario';
+        }
+        return 'Seguimiento de minutos, exportaciones finales y noticieros del admin + equipo';
     }
 
     get availableActions(): string[] {
@@ -110,6 +125,22 @@ export class CostosComponent implements OnInit {
         return this.broadcasts.filter(broadcast => this.matchesAdvancedFilters(broadcast.creator));
     }
 
+    get filteredMinuteEvents(): any[] {
+        return this.minuteEvents.filter(event => this.matchesAdvancedFilters(this.resolveMinuteEventUser(event)));
+    }
+
+    get filteredGeneratedHistory(): any[] {
+        return this.generatedHistory.filter(item => this.matchesAdvancedFilters(this.resolveGeneratedUser(item)));
+    }
+
+    get totalMinutesUsed(): number {
+        return this.filteredMinuteEvents.reduce((sum, event) => sum + Number(event?.consumed_minutes || 0), 0);
+    }
+
+    get totalFinalExports(): number {
+        return this.filteredGeneratedHistory.length;
+    }
+
     get activitySummary(): any[] {
         const summary = new Map<string, any>();
         const baseUsers = this.users.filter(user => this.matchesAdvancedFilters(user));
@@ -120,7 +151,10 @@ export class CostosComponent implements OnInit {
                 user,
                 eventCount: 0,
                 broadcastCount: 0,
-                totalCost: 0
+                totalCost: 0,
+                minuteEventCount: 0,
+                usedMinutes: 0,
+                finalExportCount: 0
             });
         }
 
@@ -132,7 +166,10 @@ export class CostosComponent implements OnInit {
                     user: event.user || null,
                     eventCount: 0,
                     broadcastCount: 0,
-                    totalCost: 0
+                    totalCost: 0,
+                    minuteEventCount: 0,
+                    usedMinutes: 0,
+                    finalExportCount: 0
                 });
             }
 
@@ -157,13 +194,57 @@ export class CostosComponent implements OnInit {
             row.broadcastCount += 1;
         }
 
+        for (const event of this.filteredMinuteEvents) {
+            const userId = String(event.user_id || '');
+            const user = this.resolveMinuteEventUser(event);
+            if (!summary.has(userId)) {
+                summary.set(userId, {
+                    userId,
+                    user,
+                    eventCount: 0,
+                    broadcastCount: 0,
+                    totalCost: 0,
+                    minuteEventCount: 0,
+                    usedMinutes: 0,
+                    finalExportCount: 0
+                });
+            }
+
+            const row = summary.get(userId);
+            row.minuteEventCount += 1;
+            row.usedMinutes += Number(event.consumed_minutes || 0);
+        }
+
+        for (const item of this.filteredGeneratedHistory) {
+            const user = this.resolveGeneratedUser(item);
+            const userId = String(user?.id || item?.charged_user_id || '');
+            if (!userId) continue;
+            if (!summary.has(userId)) {
+                summary.set(userId, {
+                    userId,
+                    user,
+                    eventCount: 0,
+                    broadcastCount: 0,
+                    totalCost: 0,
+                    minuteEventCount: 0,
+                    usedMinutes: 0,
+                    finalExportCount: 0
+                });
+            }
+
+            const row = summary.get(userId);
+            row.finalExportCount += 1;
+        }
+
         return Array.from(summary.values())
-            .filter(row => !!row.user && (row.eventCount > 0 || row.broadcastCount > 0))
+            .filter(row => !!row.user && (row.eventCount > 0 || row.broadcastCount > 0 || row.minuteEventCount > 0 || row.finalExportCount > 0))
             .sort((a, b) => {
                 if (this.canViewCosts) {
                     const costDiff = Number(b.totalCost || 0) - Number(a.totalCost || 0);
                     if (costDiff !== 0) return costDiff;
                 }
+                const minutesDiff = Number(b.usedMinutes || 0) - Number(a.usedMinutes || 0);
+                if (minutesDiff !== 0) return minutesDiff;
                 return Number(b.broadcastCount || 0) - Number(a.broadcastCount || 0);
             });
     }
@@ -185,6 +266,21 @@ export class CostosComponent implements OnInit {
             costByUser.set(userId, (costByUser.get(userId) || 0) + Number(event.total_cost || 0));
         }
 
+        const usedMinutesByUser = new Map<string, number>();
+        for (const event of this.filteredMinuteEvents) {
+            const userId = String(event.user_id || '');
+            if (!userId) continue;
+            usedMinutesByUser.set(userId, (usedMinutesByUser.get(userId) || 0) + Number(event.consumed_minutes || 0));
+        }
+
+        const finalExportsByUser = new Map<string, number>();
+        for (const item of this.filteredGeneratedHistory) {
+            const user = this.resolveGeneratedUser(item);
+            const userId = String(user?.id || item?.charged_user_id || '');
+            if (!userId) continue;
+            finalExportsByUser.set(userId, (finalExportsByUser.get(userId) || 0) + 1);
+        }
+
         const admins = this.users
             .filter(u => u?.role === 'admin')
             .filter(u => this.selectedManagerId === 'all' || u.id === this.selectedManagerId)
@@ -194,30 +290,44 @@ export class CostosComponent implements OnInit {
                     .map(member => ({
                         user: member,
                         broadcastCount: broadcastCountByUser.get(member.id) || 0,
-                        totalCost: costByUser.get(member.id) || 0
+                        totalCost: costByUser.get(member.id) || 0,
+                        usedMinutes: usedMinutesByUser.get(member.id) || 0,
+                        finalExportCount: finalExportsByUser.get(member.id) || 0
                     }))
-                    .sort((a, b) => Number(b.broadcastCount || 0) - Number(a.broadcastCount || 0));
+                    .sort((a, b) => Number(b.usedMinutes || 0) - Number(a.usedMinutes || 0) || Number(b.broadcastCount || 0) - Number(a.broadcastCount || 0));
 
                 const includeAdmin = this.selectedRole !== 'user';
                 const visibleMembers = this.selectedRole === 'admin' ? [] : allMembers;
 
                 const adminBroadcastCount = includeAdmin ? (broadcastCountByUser.get(admin.id) || 0) : 0;
                 const adminCost = includeAdmin ? (costByUser.get(admin.id) || 0) : 0;
+                const adminUsedMinutes = includeAdmin ? (usedMinutesByUser.get(admin.id) || 0) : 0;
+                const adminFinalExportCount = includeAdmin ? (finalExportsByUser.get(admin.id) || 0) : 0;
                 const membersBroadcastCount = visibleMembers.reduce((sum, item) => sum + Number(item.broadcastCount || 0), 0);
                 const membersCost = visibleMembers.reduce((sum, item) => sum + Number(item.totalCost || 0), 0);
+                const membersUsedMinutes = visibleMembers.reduce((sum, item) => sum + Number(item.usedMinutes || 0), 0);
+                const membersFinalExportCount = visibleMembers.reduce((sum, item) => sum + Number(item.finalExportCount || 0), 0);
 
                 return {
                     admin,
                     members: visibleMembers,
                     adminBroadcastCount,
                     adminCost,
+                    adminUsedMinutes,
+                    adminFinalExportCount,
                     membersBroadcastCount,
                     membersCost,
+                    membersUsedMinutes,
+                    membersFinalExportCount,
                     totalBroadcastCount: adminBroadcastCount + membersBroadcastCount,
-                    totalCost: adminCost + membersCost
+                    totalCost: adminCost + membersCost,
+                    totalUsedMinutes: adminUsedMinutes + membersUsedMinutes,
+                    totalFinalExportCount: adminFinalExportCount + membersFinalExportCount
                 };
             })
             .sort((a, b) => {
+                const minuteDiff = Number(b.totalUsedMinutes || 0) - Number(a.totalUsedMinutes || 0);
+                if (minuteDiff !== 0) return minuteDiff;
                 const totalDiff = Number(b.totalBroadcastCount || 0) - Number(a.totalBroadcastCount || 0);
                 if (totalDiff !== 0) return totalDiff;
                 return Number(b.totalCost || 0) - Number(a.totalCost || 0);
@@ -225,13 +335,17 @@ export class CostosComponent implements OnInit {
 
         return admins.filter(group => {
             if (this.selectedRole === 'super_admin') return false;
-            return group.totalBroadcastCount > 0 || group.totalCost > 0 || group.members.length > 0;
+            return group.totalBroadcastCount > 0 || group.totalUsedMinutes > 0 || group.totalCost > 0 || group.members.length > 0;
         });
     }
 
     get teamBroadcastRows(): any[] {
         if (this.currentUserRole === 'admin') {
-            return this.filteredBroadcasts.filter(b => b?.creator?.manager_id === this.currentUserId);
+            return this.filteredBroadcasts.filter(b => {
+                const creatorId = String(b?.created_by || b?.creator?.id || '');
+                const managerId = String(b?.creator?.manager_id || '');
+                return creatorId === this.currentUserId || managerId === this.currentUserId;
+            });
         }
         return this.filteredBroadcasts;
     }
@@ -241,7 +355,11 @@ export class CostosComponent implements OnInit {
     }
 
     get ownBroadcastCount(): number {
-        return this.broadcasts.filter(b => b?.created_by === this.currentUserId).length;
+        return this.filteredBroadcasts.filter(b => b?.created_by === this.currentUserId).length;
+    }
+
+    get ownFinalExportCount(): number {
+        return this.filteredGeneratedHistory.filter(item => String(this.resolveGeneratedUser(item)?.id || '') === this.currentUserId).length;
     }
 
     async loadContext(): Promise<void> {
@@ -351,8 +469,58 @@ export class CostosComponent implements OnInit {
         }
     }
 
+    async loadMinuteEvents(): Promise<void> {
+        this.loadingMinuteEvents = true;
+        this.cdr.detectChanges();
+        try {
+            const fromIso = this.fromDate ? new Date(`${this.fromDate}T00:00:00`).toISOString() : undefined;
+            const toIso = this.toDate ? new Date(`${this.toDate}T23:59:59`).toISOString() : undefined;
+
+            const data = await this.supabaseService.getAudioMinuteUsageEvents({
+                limit: 500,
+                userId: this.selectedUserId,
+                from: fromIso,
+                to: toIso
+            });
+
+            this.minuteEvents = data || [];
+        } catch (error) {
+            console.error('Error loading minute usage events:', error);
+            this.minuteEvents = [];
+            this.snackBar.open('Error al cargar historial de minutos', 'Cerrar', { duration: 3000 });
+        } finally {
+            this.loadingMinuteEvents = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    async loadGeneratedHistory(): Promise<void> {
+        this.loadingGeneratedHistory = true;
+        this.cdr.detectChanges();
+        try {
+            const fromIso = this.fromDate ? new Date(`${this.fromDate}T00:00:00`).toISOString() : undefined;
+            const toIso = this.toDate ? new Date(`${this.toDate}T23:59:59`).toISOString() : undefined;
+
+            const data = await this.supabaseService.getGeneratedBroadcasts({
+                limit: 500,
+                chargedUserId: this.selectedUserId,
+                from: fromIso,
+                to: toIso
+            });
+
+            this.generatedHistory = data || [];
+        } catch (error) {
+            console.error('Error loading generated broadcasts history:', error);
+            this.generatedHistory = [];
+            this.snackBar.open('Error al cargar historial de audios finales', 'Cerrar', { duration: 3000 });
+        } finally {
+            this.loadingGeneratedHistory = false;
+            this.cdr.detectChanges();
+        }
+    }
+
     async refreshAll(): Promise<void> {
-        const tasks: Promise<void>[] = [this.loadEvents(), this.loadBroadcasts()];
+        const tasks: Promise<void>[] = [this.loadEvents(), this.loadBroadcasts(), this.loadMinuteEvents(), this.loadGeneratedHistory()];
         if (this.canManageRates) tasks.push(this.loadRates());
         await Promise.all(tasks);
     }
@@ -418,6 +586,68 @@ export class CostosComponent implements OnInit {
         return manager ? this.displayUser(manager) : 'Equipo';
     }
 
+    getResponsibleContextLabel(user: any): string {
+        if (!user) return 'Sin contexto';
+        if (user.role === 'super_admin') return 'Cuenta propia';
+        if (user.role === 'admin') return 'Admin';
+        return user?.manager_id ? 'Miembro de equipo' : 'Cuenta propia';
+    }
+
+    getResponsibleBadgeClass(user: any): string {
+        if (!user) return 'responsible-badge responsible-badge-neutral';
+        if (user.role === 'super_admin') return 'responsible-badge responsible-badge-super';
+        if (user.role === 'admin') return 'responsible-badge responsible-badge-admin';
+        return user?.manager_id ? 'responsible-badge responsible-badge-team' : 'responsible-badge responsible-badge-neutral';
+    }
+
+    private getUserById(userId: string | null | undefined): any | null {
+        const id = String(userId || '').trim();
+        if (!id) return null;
+        return this.users.find(u => u.id === id) || null;
+    }
+
+    private getBroadcastById(broadcastId: string | null | undefined): any | null {
+        const id = String(broadcastId || '').trim();
+        if (!id) return null;
+        return this.broadcasts.find(b => b.id === id) || null;
+    }
+
+    resolveMinuteEventUser(event: any): any | null {
+        return this.getUserById(event?.user_id);
+    }
+
+    resolveGeneratedUser(item: any): any | null {
+        const chargedUser = this.getUserById(item?.charged_user_id);
+        if (chargedUser) return chargedUser;
+
+        const broadcast = this.getBroadcastById(item?.broadcast_id);
+        if (broadcast?.creator) return broadcast.creator;
+        return this.getUserById(broadcast?.created_by);
+    }
+
+    getMinuteEventTitle(event: any): string {
+        const metadataTitle = String(event?.metadata?.title || '').trim();
+        if (metadataTitle) return metadataTitle;
+
+        const generated = this.filteredGeneratedHistory.find(item => item.id === event?.generated_broadcast_id);
+        const generatedTitle = String(generated?.title || '').trim();
+        if (generatedTitle) return generatedTitle;
+
+        const broadcast = this.getBroadcastById(event?.broadcast_id);
+        return String(broadcast?.title || 'Noticiero sin título');
+    }
+
+    getMinuteEventDurationSeconds(event: any): number {
+        const metadataDuration = Number(event?.metadata?.duration_seconds || 0);
+        if (metadataDuration > 0) return metadataDuration;
+
+        const generated = this.filteredGeneratedHistory.find(item => item.id === event?.generated_broadcast_id);
+        const generatedDuration = Number(generated?.duration_seconds || 0);
+        if (generatedDuration > 0) return generatedDuration;
+
+        return 0;
+    }
+
     private getResponsibleAdminId(user: any): string | null {
         if (!user) return null;
         if (user.role === 'admin') return user.id || null;
@@ -445,5 +675,12 @@ export class CostosComponent implements OnInit {
         if (role === 'admin') return 'Admin';
         if (role === 'user') return 'Usuario';
         return role || 'Usuario';
+    }
+
+    getRoleBadgeClass(user: any): string {
+        const role = String(user?.role || '').trim();
+        if (role === 'super_admin') return 'role-pill role-pill-super';
+        if (role === 'admin') return 'role-pill role-pill-admin';
+        return 'role-pill role-pill-user';
     }
 }

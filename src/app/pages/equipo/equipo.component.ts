@@ -24,10 +24,11 @@ export class EquipoComponent implements OnInit {
     showCreateModal = false;
     newMember = { email: '', fullName: '', quotaMinutes: 0 };
 
-    totals = { broadcasts: 0, cost: 0 };
+    totals = { broadcasts: 0, usedMinutes: 0, finalExports: 0 };
     adminQuotaSummary: AudioQuotaSummary | null = null;
     memberQuotaSummaries: Record<string, AudioQuotaSummary> = {};
     quotaInputs: Record<string, number> = {};
+    memberExportCounts: Record<string, number> = {};
 
     constructor(
         private supabaseService: SupabaseService,
@@ -69,10 +70,18 @@ export class EquipoComponent implements OnInit {
         this.showCreateModal = false;
     }
 
-    private computeTotals(rows: any[]) {
-        const broadcasts = rows.reduce((sum, r) => sum + Number(r?.broadcasts_count || 0), 0);
-        const cost = rows.reduce((sum, r) => sum + Number(r?.total_cost || 0), 0);
-        this.totals = { broadcasts, cost };
+    private getMemberId(member: any): string {
+        return member?.member_id || member?.id || '';
+    }
+
+    private computeTotals() {
+        const broadcasts = this.members.reduce((sum, r) => sum + Number(r?.broadcasts_count || 0), 0);
+        const usedMinutes = this.members.reduce((sum, member) => {
+            const summary = this.getMemberQuota(this.getMemberId(member));
+            return sum + Number(summary?.used_minutes || 0);
+        }, 0);
+        const finalExports = this.members.reduce((sum, member) => sum + this.getMemberExportCount(this.getMemberId(member)), 0);
+        this.totals = { broadcasts, usedMinutes, finalExports };
     }
 
     async loadTeam() {
@@ -80,8 +89,11 @@ export class EquipoComponent implements OnInit {
         try {
             const rows = await this.supabaseService.getTeamMembersWithUsage();
             this.members = rows || [];
-            this.computeTotals(this.members);
-            await this.loadTeamQuotaSummaries();
+            await Promise.all([
+                this.loadTeamQuotaSummaries(),
+                this.loadTeamGeneratedHistory()
+            ]);
+            this.computeTotals();
         } catch (error: any) {
             console.error('Error loading team:', error);
             this.showSnackBar(error?.message || 'Error al cargar el equipo', 'error-snackbar');
@@ -208,7 +220,7 @@ export class EquipoComponent implements OnInit {
     }
 
     async saveMemberQuota(member: any) {
-        const memberId = member?.member_id || member?.id;
+        const memberId = this.getMemberId(member);
         if (!memberId) return;
 
         this.savingQuotaUserId = memberId;
@@ -230,13 +242,17 @@ export class EquipoComponent implements OnInit {
         return this.memberQuotaSummaries[memberId] || null;
     }
 
+    getMemberExportCount(memberId: string): number {
+        return Number(this.memberExportCounts[memberId] || 0);
+    }
+
     isSavingQuota(memberId: string): boolean {
         return this.savingQuotaUserId === memberId;
     }
 
     private async loadTeamQuotaSummaries() {
         const summaries = await Promise.all((this.members || []).map(async (member: any) => {
-            const memberId = member?.member_id || member?.id;
+            const memberId = this.getMemberId(member);
             if (!memberId) return [null, null] as const;
 
             try {
@@ -261,5 +277,21 @@ export class EquipoComponent implements OnInit {
         if (currentUser?.id) {
             this.adminQuotaSummary = await this.supabaseService.getAudioQuotaSummary(currentUser.id).catch(() => this.adminQuotaSummary);
         }
+
+        this.computeTotals();
+    }
+
+    private async loadTeamGeneratedHistory() {
+        const generated = await this.supabaseService.getGeneratedBroadcasts({ limit: 500 });
+        const counts: Record<string, number> = {};
+
+        for (const item of generated || []) {
+            const chargedUserId = String(item?.charged_user_id || '').trim();
+            if (!chargedUserId) continue;
+            counts[chargedUserId] = (counts[chargedUserId] || 0) + 1;
+        }
+
+        this.memberExportCounts = counts;
+        this.computeTotals();
     }
 }

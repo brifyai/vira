@@ -16,6 +16,14 @@ export interface AudioQuotaSummary {
     can_generate: boolean;
 }
 
+export interface GeneratedBroadcastWithQuotaResult {
+    generated_broadcast: any;
+    quota_summary?: any;
+    charged_minutes: number;
+    charged_now: boolean;
+    already_charged: boolean;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -806,6 +814,27 @@ export class SupabaseService {
         return data;
     }
 
+    async getAudioMinuteUsageEvents(options?: { limit?: number; offset?: number; userId?: string; from?: string; to?: string }) {
+        let query = this.supabase
+            .from('audio_minute_usage_events')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (options?.limit) query = query.limit(options.limit);
+        if (options?.offset) query = query.range(options.offset, options.offset + (options.limit || 50) - 1);
+
+        if (options?.userId && options.userId !== 'all') {
+            query = query.eq('user_id', options.userId);
+        }
+
+        if (options?.from) query = query.gte('created_at', options.from);
+        if (options?.to) query = query.lte('created_at', options.to);
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
+    }
+
     async getBroadcastsForCosts(options?: { limit?: number; offset?: number; creatorId?: string; from?: string; to?: string }) {
         let query = this.supabase
             .from('news_broadcasts')
@@ -859,7 +888,14 @@ export class SupabaseService {
         if (error) throw error;
     }
 
-    async getGeneratedBroadcasts(options?: { limit?: number; offset?: number; broadcastId?: string }) {
+    async getGeneratedBroadcasts(options?: {
+        limit?: number;
+        offset?: number;
+        broadcastId?: string;
+        chargedUserId?: string;
+        from?: string;
+        to?: string;
+    }) {
         let query = this.supabase
             .from('generated_broadcasts')
             .select('*')
@@ -876,6 +912,13 @@ export class SupabaseService {
         if (options?.broadcastId) {
             query = query.eq('broadcast_id', options.broadcastId);
         }
+
+        if (options?.chargedUserId && options.chargedUserId !== 'all') {
+            query = query.eq('charged_user_id', options.chargedUserId);
+        }
+
+        if (options?.from) query = query.gte('created_at', options.from);
+        if (options?.to) query = query.lte('created_at', options.to);
 
         const { data, error } = await query;
 
@@ -899,7 +942,7 @@ export class SupabaseService {
         title: string;
         audio_url: string;
         duration_seconds: number;
-    }) {
+    }): Promise<GeneratedBroadcastWithQuotaResult> {
         const { data, error } = await this.supabase.rpc('create_generated_broadcast_with_quota_rpc', {
             p_broadcast_id: payload.broadcast_id,
             p_title: payload.title,
@@ -908,7 +951,13 @@ export class SupabaseService {
         });
 
         if (error) throw error;
-        return data;
+        return {
+            generated_broadcast: data?.generated_broadcast,
+            quota_summary: data?.quota_summary,
+            charged_minutes: Number(data?.charged_minutes || 0),
+            charged_now: !!data?.charged_now,
+            already_charged: !!data?.already_charged
+        };
     }
 
     async deleteGeneratedBroadcast(id: string) {

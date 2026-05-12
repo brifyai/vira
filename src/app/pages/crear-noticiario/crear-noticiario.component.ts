@@ -1559,6 +1559,13 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 });
             }
 
+            if (quotaResult?.charged_now) {
+                this.snackBar.open(`Audio final guardado. Se descontaron ${quotaResult.charged_minutes} min.`, 'Cerrar', {
+                    duration: 3500,
+                    panelClass: ['success-snackbar']
+                });
+            }
+
             // 6. Trigger Download
             const downloadUrl = URL.createObjectURL(mp3Blob);
             const a = document.createElement('a');

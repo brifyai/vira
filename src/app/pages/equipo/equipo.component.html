@@ -15,8 +15,12 @@
             <div class="summary-label">Noticieros creados (admin + equipo)</div>
         </div>
         <div class="summary-card">
-            <div class="summary-value">{{ totals.cost | number:'1.0-2' }}</div>
-            <div class="summary-label">Costos totales (admin + equipo)</div>
+            <div class="summary-value">{{ totals.usedMinutes }}</div>
+            <div class="summary-label">Minutos usados (admin + equipo)</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value">{{ totals.finalExports }}</div>
+            <div class="summary-label">Audios finales exportados</div>
         </div>
         <div class="summary-card" *ngIf="adminQuotaSummary && !adminQuotaSummary.unlimited">
             <div class="summary-value">{{ adminQuotaSummary.quota_total_minutes }}</div>
@@ -52,10 +56,10 @@
                     <th>Usuario</th>
                     <th>Rol</th>
                     <th>Cuota</th>
-                    <th>Usado</th>
-                    <th>Restante</th>
+                    <th>Min. usados</th>
+                    <th>Min. restantes</th>
                     <th>Noticieros</th>
-                    <th>Costos</th>
+                    <th>Audios finales</th>
                     <th></th>
                 </tr>
             </thead>
@@ -84,7 +88,7 @@
                     <td>{{ getMemberQuota(m.member_id)?.used_minutes || 0 }} min</td>
                     <td>{{ getMemberQuota(m.member_id)?.remaining_minutes || 0 }} min</td>
                     <td>{{ m.broadcasts_count || 0 }}</td>
-                    <td>{{ (m.total_cost || 0) | number:'1.0-2' }}</td>
+                    <td>{{ getMemberExportCount(m.member_id) }}</td>
                     <td class="actions">
                         <button class="danger-btn" (click)="deleteMember(m)" *ngIf="!m.is_admin">Eliminar</button>
                     </td>
