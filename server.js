@@ -3172,6 +3172,65 @@ Texto a corregir:
 ${text}`;
 }
 
+function normalizeAiOutputLine(line) {
+    return String(line || '').replace(/\s+/g, ' ').trim();
+}
+
+function isLikelyAiMetaLine(line) {
+    const s = normalizeAiOutputLine(line);
+    if (!s) return false;
+
+    return /^(act[uú]a como|tu misi[oó]n|objetivo|reglas(?: de oro)?|texto original(?: dice)?|texto a revisar|instrucciones|an[aá]lisis|veamos|espera[,:\s]|respuesta|problema|alerta|ajuste fino|idioma \(inviolable\)|puntuaci[oó]n respirada|lenguaje hablado|n[uú]meros|siglas|limpieza(?: total)?|solo el texto final|conserva el sentido|mant[eé]n el sentido|hay n[uú]meros|no hay siglas|no hay caracteres)/i.test(s)
+        || /^\d+\.\s+(puntuaci[oó]n|lenguaje|n[uú]meros|siglas|limpieza|conserva|respuesta)/i.test(s)
+        || /^[-*]\s+(usa|evita|escribe|expande|elimina|mant[eé]n|conserva|no uses|solo el texto final)/i.test(s);
+}
+
+function looksLikePromptLeak(text) {
+    const s = String(text || '').trim();
+    if (!s) return true;
+
+    return /(el usuario me pide que act[uú]e|act[uú]a como|tu misi[oó]n es|texto original dice|texto original:|an[aá]lisis:|veamos:|espera,|solo el texto final|necesito seguir estas reglas|reglas de oro|puntuaci[oó]n respirada)/i.test(s);
+}
+
+function sanitizeFallbackRadioText(text) {
+    return String(text || '')
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/\[[^\]]+\]/g, ' ')
+        .replace(/[*_#`]/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
+function sanitizeAiRadioText(text) {
+    let cleaned = String(text || '')
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/`+/g, ' ')
+        .replace(/\[[^\]]+\]/g, ' ')
+        .trim();
+
+    if (!cleaned) return '';
+
+    const finalMarkerMatch = cleaned.match(/(?:texto|versi[oó]n|resultado|guion|salida)\s+final\s*:?\s*([\s\S]+)/i);
+    if (finalMarkerMatch?.[1]) {
+        cleaned = String(finalMarkerMatch[1]).trim();
+    }
+
+    const lines = cleaned
+        .split(/\r?\n/)
+        .map(normalizeAiOutputLine)
+        .filter(Boolean);
+
+    const filteredLines = lines.filter(line => !isLikelyAiMetaLine(line));
+    if (filteredLines.length > 0) {
+        cleaned = filteredLines.join(' ');
+    }
+
+    return cleaned
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([,.;:!?])/g, '$1')
+        .trim();
+}
+
 async function callMiniMaxRaw({ apiKey, body, signal, timeoutMs = 45000 }) {
     const resp = await fetchWithTimeout(
         'https://api.minimax.io/anthropic/v1/messages',
@@ -4223,6 +4282,7 @@ app.post('/api/gemini', async (req, res) => {
       6. CONSERVA EL SENTIDO: no inventes datos.
       7. IMPORTANTE: si el texto incluye saludos o frases como "Bienvenidos", consérvalas (esto NO es una noticia web).
       8. RESPUESTA: SOLO el texto final listo para locutar. Nada más.
+      9. PROHIBIDO responder con análisis, explicaciones, reglas, listas, comillas de evaluación o repetir estas instrucciones.
 
       Texto:
       ${text}`;
@@ -4387,6 +4447,11 @@ app.post('/api/gemini', async (req, res) => {
                 maxTokens: clamp(Math.ceil(countWords(finalText) * 2.2), 500, 2200),
                 temperature: 0.2
             });
+        }
+
+        finalText = sanitizeAiRadioText(finalText);
+        if (looksLikePromptLeak(finalText)) {
+            finalText = sanitizeFallbackRadioText(text);
         }
 
         res.json({

@@ -2000,6 +2000,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
 
                             const finalText = await this.resolveHumanizedText(
                                 humanized.text,
+                                news.content,
                                 (cleaned) => {
                                     if (cleaned?.usage) {
                                         minimaxTotals.promptTokens += cleaned.usage.promptTokens || 0;
@@ -2103,8 +2104,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     Math.min(this.humanizeConcurrency, scriptBlocks.length),
                     async (block) => {
                         try {
-                            const refined = await this.geminiService.refineScript(String(block.description || ''));
-                            const finalText = await this.resolveHumanizedText(refined.text);
+                            const sourceText = String(block.description || '');
+                            const refined = await this.geminiService.refineScript(sourceText);
+                            const finalText = await this.resolveHumanizedText(refined.text, sourceText);
 
                             block.description = finalText;
                             this.invalidateAudio(block);
@@ -2701,12 +2703,38 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         if (/\[[^\]]+\]/.test(s)) return true;
         if (/[*_#]/.test(s)) return true;
         if (/aquí tienes|aqui tienes|texto reescrito|reescrito:|claro, aquí|claro, aqui/i.test(s)) return true;
+        if (this.looksLikeAiMetaResponse(s)) return true;
         return false;
+    }
+
+    private looksLikeAiMetaResponse(text: string): boolean {
+        const s = String(text || '').trim();
+        if (!s) return true;
+        return /(el usuario me pide que act[uú]e|act[uú]a como|tu misi[oó]n es|texto original dice|texto original:|an[aá]lisis:|veamos:|espera,|solo el texto final|necesito seguir estas reglas|reglas de oro|puntuaci[oó]n respirada)/i.test(s);
     }
 
     private sanitizeHumanizedTextLocally(text: string): string {
         let cleaned = String(text || '').trim();
         if (!cleaned) return '';
+
+        const finalMarkerMatch = cleaned.match(/(?:texto|versi[oó]n|resultado|guion|salida)\s+final\s*:?\s*([\s\S]+)/i);
+        if (finalMarkerMatch?.[1]) {
+            cleaned = String(finalMarkerMatch[1]).trim();
+        }
+
+        const filteredLines = cleaned
+            .split(/\r?\n/)
+            .map(line => String(line || '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .filter(line => {
+                return !/^(act[uú]a como|tu misi[oó]n|objetivo|reglas(?: de oro)?|texto original(?: dice)?|texto a revisar|instrucciones|an[aá]lisis|veamos|espera[,:\s]|respuesta|problema|alerta|ajuste fino|idioma \(inviolable\)|puntuaci[oó]n respirada|lenguaje hablado|n[uú]meros|siglas|limpieza(?: total)?|solo el texto final|conserva el sentido|mant[eé]n el sentido|hay n[uú]meros|no hay siglas|no hay caracteres)/i.test(line)
+                    && !/^\d+\.\s+(puntuaci[oó]n|lenguaje|n[uú]meros|siglas|limpieza|conserva|respuesta)/i.test(line)
+                    && !/^[-*]\s+(usa|evita|escribe|expande|elimina|mant[eé]n|conserva|no uses|solo el texto final)/i.test(line);
+            });
+
+        if (filteredLines.length > 0) {
+            cleaned = filteredLines.join(' ');
+        }
 
         cleaned = cleaned
             .replace(/^\s*(aquí tienes|aqui tienes|claro, aquí|claro, aqui)\s*:?\s*/i, '')
@@ -2714,6 +2742,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             .replace(/^\s*reescrito\s*:?\s*/i, '')
             .replace(/^\s*[-*#]+\s*/gm, '')
             .replace(/\[[^\]]+\]/g, ' ')
+            .replace(/`+/g, ' ')
             .replace(/\s{2,}/g, ' ')
             .replace(/\n{3,}/g, '\n\n')
             .trim();
@@ -2721,23 +2750,43 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         return cleaned;
     }
 
+    private sanitizeFallbackText(text: string): string {
+        return String(text || '')
+            .replace(/```[\s\S]*?```/g, ' ')
+            .replace(/\[[^\]]+\]/g, ' ')
+            .replace(/[*_#`]/g, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    }
+
     private async resolveHumanizedText(
         text: string,
+        fallbackText?: string,
         onRemoteCleanup?: (result: { text: string; model?: string; usage?: { promptTokens: number; outputTokens: number; totalTokens: number } }) => void
     ): Promise<string> {
         let finalText = String(text || '').trim();
-        if (!this.needsAiCleanup(finalText)) {
+        if (!this.needsAiCleanup(finalText) && !this.looksLikeAiMetaResponse(finalText)) {
             return finalText;
         }
 
         const locallyCleaned = this.sanitizeHumanizedTextLocally(finalText);
-        if (locallyCleaned && !this.needsAiCleanup(locallyCleaned)) {
+        if (locallyCleaned && !this.needsAiCleanup(locallyCleaned) && !this.looksLikeAiMetaResponse(locallyCleaned)) {
             return locallyCleaned;
         }
 
         const cleaned = await this.geminiService.cleanText(finalText);
         onRemoteCleanup?.(cleaned);
-        return this.sanitizeHumanizedTextLocally(cleaned.text) || String(cleaned.text || '').trim();
+        const remotelyCleaned = this.sanitizeHumanizedTextLocally(cleaned.text) || String(cleaned.text || '').trim();
+        if (remotelyCleaned && !this.looksLikeAiMetaResponse(remotelyCleaned)) {
+            return remotelyCleaned;
+        }
+
+        const safeFallback = this.sanitizeFallbackText(fallbackText || '');
+        if (safeFallback) {
+            return safeFallback;
+        }
+
+        return remotelyCleaned || locallyCleaned || finalText;
     }
 
     private async mapWithConcurrency<T, R>(
