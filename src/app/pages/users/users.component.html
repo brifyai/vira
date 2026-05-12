@@ -27,6 +27,25 @@
                 </div>
             </div>
 
+            <div class="quota-summary" *ngIf="getQuotaSummary(user.id) as quota">
+                <div class="quota-row">
+                    <span>Cuota total</span>
+                    <strong>{{ quota.unlimited ? 'Ilimitado' : (quota.quota_total_minutes + ' min') }}</strong>
+                </div>
+                <div class="quota-row" *ngIf="user.role === 'admin'">
+                    <span>Asignado al equipo</span>
+                    <strong>{{ quota.team_assigned_minutes }} min</strong>
+                </div>
+                <div class="quota-row" *ngIf="user.role === 'admin'">
+                    <span>Uso personal</span>
+                    <strong>{{ quota.used_minutes }} min</strong>
+                </div>
+                <div class="quota-row">
+                    <span>{{ user.role === 'admin' ? 'Personal restante' : 'Restante' }}</span>
+                    <strong>{{ quota.unlimited ? 'Ilimitado' : (quota.remaining_minutes + ' min') }}</strong>
+                </div>
+            </div>
+
             <div class="user-actions">
                 <div class="role-select-container">
                     <label>Rol:</label>
@@ -42,6 +61,16 @@
                     <span class="icon">📻</span>
                     Asignar Radios
                 </button>
+
+                <div class="quota-editor" *ngIf="user.role !== 'super_admin'">
+                    <label>Cuota de minutos</label>
+                    <div class="quota-input-row">
+                        <input type="number" min="0" [(ngModel)]="quotaInputs[user.id]">
+                        <button class="quota-save-btn" (click)="saveQuota(user)" [disabled]="isSavingQuota(user.id)">
+                            {{ isSavingQuota(user.id) ? 'Guardando...' : 'Guardar cuota' }}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -117,6 +146,12 @@
                         <option value="admin" *ngIf="currentUserRole === 'super_admin'">Admin</option>
                         <option value="super_admin" *ngIf="currentUserRole === 'super_admin'">Super Admin</option>
                     </select>
+                </div>
+
+                <div class="form-group" *ngIf="newUser.role !== 'super_admin'">
+                    <label>Cuota inicial de minutos</label>
+                    <input type="number" min="0" [(ngModel)]="newUser.quotaMinutes" placeholder="Ej: 500">
+                    <small>Para admins es el pool total; para usuarios es su cuota directa.</small>
                 </div>
             </div>
 

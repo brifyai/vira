@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import Swal from 'sweetalert2';
-import { SupabaseService } from '../../services/supabase.service';
+import { SupabaseService, AudioQuotaSummary } from '../../services/supabase.service';
+import { QuotaService } from '../../services/quota.service';
 
 @Component({
     selector: 'app-equipo',
@@ -18,16 +19,21 @@ export class EquipoComponent implements OnInit {
     currentUserName = '';
     currentUserRole = 'admin';
     creatingMember = false;
+    savingQuotaUserId = '';
 
     showCreateModal = false;
-    newMember = { email: '', fullName: '' };
+    newMember = { email: '', fullName: '', quotaMinutes: 0 };
 
     totals = { broadcasts: 0, cost: 0 };
+    adminQuotaSummary: AudioQuotaSummary | null = null;
+    memberQuotaSummaries: Record<string, AudioQuotaSummary> = {};
+    quotaInputs: Record<string, number> = {};
 
     constructor(
         private supabaseService: SupabaseService,
         private cdr: ChangeDetectorRef,
-        private snackBar: MatSnackBar
+        private snackBar: MatSnackBar,
+        private quotaService: QuotaService
     ) { }
 
     private getDeleteSwalTheme() {
@@ -55,7 +61,7 @@ export class EquipoComponent implements OnInit {
     }
 
     openCreateModal() {
-        this.newMember = { email: '', fullName: '' };
+        this.newMember = { email: '', fullName: '', quotaMinutes: 0 };
         this.showCreateModal = true;
     }
 
@@ -75,6 +81,7 @@ export class EquipoComponent implements OnInit {
             const rows = await this.supabaseService.getTeamMembersWithUsage();
             this.members = rows || [];
             this.computeTotals(this.members);
+            await this.loadTeamQuotaSummaries();
         } catch (error: any) {
             console.error('Error loading team:', error);
             this.showSnackBar(error?.message || 'Error al cargar el equipo', 'error-snackbar');
@@ -98,11 +105,15 @@ export class EquipoComponent implements OnInit {
         try {
             const generatedPassword = this.supabaseService.generateSecurePassword();
 
-            await this.supabaseService.createTeamUser({
+            const created = await this.supabaseService.createTeamUser({
                 email,
                 password: generatedPassword,
                 fullName
             });
+
+            if (created?.id) {
+                await this.supabaseService.setUserAudioQuota(created.id, Number(this.newMember.quotaMinutes || 0));
+            }
 
             const mailResult = await this.supabaseService.sendWelcomeEmail({
                 recipientEmail: email,
@@ -138,6 +149,8 @@ export class EquipoComponent implements OnInit {
         const profile = await this.supabaseService.getUserProfile(user.id);
         this.currentUserRole = profile?.role || 'admin';
         this.currentUserName = profile?.full_name || user.email || '';
+        this.adminQuotaSummary = await this.supabaseService.getAudioQuotaSummary(user.id);
+        await this.quotaService.refreshCurrentSummary();
     }
 
     async deleteMember(member: any) {
@@ -192,5 +205,61 @@ export class EquipoComponent implements OnInit {
             duration: 3000,
             panelClass: panelClass ? [panelClass] : undefined
         });
+    }
+
+    async saveMemberQuota(member: any) {
+        const memberId = member?.member_id || member?.id;
+        if (!memberId) return;
+
+        this.savingQuotaUserId = memberId;
+        try {
+            await this.supabaseService.setUserAudioQuota(memberId, this.quotaInputs[memberId] ?? 0);
+            await this.loadTeamQuotaSummaries();
+            await this.quotaService.refreshCurrentSummary();
+            this.showSnackBar('Cuota actualizada correctamente', 'success-snackbar');
+        } catch (error: any) {
+            console.error('Error updating team quota:', error);
+            this.showSnackBar(error?.message || 'Error al actualizar la cuota', 'error-snackbar');
+        } finally {
+            this.savingQuotaUserId = '';
+            this.cdr.detectChanges();
+        }
+    }
+
+    getMemberQuota(memberId: string): AudioQuotaSummary | null {
+        return this.memberQuotaSummaries[memberId] || null;
+    }
+
+    isSavingQuota(memberId: string): boolean {
+        return this.savingQuotaUserId === memberId;
+    }
+
+    private async loadTeamQuotaSummaries() {
+        const summaries = await Promise.all((this.members || []).map(async (member: any) => {
+            const memberId = member?.member_id || member?.id;
+            if (!memberId) return [null, null] as const;
+
+            try {
+                const summary = await this.supabaseService.getAudioQuotaSummary(memberId);
+                return [memberId, summary] as const;
+            } catch (error) {
+                console.warn(`Error loading quota for member ${memberId}`, error);
+                return [memberId, null] as const;
+            }
+        }));
+
+        this.memberQuotaSummaries = {};
+        this.quotaInputs = {};
+
+        for (const [memberId, summary] of summaries) {
+            if (!memberId || !summary) continue;
+            this.memberQuotaSummaries[memberId] = summary;
+            this.quotaInputs[memberId] = summary.quota_total_minutes;
+        }
+
+        const currentUser = await this.supabaseService.getCurrentUser().catch(() => null);
+        if (currentUser?.id) {
+            this.adminQuotaSummary = await this.supabaseService.getAudioQuotaSummary(currentUser.id).catch(() => this.adminQuotaSummary);
+        }
     }
 }

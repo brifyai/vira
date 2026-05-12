@@ -97,6 +97,11 @@
         </nav>
 
         <div class="header-right" *ngIf="isLoggedIn">
+            <div class="quota-indicator" *ngIf="shouldShowQuotaIndicator" [class.unlimited]="quotaSummary?.unlimited" [title]="quotaIndicatorHint">
+                <span class="quota-label">Minutos</span>
+                <span class="quota-value">{{ quotaIndicatorText }}</span>
+            </div>
+
             <div class="user-menu" [class.open]="isUserMenuOpen">
                 <button class="user-info user-trigger" (click)="toggleUserMenu()" aria-label="Abrir menú de usuario">
                     <div class="user-avatar">

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { SupabaseService } from '../../services/supabase.service';
-import { AzureTtsService } from '../../services/azure-tts.service';
+import { TtsService } from '../../services/tts.service';
 import { config } from '../../core/config';
 
 interface CustomVoice {
@@ -79,7 +79,7 @@ export class RecursosComponent implements OnInit {
   chatterboxKeepModelLoaded = false;
 
   saving = false;
-  creationMode: 'azure' | 'qwen' = 'qwen';
+  creationMode: 'qwen' = 'qwen';
   playingVoiceId: string | null = null;
   playingVoiceUrl: string | null = null;
   playingVoiceLoadingId: string | null = null;
@@ -108,7 +108,7 @@ export class RecursosComponent implements OnInit {
     private supabaseService: SupabaseService,
     private snackBar: MatSnackBar,
     private cdr: ChangeDetectorRef,
-    private azureTtsService: AzureTtsService
+    private ttsService: TtsService
   ) {}
 
   get canManageVoices(): boolean {
@@ -314,7 +314,7 @@ export class RecursosComponent implements OnInit {
 
     try {
       const text = 'Esta es una prueba de voz con los ajustes seleccionados.';
-      const url = await this.azureTtsService.generateSpeech({
+      const url = await this.ttsService.generateSpeech({
         text,
         voice: `qwen:${this.qwenLastVoiceId}`,
         speed: this.qwenRate,
@@ -360,7 +360,7 @@ export class RecursosComponent implements OnInit {
       const baseLabel = this.formData.label.trim() || 'voz_clonada';
       const safeLabel = baseLabel.replace(/[^a-zA-Z0-9_-]+/g, '_');
       const text = 'Esta es una muestra de la voz clonada para el noticiero de radio.';
-      const url = await this.azureTtsService.generateSpeech({
+      const url = await this.ttsService.generateSpeech({
         text,
         voice: `qwen:${this.qwenLastVoiceId}`,
         speed: this.qwenRate,
@@ -566,7 +566,7 @@ export class RecursosComponent implements OnInit {
       const baseLabel = this.formData.label.trim() || 'voz_clonada';
       const safeLabel = baseLabel.replace(/[^a-zA-Z0-9_-]+/g, '_');
       const text = 'Esta es una muestra de la voz clonada para el noticiero de radio.';
-      const url = await this.azureTtsService.generateSpeech({
+      const url = await this.ttsService.generateSpeech({
         text,
         voice: `chatterbox:${this.chatterboxLastVoiceId}`,
         exaggeration: this.chatterboxExaggeration,
@@ -632,7 +632,10 @@ export class RecursosComponent implements OnInit {
       const setting = await this.supabaseService.getSettingByKey('tts_custom_voices');
       const value = setting?.value;
       if (Array.isArray(value)) {
-        this.voices = value;
+        this.voices = value.filter((voice: any) =>
+          String(voice?.name || '').startsWith('qwen:') ||
+          String(voice?.provider || '').toLowerCase().includes('qwen')
+        );
       } else {
         this.voices = [];
       }
@@ -791,7 +794,7 @@ export class RecursosComponent implements OnInit {
 
     try {
       const text = 'Esta es una prueba de voz con los ajustes seleccionados.';
-      const url = await this.azureTtsService.generateSpeech({
+      const url = await this.ttsService.generateSpeech({
         text,
         voice: `chatterbox:${this.chatterboxLastVoiceId}`,
         temperature: this.chatterboxTemperature,
@@ -1065,7 +1068,7 @@ export class RecursosComponent implements OnInit {
       });
 
       const url = await Promise.race([
-        this.azureTtsService.generateSpeech({
+        this.ttsService.generateSpeech({
         text,
         voice: voiceName,
         speed: voice.speed || 1,

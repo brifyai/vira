@@ -126,6 +126,34 @@
     text-align: right;
 }
 
+.quota-cell {
+    min-width: 180px;
+}
+
+.quota-edit-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+
+    input {
+        width: 90px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(15, 23, 42, 0.85);
+        color: #fff;
+    }
+}
+
+.quota-btn {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(16, 185, 129, 0.22);
+    background: rgba(16, 185, 129, 0.14);
+    color: #a7f3d0;
+    cursor: pointer;
+}
+
 .danger-btn {
     padding: 8px 12px;
     border-radius: 10px;
@@ -201,6 +229,11 @@
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.03);
     color: #fff;
+}
+
+.form-group small {
+    color: rgba(148, 163, 184, 0.95);
+    font-size: 12px;
 }
 
 .helper-text {

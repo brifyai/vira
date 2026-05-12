@@ -14,7 +14,6 @@ const envConfig = {
   production: process.env.PRODUCTION === 'true' || process.env.production === 'true',
   // Public frontend config only. Private secrets must stay in server-side Vercel env vars.
   apiUrl: getEnv('apiUrl', 'API_URL', '').replace(/\/api$/, ''),
-  azureWorkerUrl: getEnv('azureWorkerUrl', 'AZURE_WORKER_URL', 'https://text-to-speech-worker.brifyaimaster.workers.dev/'),
   appUrl: getEnv('appUrl', 'APP_URL', ''),
   supabaseUrl: getEnv('supabaseUrl', 'SUPABASE_URL'),
   supabaseAnonKey: getEnv('supabaseAnonKey', 'SUPABASE_ANON_KEY'),
@@ -33,7 +32,6 @@ const getEnvFileContent = () => {
   // Environment variables
   window.__env.production = ${envConfig.production};
   window.__env.apiUrl = '${envConfig.apiUrl}';
-  window.__env.azureWorkerUrl = '${envConfig.azureWorkerUrl}';
   window.__env.appUrl = '${envConfig.appUrl}';
   window.__env.supabaseUrl = '${envConfig.supabaseUrl}';
   window.__env.supabaseAnonKey = '${envConfig.supabaseAnonKey}';

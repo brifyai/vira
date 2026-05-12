@@ -169,9 +169,9 @@
                     <div class="azure-controls" style="margin-bottom: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
                         <div class="control-row" style="display: flex; gap: 20px; flex-wrap: wrap;">
                             <div class="control-group" style="flex: 1; min-width: 200px;">
-                                <label style="display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9em;">Voz (Azure Neural):</label>
+                                <label style="display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9em;">Voz clonada Qwen:</label>
                                 <select [(ngModel)]="activeItem.voiceSettings.voice" style="width: 100%; padding: 8px; background: #333; border: 1px solid #444; color: white; border-radius: 4px;">
-                                    <option *ngFor="let voice of azureVoices" [value]="voice.name">
+                                    <option *ngFor="let voice of availableVoices" [value]="voice.name">
                                         {{ voice.label }}
                                     </option>
                                 </select>

@@ -2,6 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService, User } from './services/auth.service';
+import { QuotaService } from './services/quota.service';
+import { AudioQuotaSummary } from './services/supabase.service';
 
 @Component({
     selector: 'app-root',
@@ -16,6 +18,7 @@ export class AppComponent implements OnInit {
     isMenuOpen = false;
     isUserMenuOpen = false;
     currentUser: User | null = null;
+    currentQuotaSummary: AudioQuotaSummary | null = null;
 
     // Menu items
     menuItems = [
@@ -27,7 +30,8 @@ export class AppComponent implements OnInit {
 
     constructor(
         private router: Router,
-        private authService: AuthService
+        private authService: AuthService,
+        private quotaService: QuotaService
     ) { }
 
     ngOnInit(): void {
@@ -38,6 +42,10 @@ export class AppComponent implements OnInit {
         // Subscribe to current user
         this.authService.currentUser$.subscribe((user: User | null) => {
             this.currentUser = user;
+        });
+
+        this.quotaService.currentSummary$.subscribe(summary => {
+            this.currentQuotaSummary = summary;
         });
     }
 
@@ -51,6 +59,31 @@ export class AppComponent implements OnInit {
 
     get isAdmin(): boolean {
         return this.authService.isAdmin();
+    }
+
+    get quotaSummary(): AudioQuotaSummary | null {
+        return this.currentQuotaSummary;
+    }
+
+    get shouldShowQuotaIndicator(): boolean {
+        return !!this.currentQuotaSummary;
+    }
+
+    get quotaIndicatorText(): string {
+        if (!this.currentQuotaSummary) return '';
+        if (this.currentQuotaSummary.unlimited) return 'Ilimitado';
+        return `${this.currentQuotaSummary.quota_total_minutes} / ${this.currentQuotaSummary.remaining_minutes}`;
+    }
+
+    get quotaIndicatorHint(): string {
+        if (!this.currentQuotaSummary) return '';
+        if (this.currentQuotaSummary.unlimited) return 'Super Admin sin límite de minutos';
+
+        if (this.currentQuotaSummary.role === 'admin') {
+            return `Pool ${this.currentQuotaSummary.quota_total_minutes} min · Equipo ${this.currentQuotaSummary.team_assigned_minutes} · Personal ${this.currentQuotaSummary.remaining_minutes} restantes`;
+        }
+
+        return `Cuota total ${this.currentQuotaSummary.quota_total_minutes} min · Restantes ${this.currentQuotaSummary.remaining_minutes} min`;
     }
 
     get visibleMenuItems() {

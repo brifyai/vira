@@ -18,6 +18,26 @@
             <div class="summary-value">{{ totals.cost | number:'1.0-2' }}</div>
             <div class="summary-label">Costos totales (admin + equipo)</div>
         </div>
+        <div class="summary-card" *ngIf="adminQuotaSummary && !adminQuotaSummary.unlimited">
+            <div class="summary-value">{{ adminQuotaSummary.quota_total_minutes }}</div>
+            <div class="summary-label">Pool total del Admin</div>
+        </div>
+        <div class="summary-card" *ngIf="adminQuotaSummary && !adminQuotaSummary.unlimited">
+            <div class="summary-value">{{ adminQuotaSummary.team_assigned_minutes }}</div>
+            <div class="summary-label">Asignado al equipo</div>
+        </div>
+        <div class="summary-card" *ngIf="adminQuotaSummary && !adminQuotaSummary.unlimited">
+            <div class="summary-value">{{ adminQuotaSummary.used_minutes }}</div>
+            <div class="summary-label">Uso personal del Admin</div>
+        </div>
+        <div class="summary-card" *ngIf="adminQuotaSummary && !adminQuotaSummary.unlimited">
+            <div class="summary-value">{{ adminQuotaSummary.remaining_minutes }}</div>
+            <div class="summary-label">Saldo personal disponible</div>
+        </div>
+        <div class="summary-card" *ngIf="adminQuotaSummary && !adminQuotaSummary.unlimited">
+            <div class="summary-value">{{ adminQuotaSummary.available_to_assign_minutes }}</div>
+            <div class="summary-label">Disponible para repartir</div>
+        </div>
     </div>
 
     <div class="loading-state" *ngIf="loading">
@@ -31,6 +51,9 @@
                 <tr>
                     <th>Usuario</th>
                     <th>Rol</th>
+                    <th>Cuota</th>
+                    <th>Usado</th>
+                    <th>Restante</th>
                     <th>Noticieros</th>
                     <th>Costos</th>
                     <th></th>
@@ -47,6 +70,19 @@
                     <td>
                         <span class="role-badge" [ngClass]="m.role">{{ m.is_admin ? 'admin' : m.role }}</span>
                     </td>
+                    <td class="quota-cell">
+                        <ng-container *ngIf="getMemberQuota(m.member_id) as quota">
+                            <span *ngIf="m.is_admin">{{ quota.quota_total_minutes }} min</span>
+                            <div class="quota-edit-row" *ngIf="!m.is_admin">
+                                <input type="number" min="0" [(ngModel)]="quotaInputs[m.member_id]">
+                                <button class="quota-btn" (click)="saveMemberQuota(m)" [disabled]="isSavingQuota(m.member_id)">
+                                    {{ isSavingQuota(m.member_id) ? '...' : 'Guardar' }}
+                                </button>
+                            </div>
+                        </ng-container>
+                    </td>
+                    <td>{{ getMemberQuota(m.member_id)?.used_minutes || 0 }} min</td>
+                    <td>{{ getMemberQuota(m.member_id)?.remaining_minutes || 0 }} min</td>
                     <td>{{ m.broadcasts_count || 0 }}</td>
                     <td>{{ (m.total_cost || 0) | number:'1.0-2' }}</td>
                     <td class="actions">
@@ -86,6 +122,12 @@
                     <div class="helper-text">
                         Se enviará un enlace seguro para que el integrante defina su propia contraseña.
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Cuota inicial de minutos</label>
+                    <input type="number" min="0" [(ngModel)]="newMember.quotaMinutes" placeholder="Ej: 120">
+                    <small>Se descuenta de tu pool disponible como admin.</small>
                 </div>
             </div>
 

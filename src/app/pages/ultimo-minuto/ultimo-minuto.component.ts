@@ -6,7 +6,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { config } from '../../core/config';
 import { GeminiService } from '../../services/gemini.service';
 import { GoogleTtsService } from '../../services/google-tts.service';
-import { AzureTtsService } from '../../services/azure-tts.service';
+import { TtsService } from '../../services/tts.service';
 
 interface ExpressNewsItem {
     id: string; // original news id
@@ -69,10 +69,10 @@ export class UltimoMinutoComponent implements OnInit {
     // Selection State
     selectedNewsIds: Set<string> = new Set();
     
-    // Azure Settings (Global defaults)
-    azureVoice = 'es-CL-LorenzoNeural';
-    azureSpeed = 1.0;
-    azureVoices: any[] = [];
+    // Qwen Settings (Global defaults)
+    selectedVoice = '';
+    selectedSpeed = 1.0;
+    availableVoices: any[] = [];
 
     constructor(
         private supabaseService: SupabaseService,
@@ -80,9 +80,9 @@ export class UltimoMinutoComponent implements OnInit {
         private cdr: ChangeDetectorRef,
         private geminiService: GeminiService,
         private googleTtsService: GoogleTtsService,
-        private azureTtsService: AzureTtsService
+        private ttsService: TtsService
     ) {
-        this.azureVoices = this.azureTtsService.getVoices();
+        this.availableVoices = this.ttsService.getVoices();
     }
 
     ngOnInit(): void {
@@ -118,22 +118,15 @@ export class UltimoMinutoComponent implements OnInit {
             const setting = await this.supabaseService.getSettingByKey('tts_custom_voices');
             const value = setting?.value;
             const customVoices = Array.isArray(value) ? value : [];
-            const baseVoices = this.azureTtsService.getVoices();
-            const merged = [...baseVoices];
-            customVoices.forEach((voice: any) => {
-                const isChatterbox = (voice.provider || '').toLowerCase() === 'chatterbox-vira';
-                if (isChatterbox && !String(voice.name || '').startsWith('chatterbox:')) {
-                    voice.name = `chatterbox:${voice.voiceId || voice.id}`;
-                }
-                
-                if (!merged.find(v => v.name === voice.name && v.label === voice.label)) {
-                    merged.push(voice);
-                }
-            });
-            this.azureVoices = merged;
+            this.availableVoices = customVoices.filter((voice: any) =>
+                String(voice?.name || '').startsWith('qwen:') ||
+                String(voice?.provider || '').toLowerCase().includes('qwen')
+            );
+            this.selectedVoice = this.availableVoices[0]?.name || '';
         } catch (error) {
-            console.error('Error loading custom voices for Último Minuto, using default Azure voices', error);
-            this.azureVoices = this.azureTtsService.getVoices();
+            console.error('Error loading custom voices for Último Minuto', error);
+            this.availableVoices = this.ttsService.getVoices();
+            this.selectedVoice = this.availableVoices[0]?.name || '';
         }
     }
 
@@ -399,8 +392,8 @@ export class UltimoMinutoComponent implements OnInit {
                 generatedAudioUrl: '',
                 isGeneratingAudio: false,
                 voiceSettings: {
-                    voice: this.azureVoice,
-                    speed: this.azureSpeed,
+                    voice: this.selectedVoice,
+                    speed: this.selectedSpeed,
                     pitch: 1.0
                 },
                 status: 'pending'
@@ -459,8 +452,8 @@ export class UltimoMinutoComponent implements OnInit {
         
         item.isGeneratingAudio = true;
         try {
-            // Always use Azure TTS with item-specific settings
-            item.generatedAudioUrl = await this.azureTtsService.generateSpeech({
+            // Always use cloned Qwen voices with item-specific settings
+            item.generatedAudioUrl = await this.ttsService.generateSpeech({
                 text: item.humanizedText,
                 voice: item.voiceSettings.voice,
                 speed: Number(item.voiceSettings.speed) || 1.0,

@@ -1,8 +1,9 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SupabaseService } from '../../services/supabase.service';
+import { SupabaseService, AudioQuotaSummary } from '../../services/supabase.service';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { QuotaService } from '../../services/quota.service';
 
 @Component({
   selector: 'app-users',
@@ -25,17 +26,22 @@ export class UsersComponent implements OnInit {
   selectedUser: any = null;
   userRadios: any[] = []; // Radios assigned to selected user
   availableRadios: any[] = []; // Radios NOT assigned to selected user
+  quotaInputs: Record<string, number> = {};
+  quotaSummaries: Record<string, AudioQuotaSummary> = {};
+  savingQuotaUserId = '';
   
   newUser = {
     email: '',
     fullName: '',
-    role: 'user'
+    role: 'user',
+    quotaMinutes: 0
   };
 
   constructor(
     private supabaseService: SupabaseService,
     private cdr: ChangeDetectorRef,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private quotaService: QuotaService
   ) {}
 
   async ngOnInit() {
@@ -45,7 +51,7 @@ export class UsersComponent implements OnInit {
   
   openCreateUserModal() {
     if (this.currentUserRole !== 'super_admin') return;
-    this.newUser = { email: '', fullName: '', role: 'user' };
+    this.newUser = { email: '', fullName: '', role: 'user', quotaMinutes: 0 };
     this.showCreateUserModal = true;
   }
 
@@ -68,12 +74,16 @@ export class UsersComponent implements OnInit {
     try {
       const generatedPassword = this.supabaseService.generateSecurePassword();
 
-      await this.supabaseService.createUser({
+      const createdUser = await this.supabaseService.createUser({
         email,
         password: generatedPassword,
         role: this.newUser.role,
         fullName
       });
+
+      if (createdUser?.id && this.newUser.role !== 'super_admin') {
+        await this.supabaseService.setUserAudioQuota(createdUser.id, Number(this.newUser.quotaMinutes || 0));
+      }
 
       const mailResult = await this.supabaseService.sendWelcomeEmail({
         recipientEmail: email,
@@ -116,6 +126,7 @@ export class UsersComponent implements OnInit {
     try {
       this.users = await this.supabaseService.getUsers() || [];
       this.radios = await this.supabaseService.getRadios() || [];
+      await this.loadQuotaSummaries();
     } catch (error) {
       console.error('Error loading data:', error);
       this.showSnackBar('Error al cargar datos', 'error-snackbar');
@@ -138,6 +149,53 @@ export class UsersComponent implements OnInit {
       // Revert change in UI if needed, but since we bind to model, tricky.
       // Better reload data
       await this.loadData();
+    }
+  }
+
+  async saveQuota(user: any) {
+    if (!user?.id || this.currentUserRole !== 'super_admin') return;
+
+    this.savingQuotaUserId = user.id;
+    try {
+      await this.supabaseService.setUserAudioQuota(user.id, this.quotaInputs[user.id] ?? 0);
+      await this.loadQuotaSummaries();
+      await this.quotaService.refreshCurrentSummary();
+      this.showSnackBar('Cuota actualizada correctamente', 'success-snackbar');
+    } catch (error: any) {
+      console.error('Error updating quota:', error);
+      this.showSnackBar(error?.message || 'Error al actualizar la cuota', 'error-snackbar');
+    } finally {
+      this.savingQuotaUserId = '';
+      this.cdr.detectChanges();
+    }
+  }
+
+  getQuotaSummary(userId: string): AudioQuotaSummary | null {
+    return this.quotaSummaries[userId] || null;
+  }
+
+  isSavingQuota(userId: string): boolean {
+    return this.savingQuotaUserId === userId;
+  }
+
+  private async loadQuotaSummaries() {
+    const entries = await Promise.all((this.users || []).map(async (user: any) => {
+      try {
+        const summary = await this.supabaseService.getAudioQuotaSummary(user.id);
+        return [user.id, summary] as const;
+      } catch (error) {
+        console.warn(`Error loading quota summary for ${user?.id}`, error);
+        return [user.id, null] as const;
+      }
+    }));
+
+    this.quotaSummaries = {};
+    this.quotaInputs = {};
+
+    for (const [userId, summary] of entries) {
+      if (!summary) continue;
+      this.quotaSummaries[userId] = summary;
+      this.quotaInputs[userId] = summary.quota_total_minutes;
     }
   }
 

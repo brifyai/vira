@@ -2,6 +2,20 @@ import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../core/config';
 
+export interface AudioQuotaSummary {
+    user_id: string;
+    role: string;
+    manager_id: string | null;
+    quota_total_minutes: number;
+    team_assigned_minutes: number;
+    personal_quota_minutes: number;
+    used_minutes: number;
+    remaining_minutes: number;
+    available_to_assign_minutes: number;
+    unlimited: boolean;
+    can_generate: boolean;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -120,6 +134,41 @@ export class SupabaseService {
             .eq('id', userId)
             .select()
             .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async getAudioQuotaSummary(userId?: string): Promise<AudioQuotaSummary | null> {
+        const { data, error } = await this.supabase.rpc('get_audio_quota_summary_rpc', {
+            p_user_id: userId || null
+        });
+
+        if (error) throw error;
+
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row) return null;
+
+        return {
+            user_id: row.user_id,
+            role: row.role,
+            manager_id: row.manager_id ?? null,
+            quota_total_minutes: Number(row.quota_total_minutes || 0),
+            team_assigned_minutes: Number(row.team_assigned_minutes || 0),
+            personal_quota_minutes: Number(row.personal_quota_minutes || 0),
+            used_minutes: Number(row.used_minutes || 0),
+            remaining_minutes: Number(row.remaining_minutes || 0),
+            available_to_assign_minutes: Number(row.available_to_assign_minutes || 0),
+            unlimited: !!row.unlimited,
+            can_generate: !!row.can_generate
+        };
+    }
+
+    async setUserAudioQuota(userId: string, quotaMinutes: number) {
+        const { data, error } = await this.supabase.rpc('set_user_audio_quota_rpc', {
+            p_user_id: userId,
+            p_quota_minutes: Math.max(0, Math.round(Number(quotaMinutes || 0)))
+        });
 
         if (error) throw error;
         return data;
@@ -840,6 +889,23 @@ export class SupabaseService {
             .insert(broadcast)
             .select()
             .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async createGeneratedBroadcastWithQuota(payload: {
+        broadcast_id: string;
+        title: string;
+        audio_url: string;
+        duration_seconds: number;
+    }) {
+        const { data, error } = await this.supabase.rpc('create_generated_broadcast_with_quota_rpc', {
+            p_broadcast_id: payload.broadcast_id,
+            p_title: payload.title,
+            p_audio_url: payload.audio_url,
+            p_duration_seconds: Math.max(0, Math.round(Number(payload.duration_seconds || 0)))
+        });
 
         if (error) throw error;
         return data;

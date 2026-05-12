@@ -7,7 +7,6 @@ export const config = {
     production: runtimeEnv.production ?? false,
     // Frontend should use same-origin by default on Vercel and only override when truly needed.
     apiUrl: String(runtimeEnv.apiUrl || runtimeOrigin || 'http://localhost:8888').replace(/\/+$/, '').replace(/\/api$/, ''),
-    azureWorkerUrl: runtimeEnv.azureWorkerUrl || '',
     appUrl: String(runtimeEnv.appUrl || runtimeOrigin || '').replace(/\/+$/, ''),
     supabaseUrl: runtimeEnv.supabaseUrl || '',
     supabaseAnonKey: runtimeEnv.supabaseAnonKey || '',

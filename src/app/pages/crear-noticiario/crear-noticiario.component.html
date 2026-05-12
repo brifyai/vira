@@ -546,6 +546,14 @@
                         <span class="stat-label">Duración máxima:</span>
                         <span class="stat-value">{{ duration }} min</span>
                     </div>
+                    <div class="summary-stat" *ngIf="currentQuotaSummary && !currentQuotaSummary.unlimited">
+                        <span class="stat-label">Minutos disponibles:</span>
+                        <span class="stat-value">{{ currentQuotaSummary.remaining_minutes }} min</span>
+                    </div>
+                    <div class="summary-stat" *ngIf="currentQuotaSummary">
+                        <span class="stat-label">Consumo estimado:</span>
+                        <span class="stat-value">{{ currentQuotaSummary.unlimited ? 'Ilimitado' : (estimatedMinutesToConsume + ' min') }}</span>
+                    </div>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" [style.width.%]="(getTotalReadingTime() / (duration * 60)) * 100"></div>
@@ -568,6 +576,9 @@
             </p>
             <p class="progress-text" *ngIf="timelineEvents.length > 0 && broadcastTitle.trim() === ''">
                 ⚠️ Ingresa un título para habilitar "Crear Noticiero"
+            </p>
+            <p class="progress-text warning" *ngIf="timelineEvents.length > 0 && currentQuotaSummary && !currentQuotaSummary.unlimited && !hasEnoughMinutesForCurrentDraft">
+                ⚠️ {{ quotaLimitMessage }}
             </p>
         </div>
     </div>

@@ -6,7 +6,8 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import Swal from 'sweetalert2';
 import { SupabaseService } from '../../services/supabase.service';
-import { AzureTtsService } from '../../services/azure-tts.service';
+import { TtsService } from '../../services/tts.service';
+import { QuotaService } from '../../services/quota.service';
 
 declare var lamejs: any;
 
@@ -98,10 +99,11 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     constructor(
         private supabaseService: SupabaseService,
-        private azureTtsService: AzureTtsService,
+        private ttsService: TtsService,
         private snackBar: MatSnackBar,
         private cdr: ChangeDetectorRef,
-        private route: ActivatedRoute
+        private route: ActivatedRoute,
+        private quotaService: QuotaService
     ) { 
         // Voices will be loaded asynchronously
     }
@@ -222,18 +224,20 @@ export class TimelineNoticiarioComponent implements OnInit {
             const setting = await this.supabaseService.getSettingByKey('tts_custom_voices');
             const value = setting?.value;
             const customVoices = Array.isArray(value) ? value : [];
-            
-            this.availableVoices = customVoices.map((voice: any) => {
-                const isChatterbox = (voice.provider || '').toLowerCase() === 'chatterbox-vira';
-                if (isChatterbox && !String(voice.name || '').startsWith('chatterbox:')) {
-                    return { ...voice, name: `chatterbox:${voice.voiceId || voice.id}` };
-                }
-                return voice;
-            });
+
+            this.availableVoices = customVoices.filter((voice: any) =>
+                String(voice?.name || '').startsWith('qwen:') ||
+                String(voice?.provider || '').toLowerCase().includes('qwen')
+            );
         } catch (error) {
             console.error('Error loading custom voices for timeline', error);
             this.availableVoices = [];
         }
+    }
+
+    private getDefaultQwenVoiceName(): string | null {
+        const voice = this.availableVoices.find((item: any) => String(item?.name || '').startsWith('qwen:'));
+        return voice?.name || null;
     }
 
     async loadMusicResources(radioId?: string): Promise<void> {
@@ -321,7 +325,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                     order: item.order_index,
                     originalItem: item,
                     // Load voice configuration from DB, fallback to defaults if not set
-                    voice: item.voice_id || 'es-CL-LorenzoNeural',
+                    voice: item.voice_id || this.getDefaultQwenVoiceName() || '',
                     speed: item.voice_speed || 1.0,
                     pitch: item.voice_pitch || 1.0,
                     originalContent: news?.original_content,
@@ -392,7 +396,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             audioUrl: item.audio_url || news?.audio_url,
             order: Number(item.order_index ?? this.timelineEvents.length),
             originalItem: item,
-            voice: item.voice_id || 'es-CL-LorenzoNeural',
+            voice: item.voice_id || this.getDefaultQwenVoiceName() || '',
             speed: Number(item.voice_speed || 1),
             pitch: Number(item.voice_pitch || 1),
             originalContent: news?.original_content,
@@ -447,7 +451,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             if (!(await this.ensureEditingCopy())) return;
             if (!this.selectedBroadcast) return;
 
-            let defaultVoice = 'es-CL-LorenzoNeural';
+            let defaultVoice = this.getDefaultQwenVoiceName() || '';
             let defaultSpeed = 1.0;
             let defaultPitch = 1.0;
             
@@ -969,7 +973,7 @@ export class TimelineNoticiarioComponent implements OnInit {
 
         try {
             // 1. Generate Speech Audio (returns Blob URL)
-            let audioUrl = await this.azureTtsService.generateSpeech({
+            let audioUrl = await this.ttsService.generateSpeech({
                 text: textToSpeak,
                 voice: event.voice || 'es-MX-DaliaNeural',
                 speed: Number(event.speed) || 1.0,
@@ -980,7 +984,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             if (event.musicUrl) {
                 try {
                     const placement = event.musicPlacement || (event.type === 'outro' ? 'after' : 'during');
-                    const mixedUrl = await this.azureTtsService.mixVoiceAndMusic(
+                    const mixedUrl = await this.ttsService.mixVoiceAndMusic(
                         audioUrl,
                         event.musicUrl,
                         Number(event.voiceDelay) || 0,
@@ -1127,12 +1131,29 @@ export class TimelineNoticiarioComponent implements OnInit {
                 const publicUrl = await this.supabaseService.uploadAudioFile(file, storagePath);
 
                 // Save to DB
-                await this.supabaseService.createGeneratedBroadcast({
+                const quotaResult = await this.supabaseService.createGeneratedBroadcastWithQuota({
                     broadcast_id: this.selectedBroadcast.id,
                     title: this.selectedBroadcast.title,
                     audio_url: publicUrl,
                     duration_seconds: Math.ceil(renderedBuffer.duration)
                 });
+
+                if (quotaResult?.quota_summary) {
+                    this.quotaService.setCurrentSummary({
+                        user_id: quotaResult.quota_summary.user_id,
+                        role: quotaResult.quota_summary.role,
+                        manager_id: quotaResult.quota_summary.manager_id ?? null,
+                        quota_total_minutes: Number(quotaResult.quota_summary.quota_total_minutes || 0),
+                        team_assigned_minutes: Number(quotaResult.quota_summary.team_assigned_minutes || 0),
+                        personal_quota_minutes: Number(quotaResult.quota_summary.personal_quota_minutes || 0),
+                        used_minutes: Number(quotaResult.quota_summary.used_minutes || 0),
+                        remaining_minutes: Number(quotaResult.quota_summary.remaining_minutes || 0),
+                        available_to_assign_minutes: Number(quotaResult.quota_summary.available_to_assign_minutes || 0),
+                        unlimited: !!quotaResult.quota_summary.unlimited,
+                        can_generate: !!quotaResult.quota_summary.can_generate
+                    });
+                }
+
                 await this.supabaseService.updateNewsBroadcast(this.selectedBroadcast.id, {
                     total_reading_time_seconds: Math.ceil(renderedBuffer.duration)
                 });

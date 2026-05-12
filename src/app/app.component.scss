@@ -261,6 +261,47 @@ body {
     display: flex;
     align-items: center;
     position: relative;
+    gap: 12px;
+}
+
+.quota-indicator {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 140px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(239, 68, 68, 0.18) 100%);
+    box-shadow: 0 10px 24px -12px rgba(245, 158, 11, 0.5);
+
+    &.unlimited {
+        border-color: rgba(16, 185, 129, 0.28);
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(99, 102, 241, 0.18) 100%);
+        box-shadow: 0 10px 24px -12px rgba(16, 185, 129, 0.45);
+    }
+
+    @media (max-width: 900px) {
+        display: none;
+    }
+}
+
+.quota-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #fde68a;
+}
+
+.quota-indicator.unlimited .quota-label {
+    color: #86efac;
+}
+
+.quota-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: $text-primary;
+    line-height: 1.15;
 }
 
 .user-info {
