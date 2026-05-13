@@ -268,6 +268,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             this.onRadioSelect();
             return;
         }
+        this.ensureBasicIntro();
         this.onIntroLocationCommit();
     }
 
@@ -285,6 +286,41 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.lastIntroSignature = signature;
 
         this.generateIntroFromLocation(region, comuna);
+    }
+
+    private ensureBasicIntro(): void {
+        if (!this.scheduledTime) return;
+
+        const spokenTime = this.formatTimeForSpeech(this.scheduledTime);
+        const introText = `Son las ${spokenTime}. . Bienvenidos al noticiero.`;
+        const existingIntroIndex = this.timelineEvents.findIndex(e => e.type === 'intro');
+        if (existingIntroIndex !== -1) {
+            const intro = this.timelineEvents[existingIntroIndex];
+            intro.description = introText;
+            intro.title = 'Introducción';
+            this.invalidateAudio(intro);
+        } else {
+            const newIntro: TimelineEvent = {
+                id: this.generateUUID(),
+                type: 'intro',
+                title: 'Introducción',
+                description: introText,
+                startTime: 0,
+                duration: 15,
+                order: 0,
+                voiceSource: 'qwen',
+                selectedVoice: this.customVoices.length > 0 ? this.customVoices[0].name : undefined,
+                selectedSpeed: this.customVoices.length > 0 ? (this.customVoices[0].speed || 1.0) : 1.0,
+                selectedPitch: this.customVoices.length > 0 ? (this.customVoices[0].exaggeration || 1.0) : 1.0
+            };
+            this.timelineEvents.unshift(newIntro);
+            this.timelineEvents.forEach((e, i) => (e.order = i));
+            this.audiosReady = false;
+            this.audioGenerationAttempted = false;
+        }
+
+        this.calculateTimelineTimes();
+        this.cdr.detectChanges();
     }
 
     private async generateIntroFromLocation(region: string, comuna: string): Promise<void> {

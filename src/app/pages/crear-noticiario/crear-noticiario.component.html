@@ -38,7 +38,9 @@
                     lang="en-GB"
                     step="60"
                     [(ngModel)]="scheduledTime"
-                    (change)="onScheduledTimeChange()">
+                    (ngModelChange)="onScheduledTimeChange()"
+                    (change)="onScheduledTimeChange()"
+                    (blur)="onScheduledTimeChange()">
             </div>
 
             <div class="form-row">

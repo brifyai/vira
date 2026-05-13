@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { catchError, firstValueFrom, of, timeout } from 'rxjs';
 import { config } from '../core/config';
 
 @Injectable({
@@ -57,18 +57,19 @@ export class WeatherService {
   }
 
   async getWeatherForLocation(location: string): Promise<string> {
-    try {
-      const resp: any = await firstValueFrom(
-        this.http.get(`${this.apiUrl}/api/weather-for-location`, {
-          params: { location }
+    const resp: any = await firstValueFrom(
+      this.http.get(`${this.apiUrl}/api/weather-for-location`, {
+        params: { location }
+      }).pipe(
+        timeout(8000),
+        catchError((error) => {
+          console.error('Error fetching weather:', error);
+          return of({ weatherInfo: 'clima no disponible' });
         })
-      );
-      const weatherInfo = String(resp?.weatherInfo || '').trim();
-      return weatherInfo || 'clima desconocido';
-    } catch (error) {
-      console.error('Error fetching weather:', error);
-      return 'clima no disponible';
-    }
+      )
+    );
+    const weatherInfo = String(resp?.weatherInfo || '').trim();
+    return weatherInfo || 'clima desconocido';
   }
 
   private getWeatherDescription(code: number): string {
