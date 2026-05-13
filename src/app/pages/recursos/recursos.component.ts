@@ -1096,23 +1096,25 @@ export class RecursosComponent implements OnInit {
         timeoutPromise
       ]);
       let finalUrl = url;
-      try {
-        const resp = await fetch(url);
-        const blob = await resp.blob();
-        const path = `voice-previews/${voice.id}.mp3`;
-        const uploadedUrl = await this.supabaseService.uploadAudio(blob, path);
-        finalUrl = uploadedUrl;
-        if (String(url).startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
+      if (this.canManageVoices) {
+        try {
+          const resp = await fetch(url);
+          const blob = await resp.blob();
+          const path = `voice-previews/${voice.id}.mp3`;
+          const uploadedUrl = await this.supabaseService.uploadAudio(blob, path);
+          finalUrl = uploadedUrl;
+          if (String(url).startsWith('blob:')) {
+            URL.revokeObjectURL(url);
+          }
 
-        const idx = this.voices.findIndex(v => v.id === voice.id);
-        if (idx !== -1) {
-          this.voices[idx] = { ...this.voices[idx], previewAudioUrl: uploadedUrl };
-          await this.persistVoices();
+          const idx = this.voices.findIndex(v => v.id === voice.id);
+          if (idx !== -1) {
+            this.voices[idx] = { ...this.voices[idx], previewAudioUrl: uploadedUrl };
+            await this.persistVoices();
+          }
+        } catch (e) {
+          console.warn('No se pudo guardar el preview de audio, se usará uno temporal', e);
         }
-      } catch (e) {
-        console.warn('No se pudo guardar el preview de audio, se usará uno temporal', e);
       }
 
       this.playingVoiceUrl = finalUrl;
