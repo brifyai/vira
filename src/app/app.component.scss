@@ -178,7 +178,7 @@ body {
     border-radius: 12px;
     border: 1px solid $dark-border;
     width: 100%;
-    max-width: 100%;
+    max-width: 76%;
     min-width: 0;
     overflow-x: auto;
     overflow-y: hidden;
@@ -439,8 +439,8 @@ body {
 }
 
 .user-avatar {
-    width: 40px;
-    height: 40px;
+    width: 57px;
+    height: 31px;
     border-radius: 50%;
     overflow: hidden;
     border: 2px solid $primary-color;
