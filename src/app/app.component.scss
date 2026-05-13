@@ -61,10 +61,21 @@ body {
     border-bottom: 1px solid $dark-border;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 24px;
+    padding: 0;
     z-index: 1100;
     box-shadow: $shadow-lg;
+}
+
+.app-header-inner {
+    width: 100%;
+    height: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
 }
 
 .header-left {
@@ -280,8 +291,9 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-width: 140px;
-    padding: 10px 14px;
+    min-width: 132px;
+    margin: 6px 0;
+    padding: 8px 12px;
     border-radius: 12px;
     border: 1px solid rgba(245, 158, 11, 0.28);
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(239, 68, 68, 0.18) 100%);
@@ -299,7 +311,7 @@ body {
 }
 
 .quota-label {
-    font-size: 11px;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #fde68a;
@@ -313,7 +325,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 700;
     color: $text-primary;
     line-height: 1.15;
@@ -325,11 +337,11 @@ body {
 
 .quota-indicator.compact {
     min-width: 180px;
-    padding: 10px 12px;
+    padding: 8px 12px;
 }
 
 .quota-indicator.compact .quota-value {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     line-height: 1.25;
 }
@@ -516,6 +528,10 @@ body {
 // Responsive Adjustments
 @media (max-width: 768px) {
     .app-header {
+        padding: 0;
+    }
+
+    .app-header-inner {
         padding: 0 16px;
     }
 
@@ -531,6 +547,10 @@ body {
 @media (max-width: 480px) {
     .app-header {
         height: 60px;
+        padding: 0;
+    }
+
+    .app-header-inner {
         padding: 0 12px;
     }
 
