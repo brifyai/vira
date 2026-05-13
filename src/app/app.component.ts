@@ -81,7 +81,8 @@ export class AppComponent implements OnInit {
         if (this.currentQuotaSummary.unlimited) return 'Super Admin sin límite de minutos';
 
         if (this.currentQuotaSummary.role === 'admin') {
-            return `Plan ${this.currentQuotaSummary.quota_total_minutes} min · Team ${this.currentQuotaSummary.team_assigned_minutes} asignados · Team usados ${this.currentQuotaSummary.team_used_minutes} · Disponible para repartir ${this.currentQuotaSummary.available_to_assign_minutes} · Admin ${this.currentQuotaSummary.remaining_minutes}/${this.currentQuotaSummary.personal_quota_minutes}`;
+            const teamRemaining = Math.max(0, (this.currentQuotaSummary.team_assigned_minutes || 0) - (this.currentQuotaSummary.team_used_minutes || 0));
+            return `Plan ${this.currentQuotaSummary.quota_total_minutes} min · Team ${this.currentQuotaSummary.team_assigned_minutes}/${teamRemaining} · Disponible para repartir ${this.currentQuotaSummary.available_to_assign_minutes} · Admin ${this.currentQuotaSummary.personal_quota_minutes}/${this.currentQuotaSummary.remaining_minutes}`;
         }
 
         return `Cuota total ${this.currentQuotaSummary.quota_total_minutes} min · Restantes ${this.currentQuotaSummary.remaining_minutes} min`;
@@ -97,13 +98,14 @@ export class AppComponent implements OnInit {
         if (s.unlimited) return ['Ilimitado'];
 
         if (s.role === 'admin') {
+            const teamRemaining = Math.max(0, (s.team_assigned_minutes || 0) - (s.team_used_minutes || 0));
             const plan = `Plan: ${s.quota_total_minutes} min`;
-            const team = `Team: ${s.team_assigned_minutes}/${s.team_used_minutes}`;
-            const admin = `Admin: ${s.remaining_minutes}/${s.personal_quota_minutes}`;
+            const team = `Team: ${s.team_assigned_minutes}/${teamRemaining}`;
+            const admin = `Admin: ${s.personal_quota_minutes}/${s.remaining_minutes}`;
             return [plan, `${team} · ${admin}`];
         }
 
-        return [`${s.remaining_minutes}/${s.quota_total_minutes} min`];
+        return [`${s.quota_total_minutes}/${s.remaining_minutes} min`];
     }
 
     get visibleMenuItems() {
