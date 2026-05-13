@@ -548,6 +548,14 @@
                         <span class="stat-value">{{ formatReadingTime(getTotalReadingTime()) }}</span>
                     </div>
                     <div class="summary-stat">
+                        <span class="stat-label">Tiempo bloques:</span>
+                        <span class="stat-value">{{ formatReadingTime(getChargeableReadingTimeSeconds()) }}</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="stat-label">Tiempo comerciales:</span>
+                        <span class="stat-value">{{ formatReadingTime(getCommercialReadingTimeSeconds()) }}</span>
+                    </div>
+                    <div class="summary-stat">
                         <span class="stat-label">Duración máxima:</span>
                         <span class="stat-value">{{ duration }} min</span>
                     </div>

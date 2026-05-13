@@ -1265,6 +1265,22 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         }, 0);
     }
 
+    getChargeableReadingTimeSeconds(): number {
+        return this.timelineEvents.reduce((acc, curr) => {
+            if (curr?.type === 'ad') return acc;
+            const seconds = Math.max(0, Math.round(this.getProjectedDurationSeconds(curr)));
+            return acc + seconds;
+        }, 0);
+    }
+
+    getCommercialReadingTimeSeconds(): number {
+        return this.timelineEvents.reduce((acc, curr) => {
+            if (curr?.type !== 'ad') return acc;
+            const seconds = Math.max(0, Math.round(this.getProjectedDurationSeconds(curr)));
+            return acc + seconds;
+        }, 0);
+    }
+
     getObjectUrl(file: File): string {
         return URL.createObjectURL(file);
     }
@@ -1593,7 +1609,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     }
 
     get estimatedMinutesToConsume(): number {
-        const seconds = Math.max(1, Math.round(this.getTotalReadingTime() || 0));
+        const seconds = Math.max(0, Math.round(this.getChargeableReadingTimeSeconds() || 0));
+        if (seconds <= 0) return 0;
         return Math.max(1, Math.ceil(seconds / 60));
     }
 

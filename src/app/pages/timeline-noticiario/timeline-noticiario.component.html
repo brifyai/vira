@@ -184,7 +184,15 @@
                     Volver
                 </button>
                 <div class="broadcast-info">
-                    <h2 class="broadcast-title">{{ selectedBroadcast.title }}</h2>
+                    <div class="broadcast-title-row">
+                        <h2 class="broadcast-title">{{ selectedBroadcast.title }}</h2>
+                        <button class="rename-btn" type="button" *ngIf="isEditingCopy" (click)="renameEditedBroadcast()" [disabled]="isTimelineBusy" title="Renombrar noticiero">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 20h9"></path>
+                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                            </svg>
+                        </button>
+                    </div>
                     <p class="broadcast-description">{{ editingHelpText }}</p>
                 </div>
             </div>
@@ -242,30 +250,51 @@
                 </button>
             </div>
             <div class="timeline-list" cdkDropList (cdkDropListDropped)="drop($event)">
-                <div class="timeline-item" *ngFor="let event of timelineEvents" cdkDrag [cdkDragDisabled]="!isEditingCopy" [class]="getEventTypeClass(event.type)" [class.read-only]="!isEditingCopy">
+                <div class="timeline-item" *ngFor="let event of timelineEvents" cdkDrag [cdkDragDisabled]="!isEditingCopy" [class]="getEventTypeClass(event.type)" [class.read-only]="!isEditingCopy" [class.is-collapsed]="!event.expanded">
                     
-                    <div class="item-handle" cdkDragHandle>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="8" y1="6" x2="21" y2="6"></line>
-                            <line x1="8" y1="12" x2="21" y2="12"></line>
-                            <line x1="8" y1="18" x2="21" y2="18"></line>
-                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                        </svg>
+                    <div class="item-handle">
+                        <button class="handle-move" type="button" (click)="moveBlockUp(event)" [disabled]="!isEditingCopy || isTimelineBusy || event.order === 0" title="Subir bloque">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="18 15 12 9 6 15"></polyline>
+                            </svg>
+                        </button>
+
+                        <div class="handle-grip" cdkDragHandle title="Arrastrar bloque">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="8" y1="6" x2="21" y2="6"></line>
+                                <line x1="8" y1="12" x2="21" y2="12"></line>
+                                <line x1="8" y1="18" x2="21" y2="18"></line>
+                                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                            </svg>
+                        </div>
+
+                        <button class="handle-move" type="button" (click)="moveBlockDown(event)" [disabled]="!isEditingCopy || isTimelineBusy || event.order === (timelineEvents.length - 1)" title="Bajar bloque">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
                     </div>
 
                     <div class="item-content">
                         <div class="item-header">
                             <span class="item-type">{{ event.type | uppercase }}</span>
                             <span class="item-time">{{ formatDuration(event.startTime) }} - {{ formatDuration(event.endTime) }}</span>
+                            <button class="collapse-btn" type="button" (click)="toggleEventExpanded(event)" title="{{ event.expanded ? 'Minimizar' : 'Expandir' }}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" [class.rotated]="event.expanded">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
                         </div>
                         
                         <div class="item-body">
                             <h3 class="item-title">{{ event.title }}</h3>
 
+                            <p class="item-preview" *ngIf="!event.expanded">{{ getCollapsedPreview(event) }}</p>
+
                             <!-- Editable Content for Intro/Outro/Text -->
-                            <div *ngIf="['intro', 'outro', 'text'].includes(event.type)">
+                            <div *ngIf="event.expanded && ['intro', 'outro', 'text'].includes(event.type)">
                                 <div class="controls-row">
                                     <div class="control-group">
                                         <label class="control-label">Voz:</label>
@@ -343,7 +372,7 @@
                             </div>
 
                             <!-- Display Content for News -->
-                            <div *ngIf="event.type === 'news'">
+                            <div *ngIf="event.expanded && event.type === 'news'">
                                 <div class="controls-row">
                                     <div class="control-group">
                                         <label class="control-label">Voz:</label>
@@ -419,17 +448,17 @@
                                     </div>
                                 </div>
                                 
-                                <p class="item-description">
+                                <p class="item-description" *ngIf="event.expanded">
                                     {{ event.showOriginalText ? (event.originalContent || 'Sin contenido original') : (event.description || 'Sin contenido') }}
                                 </p>
                             </div>
 
                             <!-- Display Content for Ad -->
-                            <p class="item-description" *ngIf="event.type === 'ad'">
+                            <p class="item-description" *ngIf="event.expanded && event.type === 'ad'">
                                 Audio Publicitario
                             </p>
                             
-                            <div class="audio-player" *ngIf="event.audioUrl">
+                            <div class="audio-player" *ngIf="event.expanded && event.audioUrl">
                                 <audio class="audio-slim" [src]="event.audioUrl" controls controlsList="nodownload noplaybackrate" disableRemotePlayback (contextmenu)="$event.preventDefault()"></audio>
                             </div>
                         </div>
@@ -472,6 +501,10 @@
                 <div class="summary-item">
                     <span class="summary-label">Bloques:</span>
                     <span class="summary-value">{{ timelineEvents.length }}</span>
+                </div>
+                <div class="summary-item" *ngIf="isEditingCopy">
+                    <span class="summary-label">{{ editedChargeBasisLabel }}:</span>
+                    <span class="summary-value">{{ editedMinutesToConsume }} min</span>
                 </div>
                 <div class="summary-item summary-item--actions">
                     <div class="summary-action-card">

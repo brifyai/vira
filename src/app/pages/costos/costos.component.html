@@ -15,8 +15,14 @@
             <div class="filter-group">
                 <label>Usuario</label>
                 <select [(ngModel)]="selectedUserId" (change)="refreshAll()">
-                    <option value="all">Todos</option>
-                    <option *ngFor="let u of users" [value]="u.id">{{ displayUser(u) }}</option>
+                    <option value="all">{{ currentUserRole === 'admin' ? 'Mi ambiente' : 'Todos' }}</option>
+                    <ng-container *ngIf="currentUserRole === 'admin'">
+                        <option value="me">Mi cuenta</option>
+                        <option value="team">Mi equipo</option>
+                    </ng-container>
+                    <ng-container *ngIf="currentUserRole !== 'admin'">
+                        <option *ngFor="let u of users" [value]="u.id">{{ displayUser(u) }}</option>
+                    </ng-container>
                 </select>
             </div>
 
@@ -69,7 +75,7 @@
             <div class="summary-value">{{ filteredBroadcasts.length }}</div>
         </div>
         <div class="summary-card">
-            <div class="summary-label">Eventos de minutos</div>
+            <div class="summary-label">Cobros de minutos</div>
             <div class="summary-value">{{ filteredMinuteEvents.length }}</div>
         </div>
         <div class="summary-card" *ngIf="canViewCosts">
@@ -294,9 +300,20 @@
                             <div class="history-title-cell">
                                 <span class="history-title-main">{{ getMinuteEventTitle(e) }}</span>
                                 <span class="history-title-meta">Cobro de exportación final</span>
+                                <span class="history-title-meta" *ngIf="getMinuteEventChargeScopeLabel(e)">{{ getMinuteEventChargeScopeLabel(e) }}</span>
                             </div>
                         </td>
-                        <td class="mono">{{ (getMinuteEventDurationSeconds(e) / 60) | number:'1.0-1' }} min</td>
+                        <td class="mono">
+                            <ng-container *ngIf="getMinuteEventBreakdownSeconds(e) as d">
+                                <div>{{ formatDurationSeconds(d.total) }}</div>
+                                <div class="history-title-meta" *ngIf="d.blocks > 0 || d.ads > 0">
+                                    Bloques: {{ formatDurationSeconds(d.blocks) }} · Comerciales: {{ formatDurationSeconds(d.ads) }}
+                                </div>
+                                <div class="history-title-meta" *ngIf="d.chargeable > 0 && d.blocks > 0 && d.chargeable !== d.blocks">
+                                    Edición cobrada: {{ formatDurationSeconds(d.chargeable) }}
+                                </div>
+                            </ng-container>
+                        </td>
                         <td class="mono strong">{{ e.consumed_minutes }} min</td>
                     </tr>
                 </tbody>
@@ -452,9 +469,20 @@
                             <div class="history-title-cell">
                                 <span class="history-title-main">{{ item.title }}</span>
                                 <span class="history-title-meta">Audio final exportado</span>
+                                <span class="history-title-meta" *ngIf="getGeneratedChargeScopeLabel(item)">{{ getGeneratedChargeScopeLabel(item) }}</span>
                             </div>
                         </td>
-                        <td class="mono">{{ formatDurationSeconds(item.duration_seconds || 0) }}</td>
+                        <td class="mono">
+                            <ng-container *ngIf="getGeneratedBroadcastBreakdownSeconds(item) as d">
+                                <div>{{ formatDurationSeconds(d.total) }}</div>
+                                <div class="history-title-meta" *ngIf="d.blocks > 0 || d.ads > 0">
+                                    Bloques: {{ formatDurationSeconds(d.blocks) }} · Comerciales: {{ formatDurationSeconds(d.ads) }}
+                                </div>
+                                <div class="history-title-meta" *ngIf="d.chargeable > 0 && d.blocks > 0 && d.chargeable !== d.blocks">
+                                    Edición cobrada: {{ formatDurationSeconds(d.chargeable) }}
+                                </div>
+                            </ng-container>
+                        </td>
                         <td class="mono strong">{{ item.charged_minutes || 0 }} min</td>
                     </tr>
                 </tbody>
@@ -488,6 +516,7 @@
                         <th>Estado</th>
                         <th>Noticias</th>
                         <th>Duración</th>
+                        <th>Cobro</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -499,7 +528,23 @@
                         <td>{{ b.title }}</td>
                         <td><span class="pill">{{ b.status || 'draft' }}</span></td>
                         <td class="mono">{{ b.total_news_count || 0 }}</td>
-                        <td class="mono strong">{{ formatDurationSeconds(getBroadcastActualDurationSeconds(b)) }}</td>
+                        <td class="mono">
+                            <div class="strong">{{ formatDurationSeconds(getBroadcastActualDurationSeconds(b)) }}</div>
+                            <ng-container *ngIf="getBroadcastChargeBreakdown(b) as bd">
+                                <div class="history-title-meta" *ngIf="bd.blocks > 0 || bd.ads > 0">
+                                    Bloques: {{ formatDurationSeconds(bd.blocks) }} · Comerciales: {{ formatDurationSeconds(bd.ads) }}
+                                </div>
+                                <div class="history-title-meta" *ngIf="bd.chargeable > 0 && bd.blocks > 0 && bd.chargeable !== bd.blocks">
+                                    Edición cobrada: {{ formatDurationSeconds(bd.chargeable) }}
+                                </div>
+                            </ng-container>
+                        </td>
+                        <td class="mono">
+                            <div class="strong">{{ getBroadcastChargedMinutes(b) || 0 }} min</div>
+                            <ng-container *ngIf="getBroadcastChargeBreakdown(b) as bd">
+                                <div class="history-title-meta" *ngIf="bd.label">{{ bd.label }}</div>
+                            </ng-container>
+                        </td>
                     </tr>
                 </tbody>
             </table>

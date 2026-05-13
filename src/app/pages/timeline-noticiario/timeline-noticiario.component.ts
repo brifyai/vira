@@ -43,6 +43,9 @@ interface TimelineEvent {
     audioDirty?: boolean;
     humanizeStatus?: 'pending' | 'ok' | 'error';
     humanizeError?: string;
+    sourceItemId?: string | null;
+    quotaDirty?: boolean;
+    expanded?: boolean;
 }
 
 @Component({
@@ -105,6 +108,107 @@ export class TimelineNoticiarioComponent implements OnInit {
     playingBroadcastId: string | null = null;
     private isCreatingEditableCopy = false;
     private readonly humanizeConcurrency = 2;
+
+    private buildSwalCustomClass(overrides?: any): any {
+        const base = {
+            popup: 'vira-swal-popup',
+            title: 'vira-swal-title',
+            htmlContainer: 'vira-swal-html',
+            actions: 'vira-swal-actions',
+            confirmButton: 'vira-swal-confirm',
+            cancelButton: 'vira-swal-cancel',
+            icon: 'vira-swal-icon'
+        };
+
+        const merged: any = { ...base };
+        if (!overrides) return merged;
+
+        if (typeof overrides === 'string') {
+            merged.popup = `${merged.popup} ${overrides}`.trim();
+            return merged;
+        }
+
+        if (typeof overrides === 'object') {
+            for (const k of Object.keys(overrides)) {
+                merged[k] = overrides[k];
+            }
+        }
+
+        return merged;
+    }
+
+    private async fireSwal(options: any): Promise<any> {
+        return await Swal.fire({
+            heightAuto: false,
+            focusConfirm: false,
+            returnFocus: false,
+            ...options,
+            customClass: this.buildSwalCustomClass(options?.customClass)
+        });
+    }
+
+    private async lockEditingAfterSave(): Promise<void> {
+        const currentId = this.selectedBroadcast?.id;
+        this.isEditingCopy = false;
+        this.editableBroadcast = null;
+        if (currentId) {
+            const latest = await this.supabaseService.getNewsBroadcastById(currentId).catch(() => null);
+            if (latest) {
+                this.originalBroadcast = latest;
+                this.selectedBroadcast = {
+                    id: latest.id,
+                    title: latest.title,
+                    description: latest.description,
+                    duration: Math.max(0, Math.round(Number(latest.total_reading_time_seconds ?? ((latest.duration_minutes || 0) * 60)) / 60)),
+                    status: latest.status,
+                    totalNews: latest.total_news_count || 0,
+                    totalReadingTime: Number(latest.total_reading_time_seconds ?? ((latest.duration_minutes || 0) * 60)) || 0,
+                    createdAt: new Date(latest.created_at),
+                    publishedAt: latest.published_at ? new Date(latest.published_at) : null,
+                    createdBy: 'Usuario'
+                };
+            }
+        }
+        await this.loadBroadcasts().catch(() => undefined);
+        this.cdr.detectChanges();
+    }
+
+    private get hasSourceLinks(): boolean {
+        return this.timelineEvents.some(e => !!String(e?.sourceItemId || '').trim());
+    }
+
+    get editedChargeableSeconds(): number {
+        if (!this.isEditingCopy) return 0;
+
+        const seconds = this.timelineEvents.reduce((acc, e) => {
+            if (!e || e.type === 'ad') return acc;
+            const duration = Math.max(0, Math.round(Number(e.duration) || 0));
+            if (duration <= 0) return acc;
+
+            if (this.hasSourceLinks) {
+                const isNew = !String(e.sourceItemId || '').trim();
+                const isEdited = !!e.quotaDirty;
+                return acc + (isNew || isEdited ? duration : 0);
+            }
+
+            return acc + duration;
+        }, 0);
+
+        return Math.max(0, Math.round(seconds));
+    }
+
+    get editedMinutesToConsume(): number {
+        const seconds = this.editedChargeableSeconds;
+        if (seconds <= 0) return 0;
+        return Math.max(1, Math.ceil(seconds / 60));
+    }
+
+    get editedChargeBasisLabel(): string {
+        if (!this.isEditingCopy) return '';
+        return this.hasSourceLinks
+            ? 'Edición (solo bloques editados/nuevos, sin comerciales)'
+            : 'Edición (estimación: no se pudo diferenciar bloques editados, se considera total sin comerciales)';
+    }
 
     constructor(
         private supabaseService: SupabaseService,
@@ -456,9 +560,19 @@ export class TimelineNoticiarioComponent implements OnInit {
         const musicUrlFromId = item?.music_resource_id ? this.findMusicUrl(item.music_resource_id) : undefined;
         const musicUrl = item?.music_url || musicUrlFromId;
 
+        const type = (item.type || 'text') as TimelineEvent['type'];
+        const isNews = type === 'news';
+        const isAd = type === 'ad';
+        const isScript = type === 'intro' || type === 'outro' || type === 'text';
+        const quotaDirty = !!item?.quota_dirty;
+        const requiresHumanization = false;
+        const audioDirty = false;
+
+        const shouldExpand = (isScript && !isNews && !isAd) || quotaDirty;
+
         return {
             id: item.id,
-            type: item.type || 'text',
+            type,
             title: item.custom_title || news?.title || 'Bloque sin título',
             description: item.custom_content || news?.humanized_content || '',
             startTime: 0,
@@ -481,10 +595,13 @@ export class TimelineNoticiarioComponent implements OnInit {
             musicTailSeconds: item.music_tail_seconds == null ? 0.8 : Number(item.music_tail_seconds),
             musicFadeOutSeconds: item.music_fade_out_seconds == null ? 0.5 : Number(item.music_fade_out_seconds),
             isNewBlock: false,
-            requiresHumanization: false,
-            audioDirty: false,
+            requiresHumanization,
+            audioDirty,
             humanizeStatus: 'ok',
-            humanizeError: undefined
+            humanizeError: undefined,
+            sourceItemId: item?.source_item_id ?? null,
+            quotaDirty,
+            expanded: shouldExpand && !isNews
         };
     }
 
@@ -494,10 +611,57 @@ export class TimelineNoticiarioComponent implements OnInit {
         next.isNewBlock = next.type !== 'news' && next.type !== 'ad';
         next.requiresHumanization = false;
         next.audioDirty = next.type !== 'ad';
+        next.quotaDirty = next.type !== 'ad';
+        for (const ev of this.timelineEvents) {
+            ev.expanded = false;
+        }
+        next.expanded = true;
         next.humanizeStatus = 'pending';
         this.timelineEvents = [...this.timelineEvents, next];
         this.calculateTimes();
         this.cdr.detectChanges();
+    }
+
+    toggleEventExpanded(event: TimelineEvent): void {
+        if (!event) return;
+        const nextExpanded = !event.expanded;
+        if (nextExpanded) {
+            for (const ev of this.timelineEvents) {
+                if (ev.id !== event.id) ev.expanded = false;
+            }
+            event.expanded = true;
+        } else {
+            event.expanded = false;
+        }
+        this.cdr.detectChanges();
+    }
+
+    async moveBlockUp(event: TimelineEvent): Promise<void> {
+        if (!(await this.ensureEditingCopy(false))) return;
+        const idx = this.timelineEvents.findIndex(e => e.id === event?.id);
+        if (idx <= 0) return;
+        moveItemInArray(this.timelineEvents, idx, idx - 1);
+        this.calculateTimes();
+        await this.saveOrder();
+        this.cdr.detectChanges();
+    }
+
+    async moveBlockDown(event: TimelineEvent): Promise<void> {
+        if (!(await this.ensureEditingCopy(false))) return;
+        const idx = this.timelineEvents.findIndex(e => e.id === event?.id);
+        if (idx < 0 || idx >= this.timelineEvents.length - 1) return;
+        moveItemInArray(this.timelineEvents, idx, idx + 1);
+        this.calculateTimes();
+        await this.saveOrder();
+        this.cdr.detectChanges();
+    }
+
+    getCollapsedPreview(event: TimelineEvent): string {
+        if (!event) return '';
+        if (event.type === 'ad') return 'Audio publicitario';
+        const txt = String(event.description || '').trim();
+        if (!txt) return 'Sin contenido';
+        return txt;
     }
 
     private isScriptBlock(event: TimelineEvent): boolean {
@@ -537,6 +701,7 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     private markAudioDirtyLocal(event: TimelineEvent): void {
         event.audioDirty = true;
+        event.quotaDirty = event.type !== 'ad';
         event.audioUrl = undefined;
         if (this.isScriptBlock(event) && this.hasScriptContent(event)) {
             event.duration = this.estimateDurationFromText(event.description, event.duration || 30);
@@ -704,6 +869,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                 custom_content: '',
                 order_index: this.timelineEvents.length,
                 duration_seconds: 30,
+                quota_dirty: true,
                 voice_id: defaultVoice,
                 voice_speed: defaultSpeed,
                 voice_pitch: defaultPitch,
@@ -729,13 +895,11 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     async deleteBlock(event: any) {
         if (!(await this.ensureEditingCopy())) return;
-        const result = await Swal.fire({
+        const result = await this.fireSwal({
             title: '¿Estás seguro?',
             text: "No podrás revertir esto",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
             confirmButtonText: 'Sí, eliminar',
             cancelButtonText: 'Cancelar'
         });
@@ -754,7 +918,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             this.snackBar.open('Bloque eliminado', 'Cerrar', { duration: 2200 });
         } catch (error) {
             console.error('Error deleting block:', error);
-            Swal.fire('Error', 'No se pudo eliminar el bloque', 'error');
+            await this.fireSwal({ title: 'Error', text: 'No se pudo eliminar el bloque', icon: 'error' });
         } finally {
             this.pendingDeleteId = null;
             this.cdr.detectChanges();
@@ -929,8 +1093,33 @@ export class TimelineNoticiarioComponent implements OnInit {
             const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
             const copyTitle = `${base.title} (copia ${stamp})`;
 
+            const nameResult = await this.fireSwal({
+                title: 'Nombre del noticiero editado',
+                text: 'Este nombre se guardará como una nueva copia del noticiero.',
+                icon: 'info',
+                input: 'text',
+                inputValue: copyTitle,
+                showCancelButton: true,
+                confirmButtonText: 'Crear copia',
+                cancelButtonText: 'Cancelar',
+                inputValidator: (value: any) => {
+                    const v = String(value || '').trim();
+                    if (!v) return 'Debes ingresar un nombre.';
+                    if (v.length > 140) return 'El nombre es demasiado largo.';
+                    return null;
+                }
+            });
+
+            if (!nameResult?.isConfirmed) {
+                this.loadingTimeline = false;
+                this.cdr.detectChanges();
+                return;
+            }
+
+            const chosenTitle = String(nameResult?.value || '').trim() || copyTitle;
+
             const created = await this.supabaseService.createNewsBroadcast({
-                title: copyTitle,
+                title: chosenTitle,
                 description: base.description,
                 duration_minutes: base.duration_minutes,
                 status: 'draft',
@@ -948,6 +1137,8 @@ export class TimelineNoticiarioComponent implements OnInit {
                     : null;
                 const clone: any = {
                     broadcast_id: created.id,
+                    source_item_id: item.id,
+                    quota_dirty: false,
                     humanized_news_id: item.humanized_news_id || null,
                     order_index: item.order_index,
                     reading_time_seconds: item.reading_time_seconds,
@@ -994,6 +1185,48 @@ export class TimelineNoticiarioComponent implements OnInit {
             this.cdr.detectChanges();
         } finally {
             this.pendingCopy = false;
+        }
+    }
+
+    async renameEditedBroadcast(): Promise<void> {
+        if (!this.isEditingCopy) return;
+        if (!this.selectedBroadcast?.id) return;
+
+        const currentTitle = String(this.selectedBroadcast.title || '').trim();
+        const result = await this.fireSwal({
+            title: 'Renombrar noticiero',
+            text: 'Este cambio aplica a la copia editable actual.',
+            icon: 'info',
+            input: 'text',
+            inputValue: currentTitle,
+            showCancelButton: true,
+            confirmButtonText: 'Guardar',
+            cancelButtonText: 'Cancelar',
+            inputValidator: (value: any) => {
+                const v = String(value || '').trim();
+                if (!v) return 'Debes ingresar un nombre.';
+                if (v.length > 140) return 'El nombre es demasiado largo.';
+                return null;
+            }
+        });
+
+        if (!result?.isConfirmed) return;
+        const nextTitle = String(result.value || '').trim();
+        if (!nextTitle || nextTitle === currentTitle) return;
+
+        try {
+            await this.supabaseService.updateNewsBroadcast(this.selectedBroadcast.id, { title: nextTitle });
+            this.selectedBroadcast.title = nextTitle;
+            if (this.editableBroadcast) {
+                this.editableBroadcast.title = nextTitle;
+            }
+            const row = this.broadcasts.find(b => b.id === this.selectedBroadcast.id);
+            if (row) row.title = nextTitle;
+            this.snackBar.open('Nombre actualizado', 'Cerrar', { duration: 2500 });
+            this.cdr.detectChanges();
+        } catch (e) {
+            console.error('Error renaming broadcast:', e);
+            this.snackBar.open('Error al renombrar el noticiero', 'Cerrar', { duration: 3000 });
         }
     }
 
@@ -1128,6 +1361,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         try {
             await this.supabaseService.updateBroadcastNewsItem(event.id, {
                 custom_content: newText,
+                quota_dirty: true,
                 audio_url: null
             });
             await this.syncBroadcastTotals();
@@ -1143,7 +1377,7 @@ export class TimelineNoticiarioComponent implements OnInit {
         
         // Find selected voice to get default settings if available
         const selectedVoice = this.availableVoices.find(v => v.name === event.voice);
-        const updates: any = { voice_id: event.voice, audio_url: null };
+        const updates: any = { voice_id: event.voice, quota_dirty: true, audio_url: null };
 
         if (selectedVoice) {
              if (selectedVoice.speed) updates.voice_speed = selectedVoice.speed;
@@ -1190,6 +1424,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             music_position: event.musicUrl ? (event.musicPlacement || (event.type === 'outro' ? 'after' : 'during')) : null,
             music_tail_seconds: event.musicUrl ? event.musicTailSeconds : null,
             music_fade_out_seconds: event.musicUrl ? event.musicFadeOutSeconds : null,
+            quota_dirty: true,
             audio_url: null
         };
 
@@ -1370,6 +1605,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             // 5. Update Block in DB
             await this.supabaseService.updateBroadcastNewsItem(event.id, { 
                 audio_url: publicUrl,
+                quota_dirty: true,
                 voice_id: event.voice,
                 voice_speed: Number(event.speed),
                 voice_pitch: Number(event.pitch),
@@ -1401,7 +1637,7 @@ export class TimelineNoticiarioComponent implements OnInit {
 
         } catch (error) {
             console.error('Error generating block audio:', error);
-            Swal.fire('Error', 'Error al generar audio del bloque.', 'error');
+            await this.fireSwal({ title: 'Error', text: 'Error al generar audio del bloque.', icon: 'error' });
         } finally {
             this.isGeneratingAudio = false;
             this.pendingGenerateId = null;
@@ -1418,6 +1654,9 @@ export class TimelineNoticiarioComponent implements OnInit {
             });
             return;
         }
+
+        if (this.savingTimeline) return;
+        const wasEditingCopy = this.isEditingCopy;
         
         this.loading = true;
         this.savingTimeline = true;
@@ -1453,7 +1692,7 @@ export class TimelineNoticiarioComponent implements OnInit {
 
             const hasAnyRealAudio = this.timelineEvents.some(e => !!e.audioUrl);
             if (!hasAnyRealAudio) {
-                Swal.fire('Atención', 'No hay audios para exportar.', 'warning');
+                await this.fireSwal({ title: 'Atención', text: 'No hay audios para exportar.', icon: 'warning' });
                 return;
             }
 
@@ -1480,16 +1719,9 @@ export class TimelineNoticiarioComponent implements OnInit {
             // 6. Encode to MP3 using lamejs
             const mp3Blob = await this.encodeToMp3(renderedBuffer);
             
-            // 7. Download
             const fileName = `noticiero_${this.selectedBroadcast.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${Date.now()}.mp3`;
-            const url = URL.createObjectURL(mp3Blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            a.click();
-            URL.revokeObjectURL(url);
-
-            // 8. Save to "Mis Noticieros"
+            // 7. Save to "Mis Noticieros" (y validar cuota antes de permitir descarga)
+            let savedOk = false;
             try {
                 // Upload to Storage
                 const file = new File([mp3Blob], fileName, { type: 'audio/mp3' });
@@ -1503,6 +1735,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                     audio_url: publicUrl,
                     duration_seconds: Math.ceil(renderedBuffer.duration)
                 });
+                savedOk = true;
 
                 if (quotaResult?.quota_summary) {
                     this.quotaService.setCurrentSummary({
@@ -1525,10 +1758,12 @@ export class TimelineNoticiarioComponent implements OnInit {
                 });
 
                 const exportMessage = quotaResult?.charged_now
-                    ? `El noticiero se ha exportado y guardado en "Mis Noticieros". Se descontaron ${quotaResult.charged_minutes} min.`
-                    : 'El noticiero se actualizó y guardó sin descontar minutos nuevamente.';
+                    ? `El noticiero se ha exportado y guardado en "Mis Noticieros". Se descontaron ${quotaResult.charged_minutes} min.${wasEditingCopy ? ' (solo bloques editados/nuevos, sin comerciales)' : ''}`
+                    : (wasEditingCopy
+                        ? 'El noticiero se guardó sin descontar minutos (no hubo bloques editados/nuevos que consuman cuota).'
+                        : 'El noticiero se actualizó y guardó sin descontar minutos nuevamente.');
 
-                Swal.fire({
+                await this.fireSwal({
                     title: 'Exportación Exitosa',
                     text: missingAudioCount > 0 || failedAudioCount > 0
                         ? `${exportMessage} Bloques sin audio: ${missingAudioCount} · Fallos al cargar audio: ${failedAudioCount}`
@@ -1538,15 +1773,29 @@ export class TimelineNoticiarioComponent implements OnInit {
                     showConfirmButton: false
                 });
 
+                // 8. Download (solo si el guardado/validación de cuota fue exitoso)
+                const url = URL.createObjectURL(mp3Blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+
             } catch (saveError) {
                 console.error('Error saving generated broadcast:', saveError);
-                // Don't fail the whole process if just saving fails, as download worked
-                Swal.fire('Advertencia', 'El archivo se descargó pero hubo un error al guardarlo en Mis Noticieros.', 'warning');
+                await this.fireSwal({ title: 'Error', text: 'No se pudo guardar el audio final (validación de cuota/almacenamiento). No se descargó el archivo.', icon: 'error' });
+            } finally {
+                if (savedOk && this.isEditingCopy) {
+                    await this.lockEditingAfterSave();
+                    this.snackBar.open('Edición guardada. Para volver a modificar este noticiero, presiona "Editar" y se creará una nueva copia.', 'Cerrar', {
+                        duration: 4500
+                    });
+                }
             }
 
         } catch (error) {
             console.error('Error exporting timeline:', error);
-            Swal.fire('Error', 'Error al exportar el timeline.', 'error');
+            await this.fireSwal({ title: 'Error', text: 'Error al exportar el timeline.', icon: 'error' });
         } finally {
             this.loading = false;
             this.savingTimeline = false;
@@ -1556,13 +1805,13 @@ export class TimelineNoticiarioComponent implements OnInit {
 
     async encodeToMp3(buffer: AudioBuffer): Promise<Blob> {
         const channels = 2; // Stereo
-        const sampleRate = 44100;
+        const sampleRate = buffer.sampleRate || 44100;
         const kbps = 128;
         const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, kbps);
         const mp3Data = [];
 
         const left = buffer.getChannelData(0);
-        const right = buffer.getChannelData(1);
+        const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
 
         // Process in chunks to avoid blocking UI too much
         const sampleBlockSize = 1152; // multiple of 576
@@ -1580,8 +1829,7 @@ export class TimelineNoticiarioComponent implements OnInit {
                 mp3Data.push(mp3buf);
             }
 
-            // Yield to main thread every ~500 chunks (~13 seconds of audio processing) to keep UI responsive
-            if (i % (sampleBlockSize * 500) === 0) {
+            if (i % (sampleBlockSize * 50) === 0) {
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
         }

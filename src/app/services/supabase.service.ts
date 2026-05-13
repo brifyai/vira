@@ -8,6 +8,7 @@ export interface AudioQuotaSummary {
     manager_id: string | null;
     quota_total_minutes: number;
     team_assigned_minutes: number;
+    team_used_minutes: number;
     personal_quota_minutes: number;
     used_minutes: number;
     remaining_minutes: number;
@@ -148,13 +149,40 @@ export class SupabaseService {
     }
 
     async getAudioQuotaSummary(userId?: string): Promise<AudioQuotaSummary | null> {
-        const { data, error } = await this.supabase.rpc('get_audio_quota_summary_rpc', {
-            p_user_id: userId || null
-        });
+        const tryRpc = async (fn: string) => {
+            const { data, error } = await this.supabase.rpc(fn, { p_user_id: userId || null });
+            return { data, error };
+        };
 
-        if (error) throw error;
+        const v2 = await tryRpc('get_audio_quota_summary_v2_rpc');
+        if (!v2.error) {
+            const row = Array.isArray(v2.data) ? v2.data[0] : v2.data;
+            if (!row) return null;
+            return {
+                user_id: row.user_id,
+                role: row.role,
+                manager_id: row.manager_id ?? null,
+                quota_total_minutes: Number(row.quota_total_minutes || 0),
+                team_assigned_minutes: Number(row.team_assigned_minutes || 0),
+                team_used_minutes: Number(row.team_used_minutes || 0),
+                personal_quota_minutes: Number(row.personal_quota_minutes || 0),
+                used_minutes: Number(row.used_minutes || 0),
+                remaining_minutes: Number(row.remaining_minutes || 0),
+                available_to_assign_minutes: Number(row.available_to_assign_minutes || 0),
+                unlimited: !!row.unlimited,
+                can_generate: !!row.can_generate
+            };
+        }
 
-        const row = Array.isArray(data) ? data[0] : data;
+        const msg = String((v2.error as any)?.message || '');
+        const code = String((v2.error as any)?.code || '');
+        const canFallback = code === 'PGRST202' || /could not find the function|get_audio_quota_summary_v2_rpc/i.test(msg);
+        if (!canFallback) throw v2.error;
+
+        const v1 = await tryRpc('get_audio_quota_summary_rpc');
+        if (v1.error) throw v1.error;
+
+        const row = Array.isArray(v1.data) ? v1.data[0] : v1.data;
         if (!row) return null;
 
         return {
@@ -163,6 +191,7 @@ export class SupabaseService {
             manager_id: row.manager_id ?? null,
             quota_total_minutes: Number(row.quota_total_minutes || 0),
             team_assigned_minutes: Number(row.team_assigned_minutes || 0),
+            team_used_minutes: 0,
             personal_quota_minutes: Number(row.personal_quota_minutes || 0),
             used_minutes: Number(row.used_minutes || 0),
             remaining_minutes: Number(row.remaining_minutes || 0),

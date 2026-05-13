@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService, User } from './services/auth.service';
@@ -31,7 +31,8 @@ export class AppComponent implements OnInit {
     constructor(
         private router: Router,
         private authService: AuthService,
-        private quotaService: QuotaService
+        private quotaService: QuotaService,
+        private cdr: ChangeDetectorRef
     ) { }
 
     ngOnInit(): void {
@@ -42,10 +43,12 @@ export class AppComponent implements OnInit {
         // Subscribe to current user
         this.authService.currentUser$.subscribe((user: User | null) => {
             this.currentUser = user;
+            this.cdr.detectChanges();
         });
 
         this.quotaService.currentSummary$.subscribe(summary => {
             this.currentQuotaSummary = summary;
+            this.cdr.detectChanges();
         });
     }
 
@@ -70,9 +73,7 @@ export class AppComponent implements OnInit {
     }
 
     get quotaIndicatorText(): string {
-        if (!this.currentQuotaSummary) return '';
-        if (this.currentQuotaSummary.unlimited) return 'Ilimitado';
-        return `${this.currentQuotaSummary.quota_total_minutes} / ${this.currentQuotaSummary.remaining_minutes}`;
+        return this.quotaIndicatorTextLines.join(' · ');
     }
 
     get quotaIndicatorHint(): string {
@@ -80,17 +81,36 @@ export class AppComponent implements OnInit {
         if (this.currentQuotaSummary.unlimited) return 'Super Admin sin límite de minutos';
 
         if (this.currentQuotaSummary.role === 'admin') {
-            return `Pool ${this.currentQuotaSummary.quota_total_minutes} min · Equipo ${this.currentQuotaSummary.team_assigned_minutes} · Personal ${this.currentQuotaSummary.remaining_minutes} restantes`;
+            return `Plan ${this.currentQuotaSummary.quota_total_minutes} min · Team ${this.currentQuotaSummary.team_assigned_minutes} asignados · Team usados ${this.currentQuotaSummary.team_used_minutes} · Disponible para repartir ${this.currentQuotaSummary.available_to_assign_minutes} · Admin ${this.currentQuotaSummary.remaining_minutes}/${this.currentQuotaSummary.personal_quota_minutes}`;
         }
 
         return `Cuota total ${this.currentQuotaSummary.quota_total_minutes} min · Restantes ${this.currentQuotaSummary.remaining_minutes} min`;
     }
 
+    get isAdminQuotaCompact(): boolean {
+        return !!this.currentQuotaSummary && !this.currentQuotaSummary.unlimited && this.currentQuotaSummary.role === 'admin';
+    }
+
+    get quotaIndicatorTextLines(): string[] {
+        const s = this.currentQuotaSummary;
+        if (!s) return [];
+        if (s.unlimited) return ['Ilimitado'];
+
+        if (s.role === 'admin') {
+            const plan = `Plan: ${s.quota_total_minutes} min`;
+            const team = `Team: ${s.team_assigned_minutes}/${s.team_used_minutes}`;
+            const admin = `Admin: ${s.remaining_minutes}/${s.personal_quota_minutes}`;
+            return [plan, `${team} · ${admin}`];
+        }
+
+        return [`${s.remaining_minutes}/${s.quota_total_minutes} min`];
+    }
+
     get visibleMenuItems() {
         const items = [...this.menuItems];
-        
-        // Fuentes: Only Super Admin
-        if (this.authService.isSuperAdmin()) {
+        const role = String(this.currentUser?.role || '').trim();
+
+        if (role === 'super_admin') {
             items.push({ path: '/fuentes', label: 'Fuentes', icon: 'source' });
             items.push({ path: '/scrapping', label: 'Scrapping', icon: 'scrape' });
             items.push({ path: '/costos', label: 'Costos', icon: 'costs' });
@@ -99,7 +119,7 @@ export class AppComponent implements OnInit {
             return items;
         }
 
-        if (this.authService.hasRole('admin')) {
+        if (role === 'admin') {
             items.push({ path: '/equipo', label: 'Equipo', icon: 'people' });
             items.push({ path: '/recursos', label: 'Recursos', icon: 'voice' });
             items.push({ path: '/costos', label: 'Actividad', icon: 'costs' });

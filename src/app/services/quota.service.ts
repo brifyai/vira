@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { SupabaseService, AudioQuotaSummary } from './supabase.service';
 import { AuthService } from './auth.service';
@@ -12,11 +12,12 @@ export class QuotaService {
 
     constructor(
         private supabaseService: SupabaseService,
-        private authService: AuthService
+        private authService: AuthService,
+        private zone: NgZone
     ) {
         this.authService.currentUser$.subscribe(user => {
             if (!user?.id) {
-                this.currentSummarySubject.next(null);
+                this.zone.run(() => this.currentSummarySubject.next(null));
                 return;
             }
 
@@ -31,7 +32,7 @@ export class QuotaService {
     }
 
     setCurrentSummary(summary: AudioQuotaSummary | null): void {
-        this.currentSummarySubject.next(summary);
+        this.zone.run(() => this.currentSummarySubject.next(summary));
     }
 
     async refreshCurrentSummary(): Promise<AudioQuotaSummary | null> {
@@ -40,12 +41,12 @@ export class QuotaService {
         const userId = currentUser?.id || authUser?.id;
 
         if (!userId) {
-            this.currentSummarySubject.next(null);
+            this.zone.run(() => this.currentSummarySubject.next(null));
             return null;
         }
 
         const summary = await this.supabaseService.getAudioQuotaSummary(userId);
-        this.currentSummarySubject.next(summary);
+        this.zone.run(() => this.currentSummarySubject.next(summary));
         return summary;
     }
 }

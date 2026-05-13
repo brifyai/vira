@@ -93,6 +93,14 @@ export class CostosComponent implements OnInit {
         return this.currentUserRole === 'admin';
     }
 
+    private isWithinAdminScope(user: any): boolean {
+        if (!user) return false;
+        const id = String(user?.id || '').trim();
+        if (!id) return false;
+        if (id === this.currentUserId) return true;
+        return String(user?.manager_id || '').trim() === this.currentUserId;
+    }
+
     get hasActiveFilters(): boolean {
         return this.selectedUserId !== 'all'
             || this.selectedAction !== 'all'
@@ -118,19 +126,29 @@ export class CostosComponent implements OnInit {
     }
 
     get filteredEvents(): any[] {
-        return this.events.filter(event => this.matchesAdvancedFilters(event.user));
+        return this.events.filter(event =>
+            this.matchesAdvancedFilters(event.user) && this.matchesUserSelection(event.user)
+        );
     }
 
     get filteredBroadcasts(): any[] {
-        return this.broadcasts.filter(broadcast => this.matchesAdvancedFilters(broadcast.creator));
+        return this.broadcasts.filter(broadcast =>
+            this.matchesAdvancedFilters(broadcast.creator) && this.matchesUserSelection(broadcast.creator)
+        );
     }
 
     get filteredMinuteEvents(): any[] {
-        return this.minuteEvents.filter(event => this.matchesAdvancedFilters(this.resolveMinuteEventUser(event)));
+        return this.minuteEvents.filter(event => {
+            const u = this.resolveMinuteEventUser(event);
+            return this.matchesAdvancedFilters(u) && this.matchesUserSelection(u);
+        });
     }
 
     get filteredGeneratedHistory(): any[] {
-        return this.generatedHistory.filter(item => this.matchesAdvancedFilters(this.resolveGeneratedUser(item)));
+        return this.generatedHistory.filter(item => {
+            const u = this.resolveGeneratedUser(item);
+            return this.matchesAdvancedFilters(u) && this.matchesUserSelection(u);
+        });
     }
 
     get totalMinutesUsed(): number {
@@ -143,7 +161,7 @@ export class CostosComponent implements OnInit {
 
     get activitySummary(): any[] {
         const summary = new Map<string, any>();
-        const baseUsers = this.users.filter(user => this.matchesAdvancedFilters(user));
+        const baseUsers = this.users.filter(user => this.matchesAdvancedFilters(user) && this.matchesUserSelection(user));
 
         for (const user of baseUsers) {
             summary.set(user.id, {
@@ -385,16 +403,106 @@ export class CostosComponent implements OnInit {
         }
     }
 
+    private matchesUserSelection(user: any): boolean {
+        if (!user) return false;
+
+        if (this.currentUserRole === 'admin') {
+            const id = String(user?.id || '').trim();
+            const managerId = String(user?.manager_id || '').trim();
+            if (this.selectedUserId === 'me') return id === this.currentUserId;
+            if (this.selectedUserId === 'team') return managerId === this.currentUserId;
+            return this.isWithinAdminScope(user);
+        }
+
+        if (this.currentUserRole === 'user') {
+            return String(user?.id || '').trim() === this.currentUserId;
+        }
+
+        if (this.selectedUserId && this.selectedUserId !== 'all') {
+            return String(user?.id || '').trim() === String(this.selectedUserId || '').trim();
+        }
+
+        return true;
+    }
+
+    private getQueryUserId(): string {
+        if (this.currentUserRole === 'admin') {
+            if (this.selectedUserId === 'me') return this.currentUserId;
+            return 'all';
+        }
+        if (this.currentUserRole === 'user') return this.currentUserId;
+        return this.selectedUserId;
+    }
+
     async loadUsers(): Promise<void> {
         try {
             const data = await this.supabaseService.getUsers();
-            this.users = data || [];
+            const all = data || [];
+            if (this.currentUserRole === 'admin') {
+                this.users = all.filter(u => this.isWithinAdminScope(u));
+            } else if (this.currentUserRole === 'user') {
+                this.users = all.filter(u => String(u?.id || '').trim() === this.currentUserId);
+            } else {
+                this.users = all;
+            }
         } catch (error) {
             console.error('Error loading users:', error);
             this.users = [];
         } finally {
             this.cdr.detectChanges();
         }
+    }
+
+    private getChargeScopeLabelFromMeta(meta: any): string {
+        const scope = String(meta?.charge_scope || '').trim();
+        const basis = String(meta?.charge_basis || '').trim();
+        if (scope === 'edited_only') return 'Edición (solo bloques editados/nuevos)';
+        if (basis === 'edited_blocks_excluding_ads') return 'Edición (solo bloques editados/nuevos)';
+        if (basis === 'blocks_excluding_ads') return 'Bloques (sin comerciales)';
+        return '';
+    }
+
+    getMinuteEventChargeScopeLabel(event: any): string {
+        return this.getChargeScopeLabelFromMeta(event?.metadata);
+    }
+
+    getGeneratedChargeScopeLabel(item: any): string {
+        const id = item?.id;
+        if (!id) return '';
+        const related = this.minuteEvents.find(e => e?.generated_broadcast_id === id);
+        if (related) return this.getMinuteEventChargeScopeLabel(related);
+        return '';
+    }
+
+    private getBroadcastLatestMinuteEvent(broadcastId: string): any | null {
+        const id = String(broadcastId || '').trim();
+        if (!id) return null;
+        const events = this.filteredMinuteEvents
+            .filter(e => String(e?.broadcast_id || '').trim() === id)
+            .slice()
+            .sort((a, b) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')));
+        return events[0] || null;
+    }
+
+    getBroadcastChargedMinutes(broadcast: any): number {
+        const id = String(broadcast?.id || '').trim();
+        if (!id) return 0;
+        const latest = this.getBroadcastLatestMinuteEvent(id);
+        return Number(latest?.consumed_minutes || 0);
+    }
+
+    getBroadcastChargeBreakdown(broadcast: any): { blocks: number; ads: number; chargeable: number; label: string } {
+        const id = String(broadcast?.id || '').trim();
+        if (!id) return { blocks: 0, ads: 0, chargeable: 0, label: '' };
+        const latest = this.getBroadcastLatestMinuteEvent(id);
+        if (!latest) return { blocks: 0, ads: 0, chargeable: 0, label: '' };
+        const d = this.getMinuteEventBreakdownSeconds(latest);
+        return {
+            blocks: d.blocks,
+            ads: d.ads,
+            chargeable: d.chargeable,
+            label: this.getMinuteEventChargeScopeLabel(latest)
+        };
     }
 
     async loadRates(): Promise<void> {
@@ -428,7 +536,7 @@ export class CostosComponent implements OnInit {
 
             const data = await this.supabaseService.getCostEvents({
                 limit: 500,
-                userId: this.selectedUserId,
+                userId: this.getQueryUserId(),
                 action: this.selectedAction,
                 from: fromIso,
                 to: toIso
@@ -453,7 +561,7 @@ export class CostosComponent implements OnInit {
 
             const data = await this.supabaseService.getBroadcastsForCosts({
                 limit: 500,
-                creatorId: this.selectedUserId,
+                creatorId: this.getQueryUserId(),
                 from: fromIso,
                 to: toIso
             });
@@ -478,7 +586,7 @@ export class CostosComponent implements OnInit {
 
             const data = await this.supabaseService.getAudioMinuteUsageEvents({
                 limit: 500,
-                userId: this.selectedUserId,
+                userId: this.getQueryUserId(),
                 from: fromIso,
                 to: toIso
             });
@@ -503,7 +611,7 @@ export class CostosComponent implements OnInit {
 
             const data = await this.supabaseService.getGeneratedBroadcasts({
                 limit: 500,
-                chargedUserId: this.selectedUserId,
+                chargedUserId: this.getQueryUserId(),
                 from: fromIso,
                 to: toIso
             });
@@ -669,14 +777,61 @@ export class CostosComponent implements OnInit {
     }
 
     getMinuteEventDurationSeconds(event: any): number {
-        const metadataDuration = Number(event?.metadata?.duration_seconds || 0);
-        if (metadataDuration > 0) return metadataDuration;
+        const metadataTotal = Number(event?.metadata?.total_duration_seconds ?? event?.metadata?.duration_seconds ?? 0);
+        if (metadataTotal > 0) return metadataTotal;
 
         const generated = this.filteredGeneratedHistory.find(item => item.id === event?.generated_broadcast_id);
         const generatedDuration = Number(generated?.duration_seconds || 0);
         if (generatedDuration > 0) return generatedDuration;
 
         return 0;
+    }
+
+    getMinuteEventBreakdownSeconds(event: any): { total: number; blocks: number; ads: number; chargeable: number } {
+        const meta = event?.metadata || {};
+
+        const totalFromMeta = Number(meta?.total_duration_seconds ?? meta?.duration_seconds ?? 0);
+        const blocksFromMeta = Number(meta?.blocks_duration_seconds ?? 0);
+        const adsFromMeta = Number(meta?.ad_duration_seconds ?? 0);
+        const chargeableFromMeta = Number(meta?.chargeable_duration_seconds ?? 0);
+
+        const total = totalFromMeta > 0 ? totalFromMeta : this.getMinuteEventDurationSeconds(event);
+        const blocks = blocksFromMeta > 0 ? blocksFromMeta : 0;
+        const ads = adsFromMeta > 0 ? adsFromMeta : 0;
+        const chargeable = chargeableFromMeta > 0 ? chargeableFromMeta : (blocks > 0 ? blocks : 0);
+
+        return {
+            total: Math.max(0, Math.round(total || 0)),
+            blocks: Math.max(0, Math.round(blocks || 0)),
+            ads: Math.max(0, Math.round(ads || 0)),
+            chargeable: Math.max(0, Math.round(chargeable || 0))
+        };
+    }
+
+    getGeneratedBroadcastBreakdownSeconds(item: any): { total: number; blocks: number; ads: number; chargeable: number } {
+        const id = item?.id;
+        if (!id) {
+            return { total: 0, blocks: 0, ads: 0, chargeable: 0 };
+        }
+
+        const related = this.minuteEvents.find(e => e?.generated_broadcast_id === id);
+        if (related) {
+            const d = this.getMinuteEventBreakdownSeconds(related);
+            const fallbackTotal = Number(item?.duration_seconds || 0);
+            return {
+                total: d.total > 0 ? d.total : Math.max(0, Math.round(fallbackTotal)),
+                blocks: d.blocks,
+                ads: d.ads,
+                chargeable: d.chargeable
+            };
+        }
+
+        return {
+            total: Math.max(0, Math.round(Number(item?.duration_seconds || 0))),
+            blocks: 0,
+            ads: 0,
+            chargeable: 0
+        };
     }
 
     private getResponsibleAdminId(user: any): string | null {
@@ -686,6 +841,12 @@ export class CostosComponent implements OnInit {
     }
 
     private matchesAdvancedFilters(user: any): boolean {
+        if (this.currentUserRole === 'admin') {
+            return this.isWithinAdminScope(user);
+        }
+        if (this.currentUserRole === 'user') {
+            return !!user && String(user?.id || '').trim() === this.currentUserId;
+        }
         if (this.currentUserRole !== 'super_admin') return true;
         if (!user) return this.selectedRole === 'all' && this.selectedManagerId === 'all';
 

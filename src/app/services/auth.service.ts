@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
 import { BehaviorSubject, Observable, from } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { map, switchMap, tap, filter, take } from 'rxjs/operators';
@@ -19,7 +19,7 @@ export class AuthService {
     public currentUser$: Observable<User | null> = this.currentUserSubject.asObservable();
     private authInitialized = new BehaviorSubject<boolean>(false);
 
-    constructor(private supabaseService: SupabaseService) {
+    constructor(private supabaseService: SupabaseService, private zone: NgZone) {
         this.initializeAuth();
     }
 
@@ -35,7 +35,7 @@ export class AuthService {
                     role: 'user',
                     avatar: `https://ui-avatars.com/api/?name=${session.user.email}&background=random`
                 };
-                this.currentUserSubject.next(initialUser);
+                this.zone.run(() => this.currentUserSubject.next(initialUser));
 
                 // Update profile with timeout to prevent app hanging
                 try {
@@ -50,7 +50,7 @@ export class AuthService {
         } catch (error) {
             console.error('Error initializing auth:', error);
         } finally {
-            this.authInitialized.next(true);
+            this.zone.run(() => this.authInitialized.next(true));
         }
 
         this.supabaseService.getClient().auth.onAuthStateChange(async (event, session) => {
@@ -61,7 +61,7 @@ export class AuthService {
                      await this.updateCurrentUser(session.user.id, session.user.email);
                 }
             } else if (event === 'SIGNED_OUT') {
-                this.currentUserSubject.next(null);
+                this.zone.run(() => this.currentUserSubject.next(null));
             }
         });
     }
@@ -84,7 +84,7 @@ export class AuthService {
                 role: profile?.role || 'user',
                 avatar: profile?.avatar_url || `https://ui-avatars.com/api/?name=${email}&background=random`
             };
-            this.currentUserSubject.next(user);
+            this.zone.run(() => this.currentUserSubject.next(user));
         } catch (error) {
             console.error('Error fetching user profile', error);
             // Fallback if profile fails (e.g. RLS blocks it before role is set?)
@@ -95,7 +95,7 @@ export class AuthService {
                 role: 'user', // Default
                 avatar: `https://ui-avatars.com/api/?name=${email}&background=random`
             };
-            this.currentUserSubject.next(user);
+            this.zone.run(() => this.currentUserSubject.next(user));
         }
     }
 
@@ -127,7 +127,7 @@ export class AuthService {
                 
                 // FORCE AUTH INITIALIZED: We have a valid session now, so we are initialized.
                 // This unblocks AuthGuard if initializeAuth() was somehow stuck.
-                this.authInitialized.next(true);
+                this.zone.run(() => this.authInitialized.next(true));
 
                 // 1. Create and emit initial user immediately to unblock UI
                 const initialUser: User = {
@@ -138,7 +138,7 @@ export class AuthService {
                     avatar: `https://ui-avatars.com/api/?name=${data.user.email}&background=random`
                 };
                 
-                this.currentUserSubject.next(initialUser);
+                this.zone.run(() => this.currentUserSubject.next(initialUser));
 
                 // 2. Update profile in background (fire and forget)
                 // This ensures we don't block the login flow waiting for the profile
@@ -157,7 +157,7 @@ export class AuthService {
         } catch (error) {
             console.error('Error signing out from Supabase:', error);
         } finally {
-            this.currentUserSubject.next(null);
+            this.zone.run(() => this.currentUserSubject.next(null));
         }
     }
 

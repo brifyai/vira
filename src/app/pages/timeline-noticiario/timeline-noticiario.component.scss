@@ -545,6 +545,13 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             text-align: left;
         }
 
+        .broadcast-title-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            min-width: 0;
+        }
+
         .broadcast-title {
             font-size: 22px;
             font-weight: 600;
@@ -552,6 +559,39 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             margin: 0 0 6px 0;
             line-height: 1.25;
             word-break: break-word;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .rename-btn {
+            width: 36px;
+            height: 36px;
+            flex: 0 0 auto;
+            margin-top: 2px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: $text-secondary;
+            cursor: pointer;
+            transition: $transition;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+
+            &:hover {
+                border-color: rgba(99, 102, 241, 0.6);
+                color: $text-primary;
+            }
+
+            &:disabled {
+                opacity: 0.45;
+                cursor: not-allowed;
+            }
+
+            svg {
+                width: 18px;
+                height: 18px;
+            }
         }
 
         .broadcast-description {
@@ -797,16 +837,58 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     // Handle
     .item-handle {
-        cursor: grab;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
         color: $text-muted;
-        padding-top: 4px;
-        opacity: 0.5;
+        padding-top: 2px;
+        opacity: 0.7;
         transition: $transition;
 
-        &:active {
-            cursor: grabbing;
+        .handle-grip {
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px;
+            border-radius: 8px;
+            transition: $transition;
+
+            &:active {
+                cursor: grabbing;
+            }
         }
-        
+
+        .handle-move {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid rgba(51, 65, 85, 0.65);
+            color: $text-secondary;
+            cursor: pointer;
+            transition: $transition;
+
+            &:hover {
+                border-color: rgba(99, 102, 241, 0.6);
+                color: $text-primary;
+            }
+
+            &:disabled {
+                opacity: 0.35;
+                cursor: not-allowed;
+            }
+
+            svg {
+                width: 16px;
+                height: 16px;
+            }
+        }
+
         svg {
             width: 20px;
             height: 20px;
@@ -823,6 +905,37 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             align-items: center;
             gap: 12px;
             margin-bottom: 8px;
+            justify-content: space-between;
+
+            .collapse-btn {
+                margin-left: auto;
+                width: 30px;
+                height: 30px;
+                border-radius: 10px;
+                background: rgba(15, 23, 42, 0.45);
+                border: 1px solid rgba(51, 65, 85, 0.65);
+                color: $text-secondary;
+                cursor: pointer;
+                transition: $transition;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+
+                &:hover {
+                    border-color: rgba(99, 102, 241, 0.6);
+                    color: $text-primary;
+                }
+
+                svg {
+                    width: 16px;
+                    height: 16px;
+                    transition: transform 0.2s ease;
+                }
+
+                svg.rotated {
+                    transform: rotate(180deg);
+                }
+            }
 
             .item-type {
                 font-size: 10px;
@@ -957,6 +1070,16 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 text-overflow: ellipsis;
             }
 
+            .item-preview {
+                margin: 0 0 4px 0;
+                font-size: 0.85rem;
+                color: $text-secondary;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+
             p {
                 margin: 0 0 12px 0;
                 font-size: 0.875rem;
@@ -1072,6 +1195,29 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 }
 
+.timeline-item.is-collapsed {
+    padding: 12px 14px;
+
+    .item-actions {
+        gap: 6px;
+    }
+
+    .item-content {
+        .item-header {
+            margin-bottom: 6px;
+        }
+        .item-body {
+            .controls-row,
+            .music-panel,
+            .audio-player,
+            .block-editor,
+            .item-description {
+                display: none;
+            }
+        }
+    }
+}
+
 // Type Specific Styles
 .timeline-item.event-intro {
     border-left: 4px solid $success-color;
@@ -1101,7 +1247,7 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 // Timeline Summary
 .timeline-summary {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
     padding: 20px;
     background: rgba(15, 23, 42, 0.5);
@@ -1273,4 +1419,56 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             left: -36px;
         }
     }
+}
+
+:host ::ng-deep .vira-swal-popup {
+    background: $dark-surface;
+    border: 1px solid $dark-border;
+    border-radius: 14px;
+    color: $text-primary;
+    box-shadow: $shadow-lg;
+}
+
+:host ::ng-deep .vira-swal-title {
+    color: $text-primary;
+    font-weight: 700;
+}
+
+:host ::ng-deep .vira-swal-html {
+    color: $text-secondary;
+}
+
+:host ::ng-deep .vira-swal-actions {
+    gap: 10px;
+}
+
+:host ::ng-deep .vira-swal-confirm,
+:host ::ng-deep .vira-swal-cancel {
+    border-radius: 10px !important;
+    padding: 10px 14px !important;
+    font-weight: 700 !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+}
+
+:host ::ng-deep .vira-swal-confirm {
+    background: rgba(239, 68, 68, 0.15) !important;
+    border-color: rgba(239, 68, 68, 0.35) !important;
+    color: #fecaca !important;
+}
+
+:host ::ng-deep .vira-swal-confirm:hover {
+    background: rgba(239, 68, 68, 0.22) !important;
+    border-color: rgba(239, 68, 68, 0.55) !important;
+}
+
+:host ::ng-deep .vira-swal-cancel {
+    background: rgba(15, 23, 42, 0.6) !important;
+    border-color: rgba(51, 65, 85, 0.8) !important;
+    color: $text-primary !important;
+}
+
+:host ::ng-deep .vira-swal-cancel:hover {
+    background: rgba(15, 23, 42, 0.85) !important;
+    border-color: rgba(148, 163, 184, 0.55) !important;
 }
