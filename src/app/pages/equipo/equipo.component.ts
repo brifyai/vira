@@ -118,7 +118,13 @@ export class EquipoComponent implements OnInit {
         try {
             const rows = await this.supabaseService.getTeamMembersWithUsage();
             const baseMembers = rows || [];
-            const memberIds = Array.from(new Set(baseMembers.map((m: any) => this.getMemberId(m)).filter(Boolean)));
+            const memberIds: string[] = Array.from(
+                new Set(
+                    baseMembers
+                        .map((m: any) => this.getMemberId(m))
+                        .filter((id: string): id is string => Boolean(id))
+                )
+            );
             let profiles: any[] = [];
             try {
                 profiles = await this.supabaseService.getUserProfilesByIds(memberIds);
