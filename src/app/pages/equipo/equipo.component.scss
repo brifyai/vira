@@ -1,6 +1,6 @@
 .team-container {
     padding: 24px;
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
 }
 
@@ -147,7 +147,7 @@
 }
 
 .quota-cell {
-    min-width: 180px;
+    min-width: 260px;
 }
 
 .quota-edit-row {
@@ -156,7 +156,7 @@
     align-items: center;
 
     input {
-        width: 90px;
+        width: 84px;
         padding: 8px 10px;
         border-radius: 8px;
         border: 1px solid rgba(255, 255, 255, 0.12);
@@ -180,11 +180,25 @@
     cursor: pointer;
 }
 
-.quota-history-btn {
-    margin-top: 8px;
-    border-color: rgba(99, 102, 241, 0.22);
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid rgba(99, 102, 241, 0.22);
     background: rgba(99, 102, 241, 0.16);
     color: rgba(224, 231, 255, 0.95);
+    cursor: pointer;
+
+    mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        line-height: 18px;
+    }
 }
 
 .quota-history-modal {

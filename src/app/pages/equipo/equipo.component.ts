@@ -2,6 +2,7 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 import { SupabaseService, AudioQuotaSummary, AudioQuotaAdjustmentEvent } from '../../services/supabase.service';
 import { QuotaService } from '../../services/quota.service';
@@ -9,7 +10,7 @@ import { QuotaService } from '../../services/quota.service';
 @Component({
     selector: 'app-equipo',
     standalone: true,
-    imports: [CommonModule, FormsModule, MatSnackBarModule],
+    imports: [CommonModule, FormsModule, MatSnackBarModule, MatIconModule],
     templateUrl: './equipo.component.html',
     styleUrls: ['./equipo.component.scss']
 })
