@@ -67,7 +67,7 @@ export const routes: Routes = [
         path: 'recursos',
         loadComponent: () => import('./pages/recursos/recursos.component').then(m => m.RecursosComponent),
         canActivate: [authGuard, roleGuard],
-        data: { roles: ['admin', 'super_admin'] }
+        data: { roles: ['admin', 'super_admin', 'user'] }
     },
     {
         path: 'scrapping',

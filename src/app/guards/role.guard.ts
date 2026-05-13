@@ -21,6 +21,15 @@ export const roleGuard: CanActivateFn = async (route: ActivatedRouteSnapshot, st
 
     if (expectedRoles && expectedRoles.length > 0) {
       if (expectedRoles.includes(userRole)) {
+        const path = String(route.routeConfig?.path || '');
+        if (path === 'recursos' && userRole === 'user') {
+          const canUploadMusic = profile?.can_upload_music === true;
+          if (!canUploadMusic) {
+            console.warn(`User does not have music permission for path ${state.url}.`);
+            router.navigate(['/dashboard']);
+            return false;
+          }
+        }
         return true;
       } else {
         // Redirect to unauthorized or home if role doesn't match

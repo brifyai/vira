@@ -129,6 +129,14 @@ export class AppComponent implements OnInit {
             items.push({ path: '/equipo', label: 'Equipo', icon: 'people' });
             items.push({ path: '/recursos', label: 'Recursos', icon: 'voice' });
             items.push({ path: '/costos', label: 'Actividad', icon: 'costs' });
+            return items;
+        }
+
+        if (role === 'user') {
+            const canUploadMusic = this.currentUser?.canUploadMusic === true;
+            if (canUploadMusic) {
+                items.push({ path: '/recursos', label: 'Recursos', icon: 'voice' });
+            }
         }
 
         return items;

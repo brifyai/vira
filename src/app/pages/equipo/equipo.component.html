@@ -89,8 +89,8 @@
                                 <button class="quota-btn" (click)="saveMemberQuota(m)" [disabled]="isSavingQuota(m.member_id)">
                                     {{ isSavingQuota(m.member_id) ? '...' : 'Ajustar' }}
                                 </button>
-                                <button class="icon-btn" type="button" (click)="openQuotaHistory(m)" aria-label="Ver historial de cuota" title="Historial">
-                                    <mat-icon>history</mat-icon>
+                                <button class="icon-btn" type="button" (click)="openQuotaHistory(m)" aria-label="Ver historial de cuota">
+                                    <mat-icon>menu_book</mat-icon>
                                 </button>
                             </div>
                         </ng-container>
