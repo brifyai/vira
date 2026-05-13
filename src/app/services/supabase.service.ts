@@ -142,7 +142,7 @@ export class SupabaseService {
 
         const { data, error } = await this.supabase
             .from('users')
-            .select('id, full_name, email, role')
+            .select('id, full_name, email, role, can_upload_music, can_use_ad_block, can_download_broadcast')
             .in('id', ids);
 
         if (error) throw error;
@@ -245,6 +245,22 @@ export class SupabaseService {
 
         if (error) throw error;
         return data;
+    }
+
+    async setTeamUserPermissions(payload: {
+        userId: string;
+        canUploadMusic: boolean;
+        canUseAdBlock: boolean;
+        canDownloadBroadcast: boolean;
+    }) {
+        const { error } = await this.supabase.rpc('set_team_user_permissions', {
+            p_user_id: payload.userId,
+            p_can_upload_music: payload.canUploadMusic,
+            p_can_use_ad_block: payload.canUseAdBlock,
+            p_can_download_broadcast: payload.canDownloadBroadcast
+        });
+        if (error) throw error;
+        return true;
     }
 
     async sendWelcomeEmail(payload: {
@@ -1121,6 +1137,17 @@ export class SupabaseService {
 
         if (error) throw error;
         return data;
+    }
+
+    async getPendingReviewBroadcasts() {
+        const { data, error } = await this.supabase
+            .from('news_broadcasts')
+            .select('id, title, created_by, created_at, duration_minutes, total_news_count, total_reading_time_seconds, status')
+            .eq('status', 'pending_review')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data || [];
     }
 
     async updateNewsBroadcast(id: string, updates: any) {

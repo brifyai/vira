@@ -9,7 +9,12 @@
         </button>
     </div>
 
-    <div class="summary" *ngIf="!loading">
+    <div class="section-tabs" *ngIf="currentUserRole === 'admin' || currentUserRole === 'super_admin'">
+        <button class="tab-pill" [class.active]="activeSection === 'team'" (click)="activeSection = 'team'">Integrantes</button>
+        <button class="tab-pill" [class.active]="activeSection === 'reviews'" (click)="activeSection = 'reviews'">Revisiones</button>
+    </div>
+
+    <div class="summary" *ngIf="!loading && activeSection === 'team'">
         <div class="summary-card">
             <div class="summary-value">{{ totals.broadcasts }}</div>
             <div class="summary-label">Noticieros creados (admin + equipo)</div>
@@ -49,7 +54,7 @@
         <p>Cargando equipo...</p>
     </div>
 
-    <div class="table-wrap" *ngIf="!loading">
+    <div class="table-wrap" *ngIf="!loading && activeSection === 'team'">
         <table class="team-table" *ngIf="members.length > 0; else empty">
             <thead>
                 <tr>
@@ -60,6 +65,7 @@
                     <th>Min. restantes</th>
                     <th>Noticieros</th>
                     <th>Audios finales</th>
+                    <th>Permisos</th>
                     <th></th>
                 </tr>
             </thead>
@@ -89,6 +95,9 @@
                     <td>{{ getMemberQuota(m.member_id)?.remaining_minutes || 0 }} min</td>
                     <td>{{ m.broadcasts_count || 0 }}</td>
                     <td>{{ getMemberExportCount(m.member_id) }}</td>
+                    <td>
+                        <button class="quota-btn" (click)="openPermissionsModal(m)" *ngIf="!m.is_admin">Editar</button>
+                    </td>
                     <td class="actions">
                         <button class="danger-btn" (click)="deleteMember(m)" *ngIf="!m.is_admin">Eliminar</button>
                     </td>
@@ -99,6 +108,46 @@
         <ng-template #empty>
             <div class="empty-state">
                 <p>No hay integrantes en el equipo.</p>
+            </div>
+        </ng-template>
+    </div>
+
+    <div class="table-wrap" *ngIf="!loading && activeSection === 'reviews'">
+        <div class="loading-state" *ngIf="loadingReviews">
+            <div class="spinner"></div>
+            <p>Cargando revisiones...</p>
+        </div>
+
+        <table class="team-table" *ngIf="!loadingReviews && pendingReviews.length > 0; else emptyReviews">
+            <thead>
+                <tr>
+                    <th>Noticiero</th>
+                    <th>Usuario</th>
+                    <th>Fecha</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let r of pendingReviews">
+                    <td>
+                        <div class="user-cell">
+                            <div class="user-name">{{ r.title }}</div>
+                            <div class="user-email">{{ r.total_news_count || 0 }} noticias · {{ (r.duration_minutes || 0) }} min</div>
+                        </div>
+                    </td>
+                    <td>{{ r.created_by_name }}</td>
+                    <td>{{ r.created_at ? (r.created_at | date:'dd-MM-yyyy, HH:mm') : '' }}</td>
+                    <td class="actions">
+                        <button class="quota-btn" (click)="approveReview(r)">Aprobar</button>
+                        <button class="danger-btn" (click)="rejectReview(r)">Rechazar</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <ng-template #emptyReviews>
+            <div class="empty-state">
+                <p>No hay noticieros pendientes.</p>
             </div>
         </ng-template>
     </div>
@@ -133,12 +182,72 @@
                     <input type="number" min="0" [(ngModel)]="newMember.quotaMinutes" placeholder="Ej: 120">
                     <small>Se descuenta de tu pool disponible como admin.</small>
                 </div>
+
+                <div class="form-group">
+                    <label>Permisos</label>
+                    <div class="helper-text">Define qué puede hacer este integrante.</div>
+                    <div class="permissions-grid">
+                        <label class="perm-item">
+                            <input type="checkbox" [(ngModel)]="newMember.canUploadMusic">
+                            <span>Subir música a Recursos</span>
+                        </label>
+                        <label class="perm-item">
+                            <input type="checkbox" [(ngModel)]="newMember.canUseAdBlock">
+                            <span>Usar bloque de Audio/AD</span>
+                        </label>
+                        <label class="perm-item">
+                            <input type="checkbox" [(ngModel)]="newMember.canDownloadBroadcast">
+                            <span>Descarga de Noticiero</span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer">
                 <button class="cancel-btn" (click)="closeCreateModal()" [disabled]="creatingMember">Cancelar</button>
                 <button class="save-btn" (click)="createMember()" [disabled]="creatingMember">
                     {{ creatingMember ? 'Creando...' : 'Crear' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" *ngIf="showPermissionsModal" (click)="closePermissionsModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Permisos</h2>
+                <button class="close-btn" (click)="closePermissionsModal()">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Usuario</label>
+                    <div class="helper-text">{{ permissionsMember?.full_name || 'Sin nombre' }} · {{ permissionsMember?.email }}</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Permisos</label>
+                    <div class="permissions-grid">
+                        <label class="perm-item">
+                            <input type="checkbox" [(ngModel)]="permissionsForm.canUploadMusic">
+                            <span>Subir música a Recursos</span>
+                        </label>
+                        <label class="perm-item">
+                            <input type="checkbox" [(ngModel)]="permissionsForm.canUseAdBlock">
+                            <span>Usar bloque de Audio/AD</span>
+                        </label>
+                        <label class="perm-item">
+                            <input type="checkbox" [(ngModel)]="permissionsForm.canDownloadBroadcast">
+                            <span>Descarga de Noticiero</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="cancel-btn" (click)="closePermissionsModal()" [disabled]="savingPermissions">Cancelar</button>
+                <button class="save-btn" (click)="savePermissions()" [disabled]="savingPermissions">
+                    {{ savingPermissions ? 'Guardando...' : 'Guardar' }}
                 </button>
             </div>
         </div>

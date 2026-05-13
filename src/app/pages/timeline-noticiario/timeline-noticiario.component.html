@@ -210,7 +210,7 @@
                         <span class="spinner-inline" *ngIf="isTopActionPending('text')"></span>
                         <span class="icon" *ngIf="!isTopActionPending('text')">+</span> Texto
                     </button>
-                    <button class="tool-btn" (click)="fileInput.click()" [disabled]="pendingTopAction !== null || pendingCopy">
+                    <button class="tool-btn" *ngIf="canUseAdBlock" (click)="fileInput.click()" [disabled]="pendingTopAction !== null || pendingCopy">
                         <span class="spinner-inline" *ngIf="isTopActionPending('audio')"></span>
                         <span class="icon" *ngIf="!isTopActionPending('audio')">+</span> Audio/Ad
                     </button>

@@ -12,6 +12,8 @@
             <select class="filter-select" [(ngModel)]="statusFilter">
                 <option value="all">Todos</option>
                 <option value="ready">Listo</option>
+                <option value="pending_review">Pendiente de revisión</option>
+                <option value="rejected">Rechazado</option>
                 <option value="draft">Borrador</option>
                 <option value="processing">Procesando</option>
                 <option value="failed">Error</option>
@@ -62,7 +64,7 @@
                 </div>
                 <div class="header-meta">
                     <span class="status-badge" [class]="broadcast.status">
-                        {{ broadcast.status === 'ready' ? 'Listo' : (broadcast.status === 'draft' ? 'Borrador' : (broadcast.status === 'processing' ? 'Procesando' : broadcast.status)) }}
+                        {{ broadcast.status === 'ready' ? 'Listo' : (broadcast.status === 'pending_review' ? 'Pendiente de revisión' : (broadcast.status === 'rejected' ? 'Rechazado' : (broadcast.status === 'draft' ? 'Borrador' : (broadcast.status === 'processing' ? 'Procesando' : broadcast.status)))) }}
                     </span>
                     <span class="creator">Por: {{ broadcast.created_by_name }}</span>
                     <span class="date">{{ formatDate(broadcast.created_at) }}</span>
@@ -98,7 +100,7 @@
             </div>
 
             <div class="card-footer">
-                <a *ngIf="broadcast.audio_url" [href]="broadcast.audio_url" [download]="broadcast.title + '.mp3'" class="download-btn">
+                <a *ngIf="broadcast.audio_url && (canDownloadBroadcast || broadcast.status === 'ready')" [href]="broadcast.audio_url" [download]="broadcast.title + '.mp3'" class="download-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>

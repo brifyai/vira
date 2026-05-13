@@ -9,6 +9,7 @@ import { SupabaseService } from '../../services/supabase.service';
 import { TtsService } from '../../services/tts.service';
 import { QuotaService } from '../../services/quota.service';
 import { GeminiService } from '../../services/gemini.service';
+import { AuthService, User } from '../../services/auth.service';
 
 declare var lamejs: any;
 
@@ -88,7 +89,11 @@ export class TimelineNoticiarioComponent implements OnInit {
     dateFilter = 'all';
 
     // Status options
-    statusOptions = ['all', 'ready', 'generating', 'published', 'draft'];
+    statusOptions = ['all', 'ready', 'pending_review', 'rejected', 'generating', 'published', 'draft'];
+
+    currentUser: User | null = null;
+    canUseAdBlock = true;
+    canDownloadBroadcast = true;
 
     // Date filters
     dateFilters = [
@@ -217,7 +222,8 @@ export class TimelineNoticiarioComponent implements OnInit {
         private cdr: ChangeDetectorRef,
         private route: ActivatedRoute,
         private quotaService: QuotaService,
-        private geminiService: GeminiService
+        private geminiService: GeminiService,
+        private authService: AuthService
     ) { 
         // Voices will be loaded asynchronously
     }
@@ -375,6 +381,12 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     async ngOnInit(): Promise<void> {
+        this.authService.currentUser$.subscribe(user => {
+            this.currentUser = user;
+            this.canUseAdBlock = user?.canUseAdBlock ?? true;
+            this.canDownloadBroadcast = user?.canDownloadBroadcast ?? true;
+            this.cdr.detectChanges();
+        });
         await this.loadCustomVoices();
         await this.loadMusicResources();
         await this.loadBroadcasts();
@@ -931,6 +943,11 @@ export class TimelineNoticiarioComponent implements OnInit {
             if (!(await this.ensureEditingCopy())) return;
             const file = event.target.files[0];
             if (!file || !this.selectedBroadcast) return;
+            if (!this.canUseAdBlock) {
+                this.snackBar.open('No tienes permiso para usar Audio/AD', 'Cerrar', { duration: 2500 });
+                try { event.target.value = ''; } catch {}
+                return;
+            }
 
             // Get duration first
             const duration = await this.getAudioDuration(file);
@@ -1283,10 +1300,13 @@ export class TimelineNoticiarioComponent implements OnInit {
             case 'ready':
             case 'published':
                 return 'status-success';
+            case 'pending_review':
+                return 'status-warning';
             case 'generating':
                 return 'status-info';
             case 'draft':
                 return 'status-warning';
+            case 'rejected':
             case 'failed':
                 return 'status-danger';
             default:
@@ -1298,6 +1318,10 @@ export class TimelineNoticiarioComponent implements OnInit {
         switch (status) {
             case 'ready':
                 return 'Listo';
+            case 'pending_review':
+                return 'Pendiente de revisión';
+            case 'rejected':
+                return 'Rechazado';
             case 'generating':
                 return 'Generando';
             case 'published':
@@ -1766,15 +1790,21 @@ export class TimelineNoticiarioComponent implements OnInit {
                     });
                 }
 
+                const allowDownload = this.canDownloadBroadcast;
                 await this.supabaseService.updateNewsBroadcast(this.selectedBroadcast.id, {
-                    total_reading_time_seconds: Math.ceil(renderedBuffer.duration)
+                    total_reading_time_seconds: Math.ceil(renderedBuffer.duration),
+                    status: allowDownload ? 'ready' : 'pending_review',
+                    reviewed_by: null,
+                    reviewed_at: null
                 });
 
-                const exportMessage = quotaResult?.charged_now
-                    ? `El noticiero se ha exportado y guardado en "Mis Noticieros". Se descontaron ${quotaResult.charged_minutes} min.${wasEditingCopy ? ' (solo bloques editados/nuevos, sin comerciales)' : ''}`
-                    : (wasEditingCopy
-                        ? 'El noticiero se guardó sin descontar minutos (no hubo bloques editados/nuevos que consuman cuota).'
-                        : 'El noticiero se actualizó y guardó sin descontar minutos nuevamente.');
+                const exportMessage = allowDownload
+                    ? (quotaResult?.charged_now
+                        ? `El noticiero se ha exportado y guardado en "Mis Noticieros". Se descontaron ${quotaResult.charged_minutes} min.${wasEditingCopy ? ' (solo bloques editados/nuevos, sin comerciales)' : ''}`
+                        : (wasEditingCopy
+                            ? 'El noticiero se guardó sin descontar minutos (no hubo bloques editados/nuevos que consuman cuota).'
+                            : 'El noticiero se actualizó y guardó sin descontar minutos nuevamente.'))
+                    : 'El noticiero fue enviado a revisión. Puedes escucharlo aquí, pero no se descargará hasta aprobación.';
 
                 await this.fireSwal({
                     title: 'Exportación Exitosa',
@@ -1786,13 +1816,14 @@ export class TimelineNoticiarioComponent implements OnInit {
                     showConfirmButton: false
                 });
 
-                // 8. Download (solo si el guardado/validación de cuota fue exitoso)
-                const url = URL.createObjectURL(mp3Blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                a.click();
-                URL.revokeObjectURL(url);
+                if (allowDownload) {
+                    const url = URL.createObjectURL(mp3Blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
 
             } catch (saveError) {
                 console.error('Error saving generated broadcast:', saveError);

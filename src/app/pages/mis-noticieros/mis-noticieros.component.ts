@@ -23,7 +23,7 @@ export class MisNoticierosComponent implements OnInit {
   private deletingIds = new Set<string>();
   currentUser: User | null = null;
   searchTerm = '';
-  statusFilter: 'all' | 'ready' | 'draft' | 'processing' | 'failed' = 'all';
+  statusFilter: 'all' | 'ready' | 'pending_review' | 'rejected' | 'draft' | 'processing' | 'failed' = 'all';
   scopeFilter: 'all' | 'mine' | 'team' | 'admins' | 'users' = 'all';
 
   constructor(
@@ -48,6 +48,11 @@ export class MisNoticierosComponent implements OnInit {
 
   get isSuperAdmin(): boolean {
     return this.authService.isSuperAdmin();
+  }
+
+  get canDownloadBroadcast(): boolean {
+    if (this.isAdmin || this.isSuperAdmin) return true;
+    return this.currentUser?.canDownloadBroadcast ?? true;
   }
 
   get filteredBroadcasts(): any[] {

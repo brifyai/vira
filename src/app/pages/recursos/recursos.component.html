@@ -13,7 +13,7 @@
           </svg>
           Nueva Voz
         </button>
-        <button *ngIf="activeTab === 'music'" class="create-btn" (click)="openMusicModal()" [disabled]="loading">
+        <button *ngIf="activeTab === 'music' && canUploadMusic" class="create-btn" (click)="openMusicModal()" [disabled]="loading">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -24,7 +24,7 @@
     </div>
 
     <div class="tabs">
-      <button class="tab-btn" [class.active]="activeTab === 'voices'" (click)="onTabChange('voices')">
+      <button *ngIf="canManageVoices" class="tab-btn" [class.active]="activeTab === 'voices'" (click)="onTabChange('voices')">
         Recursos de Voz
       </button>
       <button class="tab-btn" [class.active]="activeTab === 'music'" (click)="onTabChange('music')">

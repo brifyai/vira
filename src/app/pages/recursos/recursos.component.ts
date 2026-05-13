@@ -43,6 +43,7 @@ export class RecursosComponent implements OnInit {
   loading = false;
   currentUserRole: 'user' | 'admin' | 'super_admin' = 'user';
   currentUserId: string | null = null;
+  canUploadMusic = true;
   showCreateModal = false;
   showEditModal = false;
   showMusicModal = false; // Modal for uploading music
@@ -655,6 +656,7 @@ export class RecursosComponent implements OnInit {
       if (!user) {
         this.currentUserRole = 'user';
         this.currentUserId = null;
+        this.canUploadMusic = false;
         return;
       }
       this.currentUserId = user.id;
@@ -665,9 +667,18 @@ export class RecursosComponent implements OnInit {
       } else {
         this.currentUserRole = 'user';
       }
+      if (this.currentUserRole === 'admin' || this.currentUserRole === 'super_admin') {
+        this.canUploadMusic = true;
+      } else {
+        this.canUploadMusic = profile?.can_upload_music ?? true;
+      }
+      if (!this.canManageVoices) {
+        this.activeTab = 'music';
+      }
     } catch (e) {
       this.currentUserRole = 'user';
       this.currentUserId = null;
+      this.canUploadMusic = false;
     }
   }
 
@@ -974,6 +985,10 @@ export class RecursosComponent implements OnInit {
   }
 
   openMusicModal(): void {
+    if (!this.canUploadMusic) {
+      this.snackBar.open('No tienes permiso para subir música', 'Cerrar', { duration: 2500 });
+      return;
+    }
     this.musicFormData = {
       name: '',
       type: 'intro',
@@ -991,6 +1006,10 @@ export class RecursosComponent implements OnInit {
   }
 
   async uploadMusic(): Promise<void> {
+    if (!this.canUploadMusic) {
+      this.snackBar.open('No tienes permiso para subir música', 'Cerrar', { duration: 2500 });
+      return;
+    }
     if (!this.musicFormData.name || !this.musicFormData.file) {
       this.snackBar.open('Debes completar el nombre y seleccionar un archivo', 'Cerrar', { duration: 3000 });
       return;

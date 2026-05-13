@@ -9,6 +9,9 @@ export interface User {
     name: string;
     role: string;
     avatar?: string;
+    canUploadMusic?: boolean;
+    canUseAdBlock?: boolean;
+    canDownloadBroadcast?: boolean;
 }
 
 @Injectable({
@@ -82,7 +85,10 @@ export class AuthService {
                 email: email || '',
                 name: profile?.full_name || email || 'User',
                 role: profile?.role || 'user',
-                avatar: profile?.avatar_url || `https://ui-avatars.com/api/?name=${email}&background=random`
+                avatar: profile?.avatar_url || `https://ui-avatars.com/api/?name=${email}&background=random`,
+                canUploadMusic: profile?.can_upload_music ?? true,
+                canUseAdBlock: profile?.can_use_ad_block ?? true,
+                canDownloadBroadcast: profile?.can_download_broadcast ?? true
             };
             this.zone.run(() => this.currentUserSubject.next(user));
         } catch (error) {
@@ -93,7 +99,10 @@ export class AuthService {
                 email: email || '',
                 name: email || 'User',
                 role: 'user', // Default
-                avatar: `https://ui-avatars.com/api/?name=${email}&background=random`
+                avatar: `https://ui-avatars.com/api/?name=${email}&background=random`,
+                canUploadMusic: true,
+                canUseAdBlock: true,
+                canDownloadBroadcast: true
             };
             this.zone.run(() => this.currentUserSubject.next(user));
         }

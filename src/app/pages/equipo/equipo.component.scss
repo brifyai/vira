@@ -20,6 +20,26 @@
     opacity: 0.8;
 }
 
+.section-tabs {
+    display: flex;
+    gap: 10px;
+    margin: 10px 0 16px;
+}
+
+.tab-pill {
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    cursor: pointer;
+}
+
+.tab-pill.active {
+    border-color: rgba(99, 102, 241, 0.6);
+    background: rgba(99, 102, 241, 0.22);
+}
+
 .create-btn {
     display: inline-flex;
     align-items: center;
@@ -152,6 +172,29 @@
     background: rgba(16, 185, 129, 0.14);
     color: #a7f3d0;
     cursor: pointer;
+}
+
+.permissions-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.perm-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+}
+
+.perm-item input {
+    width: 16px;
+    height: 16px;
 }
 
 .danger-btn {

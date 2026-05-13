@@ -13,6 +13,7 @@ import { WeatherService } from '../../services/weather.service';
 import { config } from '../../core/config';
 import { QuotaService } from '../../services/quota.service';
 import { Subscription } from 'rxjs';
+import { AuthService, User } from '../../services/auth.service';
 
 declare var lamejs: any;
 
@@ -221,6 +222,9 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     private filtersReloadTimer: number | null = null;
     currentQuotaSummary: AudioQuotaSummary | null = null;
     quotaLoading = true;
+    currentUser: User | null = null;
+    canUseAdBlock = true;
+    canDownloadBroadcast = true;
     private quotaSubscription?: Subscription;
     private readonly batchAudioConcurrency = 2;
     private readonly generationRequestSpacingMs = 250;
@@ -237,11 +241,18 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         private geminiService: GeminiService,
         private ttsService: TtsService,
         private weatherService: WeatherService,
-        private quotaService: QuotaService
+        private quotaService: QuotaService,
+        private authService: AuthService
     ) {
     }
 
     async ngOnInit(): Promise<void> {
+        this.authService.currentUser$.subscribe(user => {
+            this.currentUser = user;
+            this.canUseAdBlock = user?.canUseAdBlock ?? true;
+            this.canDownloadBroadcast = user?.canDownloadBroadcast ?? true;
+            this.cdr.detectChanges();
+        });
         this.quotaSubscription = this.quotaService.currentSummary$.subscribe(summary => {
             this.currentQuotaSummary = summary;
             this.quotaLoading = false;
@@ -879,6 +890,11 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
     async onFileSelected(event: any) {
         const file = event.target.files[0];
         if (!file) return;
+        if (!this.canUseAdBlock) {
+            this.snackBar.open('No tienes permiso para usar Audio/AD', 'Cerrar', { duration: 2500 });
+            try { event.target.value = ''; } catch {}
+            return;
+        }
 
         // Get duration
         const duration = await this.getAudioDuration(file);
@@ -1470,13 +1486,24 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             // 3. Generate Full MP3, Save to DB and Auto-Download
             this.loadingMessage = 'Concatenando y generando audio final...';
             this.cdr.detectChanges();
-            await this.generateAndExportFullAudio(broadcast);
+            const allowDownload = this.canDownloadBroadcast;
+            await this.generateAndExportFullAudio(broadcast, allowDownload);
 
-            this.snackBar.open('¡Noticiero creado y descargado exitosamente!', 'Cerrar', {
+            await this.supabaseService.updateNewsBroadcast(broadcast.id, {
+                status: allowDownload ? 'ready' : 'pending_review',
+                reviewed_by: null,
+                reviewed_at: null
+            });
+
+            this.snackBar.open(
+                allowDownload ? '¡Noticiero creado y descargado exitosamente!' : 'Noticiero enviado a revisión. Puedes escucharlo en el timeline.',
+                'Cerrar',
+                {
                 duration: 3000,
                 horizontalPosition: 'end',
                 verticalPosition: 'top'
-            });
+                }
+            );
 
             // Navigate to Timeline (assuming route exists)
             this.router.navigate(['/timeline-noticiario', broadcast.id]);
@@ -1497,7 +1524,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         }
     }
 
-    async generateAndExportFullAudio(broadcast: any) {
+    async generateAndExportFullAudio(broadcast: any, allowDownload: boolean = true) {
         this.isExportingAudio = true;
         this.cdr.detectChanges();
         this.snackBar.open('Generando MP3 final del noticiero...', 'OK', { duration: 3000 });
@@ -1618,15 +1645,16 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                 });
             }
 
-            // 6. Trigger Download
-            const downloadUrl = URL.createObjectURL(mp3Blob);
-            const a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = `${broadcast.title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.mp3`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(downloadUrl);
+            if (allowDownload) {
+                const downloadUrl = URL.createObjectURL(mp3Blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `${broadcast.title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.mp3`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(downloadUrl);
+            }
 
             console.info('[Crear Noticiero] Export final optimizado', {
                 segmentos: segmentDescriptors.length,

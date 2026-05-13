@@ -20,15 +20,34 @@ export class EquipoComponent implements OnInit {
     currentUserRole = 'admin';
     creatingMember = false;
     savingQuotaUserId = '';
+    activeSection: 'team' | 'reviews' = 'team';
 
     showCreateModal = false;
-    newMember = { email: '', fullName: '', quotaMinutes: 0 };
+    newMember = {
+        email: '',
+        fullName: '',
+        quotaMinutes: 0,
+        canUploadMusic: true,
+        canUseAdBlock: true,
+        canDownloadBroadcast: true
+    };
+
+    showPermissionsModal = false;
+    permissionsMember: any | null = null;
+    permissionsForm = {
+        canUploadMusic: true,
+        canUseAdBlock: true,
+        canDownloadBroadcast: true
+    };
+    savingPermissions = false;
 
     totals = { broadcasts: 0, usedMinutes: 0, finalExports: 0 };
     adminQuotaSummary: AudioQuotaSummary | null = null;
     memberQuotaSummaries: Record<string, AudioQuotaSummary> = {};
     quotaInputs: Record<string, number> = {};
     memberExportCounts: Record<string, number> = {};
+    loadingReviews = false;
+    pendingReviews: any[] = [];
 
     constructor(
         private supabaseService: SupabaseService,
@@ -59,10 +78,20 @@ export class EquipoComponent implements OnInit {
     async ngOnInit() {
         await this.loadCurrentUserContext();
         await this.loadTeam();
+        if (this.currentUserRole === 'admin' || this.currentUserRole === 'super_admin') {
+            await this.loadPendingReviews();
+        }
     }
 
     openCreateModal() {
-        this.newMember = { email: '', fullName: '', quotaMinutes: 0 };
+        this.newMember = {
+            email: '',
+            fullName: '',
+            quotaMinutes: 0,
+            canUploadMusic: true,
+            canUseAdBlock: true,
+            canDownloadBroadcast: true
+        };
         this.showCreateModal = true;
     }
 
@@ -88,7 +117,26 @@ export class EquipoComponent implements OnInit {
         this.loading = true;
         try {
             const rows = await this.supabaseService.getTeamMembersWithUsage();
-            this.members = rows || [];
+            const baseMembers = rows || [];
+            const memberIds = Array.from(new Set(baseMembers.map((m: any) => this.getMemberId(m)).filter(Boolean)));
+            let profiles: any[] = [];
+            try {
+                profiles = await this.supabaseService.getUserProfilesByIds(memberIds);
+            } catch {}
+            const profileMap = new Map<string, any>();
+            for (const p of profiles || []) {
+                if (p?.id) profileMap.set(String(p.id), p);
+            }
+            this.members = baseMembers.map((m: any) => {
+                const id = this.getMemberId(m);
+                const p = profileMap.get(String(id)) || null;
+                return {
+                    ...m,
+                    can_upload_music: p?.can_upload_music ?? true,
+                    can_use_ad_block: p?.can_use_ad_block ?? true,
+                    can_download_broadcast: p?.can_download_broadcast ?? true
+                };
+            });
             await Promise.all([
                 this.loadTeamQuotaSummaries(),
                 this.loadTeamGeneratedHistory()
@@ -100,6 +148,70 @@ export class EquipoComponent implements OnInit {
         } finally {
             this.loading = false;
             this.cdr.detectChanges();
+        }
+    }
+
+    async loadPendingReviews() {
+        this.loadingReviews = true;
+        try {
+            const broadcasts = await this.supabaseService.getPendingReviewBroadcasts();
+            const ids = Array.from(new Set((broadcasts || []).map((b: any) => String(b?.created_by || '')).filter(Boolean)));
+            let profiles: any[] = [];
+            try {
+                profiles = await this.supabaseService.getUserProfilesByIds(ids);
+            } catch {}
+            const map = new Map<string, any>();
+            for (const p of profiles || []) {
+                if (p?.id) map.set(String(p.id), p);
+            }
+            this.pendingReviews = (broadcasts || []).map((b: any) => {
+                const p = map.get(String(b?.created_by || '')) || null;
+                return {
+                    ...b,
+                    created_by_name: (p?.full_name && String(p.full_name).trim()) || (p?.email && String(p.email).trim()) || 'Usuario'
+                };
+            });
+        } catch (error: any) {
+            console.error('Error loading pending reviews:', error);
+            this.showSnackBar(error?.message || 'Error al cargar revisiones', 'error-snackbar');
+            this.pendingReviews = [];
+        } finally {
+            this.loadingReviews = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    async approveReview(review: any) {
+        if (!review?.id) return;
+        try {
+            const current = await this.supabaseService.getCurrentUser().catch(() => null);
+            await this.supabaseService.updateNewsBroadcast(review.id, {
+                status: 'ready',
+                reviewed_by: current?.id || null,
+                reviewed_at: new Date().toISOString()
+            });
+            this.showSnackBar('Noticiero aprobado', 'success-snackbar');
+            await this.loadPendingReviews();
+        } catch (error: any) {
+            console.error('Error approving review:', error);
+            this.showSnackBar(error?.message || 'Error al aprobar', 'error-snackbar');
+        }
+    }
+
+    async rejectReview(review: any) {
+        if (!review?.id) return;
+        try {
+            const current = await this.supabaseService.getCurrentUser().catch(() => null);
+            await this.supabaseService.updateNewsBroadcast(review.id, {
+                status: 'rejected',
+                reviewed_by: current?.id || null,
+                reviewed_at: new Date().toISOString()
+            });
+            this.showSnackBar('Noticiero rechazado', 'success-snackbar');
+            await this.loadPendingReviews();
+        } catch (error: any) {
+            console.error('Error rejecting review:', error);
+            this.showSnackBar(error?.message || 'Error al rechazar', 'error-snackbar');
         }
     }
 
@@ -125,6 +237,12 @@ export class EquipoComponent implements OnInit {
 
             if (created?.id) {
                 await this.supabaseService.setUserAudioQuota(created.id, Number(this.newMember.quotaMinutes || 0));
+                await this.supabaseService.setTeamUserPermissions({
+                    userId: created.id,
+                    canUploadMusic: !!this.newMember.canUploadMusic,
+                    canUseAdBlock: !!this.newMember.canUseAdBlock,
+                    canDownloadBroadcast: !!this.newMember.canDownloadBroadcast
+                });
             }
 
             const mailResult = await this.supabaseService.sendWelcomeEmail({
@@ -151,6 +269,47 @@ export class EquipoComponent implements OnInit {
             this.showSnackBar(error?.message || 'Error al crear usuario de equipo', 'error-snackbar');
         } finally {
             this.creatingMember = false;
+        }
+    }
+
+    openPermissionsModal(member: any) {
+        if (!member) return;
+        if (member.is_admin) return;
+        this.permissionsMember = member;
+        this.permissionsForm = {
+            canUploadMusic: member?.can_upload_music ?? true,
+            canUseAdBlock: member?.can_use_ad_block ?? true,
+            canDownloadBroadcast: member?.can_download_broadcast ?? true
+        };
+        this.showPermissionsModal = true;
+    }
+
+    closePermissionsModal() {
+        this.showPermissionsModal = false;
+        this.permissionsMember = null;
+    }
+
+    async savePermissions() {
+        if (!this.permissionsMember) return;
+        const memberId = this.getMemberId(this.permissionsMember);
+        if (!memberId) return;
+
+        this.savingPermissions = true;
+        try {
+            await this.supabaseService.setTeamUserPermissions({
+                userId: memberId,
+                canUploadMusic: !!this.permissionsForm.canUploadMusic,
+                canUseAdBlock: !!this.permissionsForm.canUseAdBlock,
+                canDownloadBroadcast: !!this.permissionsForm.canDownloadBroadcast
+            });
+            this.showSnackBar('Permisos actualizados', 'success-snackbar');
+            this.closePermissionsModal();
+            await this.loadTeam();
+        } catch (error: any) {
+            console.error('Error saving permissions:', error);
+            this.showSnackBar(error?.message || 'Error al guardar permisos', 'error-snackbar');
+        } finally {
+            this.savingPermissions = false;
         }
     }
 
