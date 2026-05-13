@@ -1559,6 +1559,7 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     manager_id: quotaResult.quota_summary.manager_id ?? null,
                     quota_total_minutes: Number(quotaResult.quota_summary.quota_total_minutes || 0),
                     team_assigned_minutes: Number(quotaResult.quota_summary.team_assigned_minutes || 0),
+                    team_used_minutes: Number(quotaResult.quota_summary.team_used_minutes || 0),
                     personal_quota_minutes: Number(quotaResult.quota_summary.personal_quota_minutes || 0),
                     used_minutes: Number(quotaResult.quota_summary.used_minutes || 0),
                     remaining_minutes: Number(quotaResult.quota_summary.remaining_minutes || 0),
