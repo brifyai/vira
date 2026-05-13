@@ -1098,7 +1098,11 @@ export class TimelineNoticiarioComponent implements OnInit {
                 text: 'Este nombre se guardará como una nueva copia del noticiero.',
                 icon: 'info',
                 input: 'text',
-                inputValue: copyTitle,
+                inputValue: '',
+                inputPlaceholder: 'Ingresa el nombre de tu noticiero a editar',
+                inputAttributes: {
+                    maxlength: '140'
+                },
                 showCancelButton: true,
                 confirmButtonText: 'Crear copia',
                 cancelButtonText: 'Cancelar',
@@ -1185,6 +1189,7 @@ export class TimelineNoticiarioComponent implements OnInit {
             this.cdr.detectChanges();
         } finally {
             this.pendingCopy = false;
+            this.cdr.detectChanges();
         }
     }
 

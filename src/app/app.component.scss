@@ -72,9 +72,9 @@ body {
     max-width: 1400px;
     margin: 0 auto;
     padding: 0 24px;
-    display: flex;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
-    justify-content: space-between;
     gap: 16px;
 }
 
@@ -167,6 +167,7 @@ body {
 .main-nav {
     display: flex;
     align-items: center;
+    justify-self: center;
     gap: 8px;
     background: rgba(255, 255, 255, 0.05);
     padding: 8px 16px;
@@ -291,7 +292,7 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-width: 132px;
+    min-width: 200px;
     margin: 6px 0;
     padding: 8px 12px;
     border-radius: 12px;
@@ -336,7 +337,7 @@ body {
 }
 
 .quota-indicator.compact {
-    min-width: 180px;
+    min-width: 200px;
     padding: 8px 12px;
 }
 
