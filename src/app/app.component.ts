@@ -64,6 +64,10 @@ export class AppComponent implements OnInit {
         return this.authService.isAdmin();
     }
 
+    get isSuperAdmin(): boolean {
+        return String(this.currentUser?.role || '').trim() === 'super_admin';
+    }
+
     get quotaSummary(): AudioQuotaSummary | null {
         return this.currentQuotaSummary;
     }

@@ -12,7 +12,7 @@
                 </div>
             </div>
 
-            <nav class="main-nav" [class.open]="isMenuOpen">
+            <nav class="main-nav" [class.open]="isMenuOpen" [class.super-admin]="isSuperAdmin">
                 <a *ngFor="let item of visibleMenuItems" class="nav-link" [class.active]="currentRoute === item.path"
                     (click)="navigateTo(item.path)">
                     <span class="nav-icon">
