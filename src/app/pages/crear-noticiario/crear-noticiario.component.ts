@@ -787,6 +787,12 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.audiosReady = false;
         this.audioGenerationAttempted = false;
         this.clampNewsPage();
+        this.snackBar.open('Noticia agregada', 'Cerrar', {
+            duration: 1600,
+            panelClass: ['success-snackbar'],
+            horizontalPosition: 'end',
+            verticalPosition: 'top'
+        });
     }
 
     removeNews(news: ScrapedNews) {

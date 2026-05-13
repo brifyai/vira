@@ -576,9 +576,16 @@
                 <div class="progress-bar">
                     <div class="progress-fill" [style.width.%]="(getTotalReadingTime() / (duration * 60)) * 100"></div>
                 </div>
-                <p class="progress-text" *ngIf="getTotalReadingTime() > duration * 60">
-                    ⚠️ Has excedido la duración máxima del noticiero
-                </p>
+                <div class="progress-alert progress-alert--warning" *ngIf="getTotalReadingTime() > duration * 60">
+                    <span class="progress-alert-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4"></path>
+                            <path d="M12 17h.01"></path>
+                            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        </svg>
+                    </span>
+                    <span class="progress-alert-text">Has excedido la duración máxima del noticiero</span>
+                </div>
             </div>
 
             <!-- Create Button -->
@@ -589,15 +596,37 @@
                     {{ loadingMessage || 'Creando...' }}
                 </span>
             </button>
-            <p class="progress-text" *ngIf="timelineEvents.length > 0 && !audiosReady">
-                ⚠️ Faltan {{ missingAudiosCount }} audios por generar
-            </p>
-            <p class="progress-text" *ngIf="timelineEvents.length > 0 && broadcastTitle.trim() === ''">
-                ⚠️ Ingresa un título para habilitar "Crear Noticiero"
-            </p>
-            <p class="progress-text warning" *ngIf="timelineEvents.length > 0 && currentQuotaSummary && !currentQuotaSummary.unlimited && !hasEnoughMinutesForCurrentDraft">
-                ⚠️ {{ quotaLimitMessage }}
-            </p>
+            <div class="progress-alert progress-alert--warning" *ngIf="timelineEvents.length > 0 && !audiosReady">
+                <span class="progress-alert-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 9v4"></path>
+                        <path d="M12 17h.01"></path>
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    </svg>
+                </span>
+                <span class="progress-alert-text">Faltan {{ missingAudiosCount }} audios por generar</span>
+            </div>
+            <div class="progress-alert progress-alert--warning" *ngIf="timelineEvents.length > 0 && broadcastTitle.trim() === ''">
+                <span class="progress-alert-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 16h.01"></path>
+                        <path d="M12 8v5"></path>
+                    </svg>
+                </span>
+                <span class="progress-alert-text">Ingresa un título para habilitar "Crear Noticiero"</span>
+            </div>
+            <div class="progress-alert progress-alert--warning" *ngIf="timelineEvents.length > 0 && currentQuotaSummary && !currentQuotaSummary.unlimited && !hasEnoughMinutesForCurrentDraft">
+                <span class="progress-alert-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v10"></path>
+                        <path d="M12 16h.01"></path>
+                        <path d="M5 22h14"></path>
+                        <path d="M7 22a5 5 0 0 1 10 0"></path>
+                    </svg>
+                </span>
+                <span class="progress-alert-text">{{ quotaLimitMessage }}</span>
+            </div>
         </div>
     </div>
 </div>

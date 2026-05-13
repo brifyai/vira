@@ -1654,11 +1654,43 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
     }
 
-    .progress-text {
-        font-size: 12px;
-        color: $warning-color;
-        text-align: center;
+    .progress-alert {
+        margin-top: 10px;
     }
+}
+
+.progress-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(245, 158, 11, 0.32);
+    background: rgba(245, 158, 11, 0.12);
+    color: #fde68a;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.progress-alert-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    margin-top: 1px;
+    color: $warning-color;
+
+    svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+.progress-alert-text {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 // Create Button
