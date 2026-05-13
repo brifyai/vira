@@ -136,6 +136,19 @@ export class SupabaseService {
         return data;
     }
 
+    async getUserProfilesByIds(userIds: string[]) {
+        const ids = Array.isArray(userIds) ? userIds.filter(Boolean) : [];
+        if (ids.length === 0) return [];
+
+        const { data, error } = await this.supabase
+            .from('users')
+            .select('id, full_name, email, role')
+            .in('id', ids);
+
+        if (error) throw error;
+        return data || [];
+    }
+
     async updateUserRole(userId: string, role: string) {
         const { data, error } = await this.supabase
             .from('users')

@@ -1056,6 +1056,13 @@ export class TimelineNoticiarioComponent implements OnInit {
             this.editableBroadcast = null;
             this.isEditingCopy = false;
 
+            const currentUser = await this.supabaseService.getCurrentUser().catch(() => null);
+            const isOwner = !!currentUser?.id && String(base?.created_by || '') === String(currentUser.id);
+            if (String(base?.status || '') === 'draft' && isOwner) {
+                this.isEditingCopy = true;
+                this.editableBroadcast = base;
+            }
+
             const mapped = {
                 id: base.id,
                 title: base.title,

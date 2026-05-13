@@ -4,17 +4,45 @@
         <p>Historial de noticieros generados y exportados</p>
     </div>
 
+    <div class="filters-bar" *ngIf="!loading">
+        <div class="filter-left">
+            <input class="filter-input" type="text" [(ngModel)]="searchTerm" placeholder="Buscar por título o creador" />
+        </div>
+        <div class="filter-right">
+            <select class="filter-select" [(ngModel)]="statusFilter">
+                <option value="all">Todos</option>
+                <option value="ready">Listo</option>
+                <option value="draft">Borrador</option>
+                <option value="processing">Procesando</option>
+                <option value="failed">Error</option>
+            </select>
+
+            <select class="filter-select" *ngIf="isAdmin && !isSuperAdmin" [(ngModel)]="scopeFilter">
+                <option value="all">Todos</option>
+                <option value="mine">Míos</option>
+                <option value="team">Equipo</option>
+            </select>
+
+            <select class="filter-select" *ngIf="isSuperAdmin" [(ngModel)]="scopeFilter">
+                <option value="all">Todos</option>
+                <option value="mine">Míos</option>
+                <option value="admins">Admins</option>
+                <option value="users">Usuarios</option>
+            </select>
+        </div>
+    </div>
+
     <div class="loading-state" *ngIf="loading">
         <div class="spinner"></div>
         <p>Cargando noticieros...</p>
     </div>
 
-    <div class="empty-state" *ngIf="!loading && broadcasts.length === 0">
+    <div class="empty-state" *ngIf="!loading && filteredBroadcasts.length === 0">
         <p>No has generado ningún noticiero aún.</p>
     </div>
 
-    <div class="broadcasts-grid" *ngIf="!loading && broadcasts.length > 0">
-        <div class="broadcast-card" *ngFor="let broadcast of broadcasts">
+    <div class="broadcasts-grid" *ngIf="!loading && filteredBroadcasts.length > 0">
+        <div class="broadcast-card" *ngFor="let broadcast of filteredBroadcasts">
             <div class="card-header">
                 <div class="header-top">
                     <h3>{{ broadcast.title }}</h3>
@@ -36,6 +64,7 @@
                     <span class="status-badge" [class]="broadcast.status">
                         {{ broadcast.status === 'ready' ? 'Listo' : (broadcast.status === 'draft' ? 'Borrador' : (broadcast.status === 'processing' ? 'Procesando' : broadcast.status)) }}
                     </span>
+                    <span class="creator">Por: {{ broadcast.created_by_name }}</span>
                     <span class="date">{{ formatDate(broadcast.created_at) }}</span>
                 </div>
             </div>
@@ -77,7 +106,7 @@
                     </svg>
                     Descargar MP3
                 </a>
-                <button *ngIf="!broadcast.audio_url && broadcast.status === 'draft'" class="action-btn" disabled>
+                <button *ngIf="!broadcast.audio_url && broadcast.status === 'draft' && broadcast.is_owner" class="action-btn" (click)="continueEditing(broadcast)">
                     Continuar Edición
                 </button>
             </div>
