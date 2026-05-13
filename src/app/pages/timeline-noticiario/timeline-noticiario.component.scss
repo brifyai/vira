@@ -640,6 +640,75 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 24px;
 }
 
+.final-audio-panel {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px 18px;
+    align-items: start;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+
+    @media (max-width: 768px) {
+        grid-template-columns: 1fr;
+    }
+
+    .final-audio-copy {
+        min-width: 0;
+
+        h3 {
+            margin: 0 0 6px 0;
+            font-size: 16px;
+            color: $text-primary;
+        }
+
+        p {
+            margin: 0;
+            font-size: 13px;
+            color: $text-secondary;
+        }
+    }
+
+    .final-audio-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .tool-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+        padding: 8px 14px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid $dark-border;
+        border-radius: 10px;
+        color: $text-secondary;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: $transition;
+
+        &:disabled {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: $text-primary;
+            border-color: $text-muted;
+        }
+    }
+
+    .final-audio-player {
+        grid-column: 1 / -1;
+    }
+}
+
 .edit-cta-panel {
     display: flex;
     align-items: center;

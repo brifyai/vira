@@ -1484,29 +1484,66 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             );
 
             // 3. Generate Full MP3, Save to DB and Auto-Download
-            this.loadingMessage = 'Concatenando y generando audio final...';
-            this.cdr.detectChanges();
             const allowDownload = this.canDownloadBroadcast;
-            await this.generateAndExportFullAudio(broadcast, allowDownload);
+            if (allowDownload) {
+                this.loadingMessage = 'Concatenando y generando audio final...';
+                this.cdr.detectChanges();
+                await this.generateAndExportFullAudio(broadcast, true);
 
-            await this.supabaseService.updateNewsBroadcast(broadcast.id, {
-                status: allowDownload ? 'ready' : 'pending_review',
-                reviewed_by: null,
-                reviewed_at: null
-            });
+                await this.supabaseService.updateNewsBroadcast(broadcast.id, {
+                    status: 'ready',
+                    reviewed_by: null,
+                    reviewed_at: null
+                });
 
-            this.snackBar.open(
-                allowDownload ? '¡Noticiero creado y descargado exitosamente!' : 'Noticiero enviado a revisión. Puedes escucharlo en el timeline.',
-                'Cerrar',
-                {
-                duration: 3000,
-                horizontalPosition: 'end',
-                verticalPosition: 'top'
-                }
-            );
+                this.snackBar.open('¡Noticiero creado y descargado exitosamente!', 'Cerrar', {
+                    duration: 3000,
+                    horizontalPosition: 'end',
+                    verticalPosition: 'top'
+                });
 
-            // Navigate to Timeline (assuming route exists)
-            this.router.navigate(['/timeline-noticiario', broadcast.id]);
+                this.router.navigate(['/timeline-noticiario', broadcast.id]);
+            } else {
+                await this.supabaseService.updateNewsBroadcast(broadcast.id, {
+                    status: 'pending_review',
+                    reviewed_by: null,
+                    reviewed_at: null
+                });
+
+                this.loadingMessage = '';
+                this.cdr.detectChanges();
+
+                this.generateAndExportFullAudio(broadcast, false)
+                    .then(() => {
+                        this.snackBar.open('Audio final generado y enviado a revisión', 'Cerrar', {
+                            duration: 3500,
+                            horizontalPosition: 'end',
+                            verticalPosition: 'top',
+                            panelClass: ['success-snackbar']
+                        });
+                    })
+                    .catch((error: any) => {
+                        console.error('Error exporting audio in background:', error);
+                        this.snackBar.open(
+                            'Error al generar el audio final. Intenta nuevamente desde el timeline.',
+                            'Cerrar',
+                            {
+                                duration: 4500,
+                                horizontalPosition: 'end',
+                                verticalPosition: 'top',
+                                panelClass: ['error-snackbar']
+                            }
+                        );
+                    });
+
+                this.snackBar.open('Noticiero creado. Puedes escuchar los bloques en el timeline mientras se genera el audio final.', 'Cerrar', {
+                    duration: 4500,
+                    horizontalPosition: 'end',
+                    verticalPosition: 'top'
+                });
+
+                this.router.navigate(['/timeline-noticiario', broadcast.id]);
+            }
 
         } catch (error) {
             console.error('Error creating broadcast:', error);

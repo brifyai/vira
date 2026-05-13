@@ -344,16 +344,6 @@
         </select>
       </div>
       <div class="form-group">
-        <label>Asignar a Radio (Opcional)</label>
-        <select class="form-select" [(ngModel)]="musicFormData.radioId">
-          <option [ngValue]="null">-- Todas las radios (Global) --</option>
-          <option *ngFor="let radio of radios" [ngValue]="radio.id">{{ radio.name }}</option>
-        </select>
-        <p class="help-text" style="font-size: 0.85em; color: #666; margin-top: 5px;">
-          Si seleccionas una radio, esta música solo aparecerá al crear noticieros para esa radio.
-        </p>
-      </div>
-      <div class="form-group">
         <label>Archivo de Audio</label>
         <input
           type="file"

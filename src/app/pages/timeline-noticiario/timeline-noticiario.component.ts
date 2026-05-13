@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -56,7 +56,7 @@ interface TimelineEvent {
     templateUrl: './timeline-noticiario.component.html',
     styleUrls: ['./timeline-noticiario.component.scss']
 })
-export class TimelineNoticiarioComponent implements OnInit {
+export class TimelineNoticiarioComponent implements OnInit, OnDestroy {
     // Broadcasts list
     broadcasts: any[] = [];
 
@@ -65,6 +65,11 @@ export class TimelineNoticiarioComponent implements OnInit {
     private originalBroadcast: any = null;
     private editableBroadcast: any = null;
     isEditingCopy = false;
+
+    finalAudioUrl: string | null = null;
+    finalAudioLoading = false;
+    private finalAudioPollTimer: number | null = null;
+    private finalAudioPollAttempts = 0;
 
     // Timeline events
     timelineEvents: TimelineEvent[] = [];
@@ -398,6 +403,78 @@ export class TimelineNoticiarioComponent implements OnInit {
             if (broadcast) {
                 this.selectBroadcast(broadcast);
             }
+        }
+    }
+
+    ngOnDestroy(): void {
+        this.stopFinalAudioPolling();
+    }
+
+    private stopFinalAudioPolling(): void {
+        if (this.finalAudioPollTimer != null) {
+            window.clearInterval(this.finalAudioPollTimer);
+            this.finalAudioPollTimer = null;
+        }
+        this.finalAudioPollAttempts = 0;
+    }
+
+    private startFinalAudioPolling(broadcastId: string): void {
+        if (!broadcastId) return;
+        if (this.finalAudioPollTimer != null) return;
+        this.finalAudioPollAttempts = 0;
+        this.finalAudioPollTimer = window.setInterval(async () => {
+            if (!this.selectedBroadcast || this.selectedBroadcast.id !== broadcastId) {
+                this.stopFinalAudioPolling();
+                return;
+            }
+            if (this.finalAudioUrl) {
+                this.stopFinalAudioPolling();
+                return;
+            }
+            if (this.finalAudioPollAttempts >= 60) {
+                this.stopFinalAudioPolling();
+                return;
+            }
+            this.finalAudioPollAttempts++;
+            await this.loadFinalAudio(broadcastId, false);
+        }, 4000);
+    }
+
+    async refreshFinalAudio(): Promise<void> {
+        const id = String(this.selectedBroadcast?.id || '').trim();
+        if (!id) return;
+        await this.loadFinalAudio(id, true);
+    }
+
+    private async loadFinalAudio(broadcastId: string, showErrors: boolean): Promise<void> {
+        if (!broadcastId) return;
+        if (!this.selectedBroadcast || this.selectedBroadcast.id !== broadcastId) return;
+
+        this.finalAudioLoading = true;
+        this.cdr.detectChanges();
+
+        try {
+            const generated = await this.supabaseService.getGeneratedBroadcasts({ broadcastId, limit: 1 });
+            const url = String(generated?.[0]?.audio_url || '').trim();
+            this.finalAudioUrl = url || null;
+
+            if (!this.finalAudioUrl) {
+                const status = String(this.selectedBroadcast?.status || '');
+                if (status === 'pending_review') {
+                    this.startFinalAudioPolling(broadcastId);
+                } else {
+                    this.stopFinalAudioPolling();
+                }
+            } else {
+                this.stopFinalAudioPolling();
+            }
+        } catch (error: any) {
+            if (showErrors) {
+                this.snackBar.open(error?.message || 'Error al obtener el audio final', 'Cerrar', { duration: 3000 });
+            }
+        } finally {
+            this.finalAudioLoading = false;
+            this.cdr.detectChanges();
         }
     }
 
@@ -1066,6 +1143,8 @@ export class TimelineNoticiarioComponent implements OnInit {
     async selectBroadcast(broadcast: any) {
         if (!broadcast?.id) return;
         this.loadingTimeline = true;
+        this.stopFinalAudioPolling();
+        this.finalAudioUrl = null;
         this.cdr.detectChanges();
         try {
             const base = await this.supabaseService.getNewsBroadcastById(broadcast.id);
@@ -1093,7 +1172,10 @@ export class TimelineNoticiarioComponent implements OnInit {
                 createdBy: 'Usuario'
             };
             this.selectedBroadcast = mapped;
-            await this.loadTimeline(base.id);
+            await Promise.all([
+                this.loadTimeline(base.id),
+                this.loadFinalAudio(base.id, false)
+            ]);
         } catch (error) {
             console.error('Error creating editable copy:', error);
             this.snackBar.open('No se pudo abrir el noticiero para edición', 'Cerrar', { duration: 3500 });
@@ -1260,6 +1342,9 @@ export class TimelineNoticiarioComponent implements OnInit {
     }
 
     closeTimeline() {
+        this.stopFinalAudioPolling();
+        this.finalAudioUrl = null;
+        this.finalAudioLoading = false;
         this.selectedBroadcast = null;
         this.originalBroadcast = null;
         this.editableBroadcast = null;

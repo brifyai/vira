@@ -239,6 +239,23 @@
 
         <!-- Timeline Content -->
         <div class="timeline-content" *ngIf="!loadingTimeline">
+            <div class="final-audio-panel">
+                <div class="final-audio-copy">
+                    <h3>Audio final del noticiero</h3>
+                    <p *ngIf="finalAudioUrl">Disponible para escuchar. La descarga puede estar restringida según tu permiso.</p>
+                    <p *ngIf="!finalAudioUrl && selectedBroadcast?.status === 'pending_review'">Generando audio final…</p>
+                    <p *ngIf="!finalAudioUrl && selectedBroadcast?.status !== 'pending_review'">Aún no hay audio final generado.</p>
+                </div>
+                <div class="final-audio-actions">
+                    <button class="tool-btn" type="button" (click)="refreshFinalAudio()" [disabled]="finalAudioLoading">
+                        <span class="spinner-inline" *ngIf="finalAudioLoading"></span>
+                        <span>{{ finalAudioLoading ? 'Actualizando…' : 'Actualizar' }}</span>
+                    </button>
+                </div>
+                <div class="final-audio-player" *ngIf="finalAudioUrl">
+                    <audio class="audio-slim" [src]="finalAudioUrl" controls controlsList="nodownload noplaybackrate" disableRemotePlayback (contextmenu)="$event.preventDefault()"></audio>
+                </div>
+            </div>
             <div class="edit-cta-panel" *ngIf="!isEditingCopy">
                 <div class="edit-cta-copy">
                     <h3>Este noticiero está en modo lectura</h3>

@@ -38,7 +38,6 @@ interface CustomVoice {
 export class RecursosComponent implements OnInit {
   voices: CustomVoice[] = [];
   musicResources: any[] = []; // Array for music resources
-  radios: any[] = []; // Array for radios
   activeTab: 'voices' | 'music' = 'voices'; // Tab state
   loading = false;
   currentUserRole: 'user' | 'admin' | 'super_admin' = 'user';
@@ -59,8 +58,7 @@ export class RecursosComponent implements OnInit {
   musicFormData = {
     name: '',
     type: 'intro' as 'intro' | 'outro' | 'background' | 'effect',
-    file: null as File | null,
-    radioId: null as string | null
+    file: null as File | null
   };
 
   chatterboxFile: File | null = null;
@@ -126,7 +124,6 @@ export class RecursosComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     await this.loadCurrentUserRole();
     await this.loadVoices();
-    await this.loadRadios();
   }
 
   ngOnDestroy(): void {
@@ -394,14 +391,6 @@ export class RecursosComponent implements OnInit {
     } finally {
       this.qwenSampleDownloading = false;
       this.cdr.detectChanges();
-    }
-  }
-
-  async loadRadios(): Promise<void> {
-    try {
-        this.radios = await this.supabaseService.getRadios();
-    } catch (error) {
-        console.error('Error loading radios:', error);
     }
   }
 
@@ -992,8 +981,7 @@ export class RecursosComponent implements OnInit {
     this.musicFormData = {
       name: '',
       type: 'intro',
-      file: null,
-      radioId: null
+      file: null
     };
     this.showMusicModal = true;
   }
@@ -1021,8 +1009,7 @@ export class RecursosComponent implements OnInit {
       await this.supabaseService.uploadMusicResource(
         this.musicFormData.file,
         this.musicFormData.name,
-        this.musicFormData.type,
-        this.musicFormData.radioId || undefined
+        this.musicFormData.type
       );
       this.snackBar.open('Música subida correctamente', 'Cerrar', { duration: 3000 });
       this.showMusicModal = false;
