@@ -247,6 +247,10 @@
                     <p *ngIf="!finalAudioUrl && selectedBroadcast?.status !== 'pending_review'">Aún no hay audio final generado.</p>
                 </div>
                 <div class="final-audio-actions">
+                    <div class="final-audio-review" *ngIf="shouldShowReviewActions">
+                        <button class="tool-btn review-approve" type="button" (click)="approveSelectedBroadcast()">Aprobar</button>
+                        <button class="tool-btn review-reject" type="button" (click)="rejectSelectedBroadcast()">Rechazar</button>
+                    </div>
                     <button class="tool-btn" type="button" (click)="refreshFinalAudio()" [disabled]="finalAudioLoading">
                         <span class="spinner-inline" *ngIf="finalAudioLoading"></span>
                         <span>{{ finalAudioLoading ? 'Actualizando…' : 'Actualizar' }}</span>

@@ -100,6 +100,15 @@ export class TimelineNoticiarioComponent implements OnInit, OnDestroy {
     canUseAdBlock = true;
     canDownloadBroadcast = true;
 
+    get canReviewBroadcast(): boolean {
+        const role = String(this.currentUser?.role || '').trim();
+        return role === 'admin' || role === 'super_admin';
+    }
+
+    get shouldShowReviewActions(): boolean {
+        return this.canReviewBroadcast && String(this.selectedBroadcast?.status || '') === 'pending_review';
+    }
+
     // Date filters
     dateFilters = [
         { value: 'all', label: 'Todas' },
@@ -394,15 +403,75 @@ export class TimelineNoticiarioComponent implements OnInit, OnDestroy {
         });
         await this.loadCustomVoices();
         await this.loadMusicResources();
-        await this.loadBroadcasts();
-        
-        // Check for ID in route to auto-select
         const id = this.route.snapshot.paramMap.get('id');
         if (id) {
-            const broadcast = this.broadcasts.find(b => b.id === id);
-            if (broadcast) {
-                this.selectBroadcast(broadcast);
+            await this.openBroadcastById(id);
+            return;
+        }
+
+        await this.loadBroadcasts();
+    }
+
+    private async openBroadcastById(id: string): Promise<void> {
+        const broadcastId = String(id || '').trim();
+        if (!broadcastId) return;
+
+        this.loadingTimeline = true;
+        this.stopFinalAudioPolling();
+        this.finalAudioUrl = null;
+        this.isEditingCopy = false;
+        this.editableBroadcast = null;
+        this.originalBroadcast = null;
+        this.timelineEvents = [];
+        this.selectedBroadcast = {
+            id: broadcastId,
+            title: 'Cargando...',
+            description: '',
+            duration: 0,
+            status: 'pending_review',
+            totalNews: 0,
+            totalReadingTime: 0,
+            createdAt: new Date(),
+            publishedAt: null,
+            createdBy: 'Usuario'
+        };
+        this.cdr.detectChanges();
+
+        try {
+            const base = await this.supabaseService.getNewsBroadcastById(broadcastId);
+            this.originalBroadcast = base;
+
+            const currentUser = await this.supabaseService.getCurrentUser().catch(() => null);
+            const isOwner = !!currentUser?.id && String(base?.created_by || '') === String(currentUser.id);
+            if (String(base?.status || '') === 'draft' && isOwner) {
+                this.isEditingCopy = true;
+                this.editableBroadcast = base;
             }
+
+            this.selectedBroadcast = {
+                id: base.id,
+                title: base.title,
+                description: base.description,
+                duration: Math.max(0, Math.round(Number(base.total_reading_time_seconds ?? ((base.duration_minutes || 0) * 60)) / 60)),
+                status: base.status,
+                totalNews: base.total_news_count || 0,
+                totalReadingTime: Number(base.total_reading_time_seconds ?? ((base.duration_minutes || 0) * 60)) || 0,
+                createdAt: new Date(base.created_at),
+                publishedAt: base.published_at ? new Date(base.published_at) : null,
+                createdBy: 'Usuario'
+            };
+
+            await Promise.all([
+                this.loadTimeline(base.id),
+                this.loadFinalAudio(base.id, false)
+            ]);
+        } catch (error) {
+            console.error('Error opening broadcast by id:', error);
+            this.snackBar.open('No se pudo abrir el noticiero', 'Cerrar', { duration: 3500 });
+            this.closeTimeline();
+        } finally {
+            this.loadingTimeline = false;
+            this.cdr.detectChanges();
         }
     }
 
@@ -474,6 +543,52 @@ export class TimelineNoticiarioComponent implements OnInit, OnDestroy {
             }
         } finally {
             this.finalAudioLoading = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    async approveSelectedBroadcast(): Promise<void> {
+        const id = String(this.selectedBroadcast?.id || '').trim();
+        if (!id) return;
+        if (!this.shouldShowReviewActions) return;
+        try {
+            const current = await this.supabaseService.getCurrentUser().catch(() => null);
+            await this.supabaseService.updateNewsBroadcast(id, {
+                status: 'ready',
+                reviewed_by: current?.id || null,
+                reviewed_at: new Date().toISOString()
+            });
+            if (this.selectedBroadcast) this.selectedBroadcast.status = 'ready';
+            this.stopFinalAudioPolling();
+            this.snackBar.open('Noticiero aprobado', 'Cerrar', { duration: 3000, panelClass: ['success-snackbar'] });
+            await this.loadBroadcasts().catch(() => undefined);
+        } catch (error: any) {
+            console.error('Error approving from timeline:', error);
+            this.snackBar.open(error?.message || 'Error al aprobar', 'Cerrar', { duration: 3500, panelClass: ['error-snackbar'] });
+        } finally {
+            this.cdr.detectChanges();
+        }
+    }
+
+    async rejectSelectedBroadcast(): Promise<void> {
+        const id = String(this.selectedBroadcast?.id || '').trim();
+        if (!id) return;
+        if (!this.shouldShowReviewActions) return;
+        try {
+            const current = await this.supabaseService.getCurrentUser().catch(() => null);
+            await this.supabaseService.updateNewsBroadcast(id, {
+                status: 'rejected',
+                reviewed_by: current?.id || null,
+                reviewed_at: new Date().toISOString()
+            });
+            if (this.selectedBroadcast) this.selectedBroadcast.status = 'rejected';
+            this.stopFinalAudioPolling();
+            this.snackBar.open('Noticiero rechazado', 'Cerrar', { duration: 3000, panelClass: ['success-snackbar'] });
+            await this.loadBroadcasts().catch(() => undefined);
+        } catch (error: any) {
+            console.error('Error rejecting from timeline:', error);
+            this.snackBar.open(error?.message || 'Error al rechazar', 'Cerrar', { duration: 3500, panelClass: ['error-snackbar'] });
+        } finally {
             this.cdr.detectChanges();
         }
     }

@@ -169,6 +169,14 @@ export class EquipoComponent implements OnInit {
         this.loadingReviews = true;
         try {
             const broadcasts = await this.supabaseService.getPendingReviewBroadcasts();
+            const broadcastIds = Array.from(new Set((broadcasts || []).map((b: any) => String(b?.id || '')).filter(Boolean)));
+            const latestAudioRows = await this.supabaseService.getLatestGeneratedBroadcastsForBroadcastIds(broadcastIds).catch(() => []);
+            const audioMap = new Map<string, any>();
+            for (const row of latestAudioRows || []) {
+                const bid = String((row as any)?.broadcast_id || '').trim();
+                if (!bid) continue;
+                audioMap.set(bid, row);
+            }
             const ids = Array.from(new Set((broadcasts || []).map((b: any) => String(b?.created_by || '')).filter(Boolean)));
             let profiles: any[] = [];
             try {
@@ -180,9 +188,11 @@ export class EquipoComponent implements OnInit {
             }
             this.pendingReviews = (broadcasts || []).map((b: any) => {
                 const p = map.get(String(b?.created_by || '')) || null;
+                const audio = audioMap.get(String(b?.id || '').trim()) || null;
                 return {
                     ...b,
-                    created_by_name: (p?.full_name && String(p.full_name).trim()) || (p?.email && String(p.email).trim()) || 'Usuario'
+                    created_by_name: (p?.full_name && String(p.full_name).trim()) || (p?.email && String(p.email).trim()) || 'Usuario',
+                    final_audio_url: audio?.audio_url || null
                 };
             });
         } catch (error: any) {

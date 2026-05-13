@@ -675,6 +675,13 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         justify-content: flex-end;
         align-items: center;
+        gap: 10px;
+    }
+
+    .final-audio-review {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
     }
 
     .tool-btn {
@@ -702,6 +709,18 @@ $transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             color: $text-primary;
             border-color: $text-muted;
         }
+    }
+
+    .review-approve {
+        border-color: rgba(16, 185, 129, 0.22);
+        background: rgba(16, 185, 129, 0.14);
+        color: #a7f3d0;
+    }
+
+    .review-reject {
+        border-color: rgba(239, 68, 68, 0.22);
+        background: rgba(239, 68, 68, 0.14);
+        color: rgba(254, 202, 202, 0.95);
     }
 
     .final-audio-player {

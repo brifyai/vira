@@ -1035,6 +1035,32 @@ export class SupabaseService {
         return data;
     }
 
+    async getLatestGeneratedBroadcastsForBroadcastIds(broadcastIds: string[], limit: number = 200) {
+        const ids = Array.isArray(broadcastIds) ? broadcastIds.map(id => String(id || '').trim()).filter(Boolean) : [];
+        if (ids.length === 0) return [];
+
+        const max = Math.max(1, Math.min(500, Number(limit || 200)));
+        const { data, error } = await this.supabase
+            .from('generated_broadcasts')
+            .select('id, broadcast_id, audio_url, created_at, duration_seconds')
+            .in('broadcast_id', ids)
+            .order('created_at', { ascending: false })
+            .limit(max);
+
+        if (error) throw error;
+
+        const seen = new Set<string>();
+        const latest: any[] = [];
+        for (const row of data || []) {
+            const bid = String((row as any)?.broadcast_id || '').trim();
+            if (!bid || seen.has(bid)) continue;
+            seen.add(bid);
+            latest.push(row);
+            if (seen.size >= ids.length) break;
+        }
+        return latest;
+    }
+
     async createGeneratedBroadcast(broadcast: any) {
         const { data, error } = await this.supabase
             .from('generated_broadcasts')

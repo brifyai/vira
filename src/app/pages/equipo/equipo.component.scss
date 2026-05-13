@@ -152,6 +152,14 @@
     gap: 10px;
 }
 
+.review-audio {
+    min-width: 260px;
+}
+
+.review-audio--empty {
+    opacity: 0.7;
+}
+
 .review-open-btn {
     border-color: rgba(99, 102, 241, 0.22);
     background: rgba(99, 102, 241, 0.16);

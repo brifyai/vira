@@ -128,6 +128,7 @@
                     <th>Noticiero</th>
                     <th>Usuario</th>
                     <th>Fecha</th>
+                    <th>Audio</th>
                     <th></th>
                 </tr>
             </thead>
@@ -141,9 +142,13 @@
                     </td>
                     <td>{{ r.created_by_name }}</td>
                     <td>{{ r.created_at ? (r.created_at | date:'dd-MM-yyyy, HH:mm') : '' }}</td>
+                    <td class="review-audio">
+                        <audio *ngIf="r.final_audio_url" class="audio-slim" [src]="r.final_audio_url" controls controlsList="nodownload noplaybackrate" disableRemotePlayback (contextmenu)="$event.preventDefault()"></audio>
+                        <span *ngIf="!r.final_audio_url" class="review-audio--empty">Generando…</span>
+                    </td>
                     <td class="actions">
                         <div class="review-actions">
-                            <button class="quota-btn review-open-btn" (click)="openReviewTimeline(r)">Escuchar</button>
+                            <button class="quota-btn review-open-btn" (click)="openReviewTimeline(r)">Ir al timeline</button>
                             <button class="quota-btn" (click)="approveReview(r)">Aprobar</button>
                             <button class="danger-btn" (click)="rejectReview(r)">Rechazar</button>
                         </div>
