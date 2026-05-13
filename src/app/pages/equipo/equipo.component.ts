@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatIconModule } from '@angular/material/icon';
+import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import { SupabaseService, AudioQuotaSummary, AudioQuotaAdjustmentEvent } from '../../services/supabase.service';
 import { QuotaService } from '../../services/quota.service';
@@ -59,7 +60,8 @@ export class EquipoComponent implements OnInit {
         private supabaseService: SupabaseService,
         private cdr: ChangeDetectorRef,
         private snackBar: MatSnackBar,
-        private quotaService: QuotaService
+        private quotaService: QuotaService,
+        private router: Router
     ) { }
 
     private getDeleteSwalTheme() {
@@ -208,6 +210,11 @@ export class EquipoComponent implements OnInit {
             console.error('Error approving review:', error);
             this.showSnackBar(error?.message || 'Error al aprobar', 'error-snackbar');
         }
+    }
+
+    openReviewTimeline(review: any) {
+        if (!review?.id) return;
+        this.router.navigate(['/timeline-noticiario', review.id]);
     }
 
     async rejectReview(review: any) {

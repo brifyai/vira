@@ -146,6 +146,18 @@
     text-align: right;
 }
 
+.review-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.review-open-btn {
+    border-color: rgba(99, 102, 241, 0.22);
+    background: rgba(99, 102, 241, 0.16);
+    color: rgba(224, 231, 255, 0.95);
+}
+
 .quota-cell {
     min-width: 260px;
 }

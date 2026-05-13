@@ -142,8 +142,11 @@
                     <td>{{ r.created_by_name }}</td>
                     <td>{{ r.created_at ? (r.created_at | date:'dd-MM-yyyy, HH:mm') : '' }}</td>
                     <td class="actions">
-                        <button class="quota-btn" (click)="approveReview(r)">Aprobar</button>
-                        <button class="danger-btn" (click)="rejectReview(r)">Rechazar</button>
+                        <div class="review-actions">
+                            <button class="quota-btn review-open-btn" (click)="openReviewTimeline(r)">Escuchar</button>
+                            <button class="quota-btn" (click)="approveReview(r)">Aprobar</button>
+                            <button class="danger-btn" (click)="rejectReview(r)">Rechazar</button>
+                        </div>
                     </td>
                 </tr>
             </tbody>
