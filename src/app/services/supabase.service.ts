@@ -256,7 +256,23 @@ export class SupabaseService {
             .limit(limit);
 
         if (error) throw error;
-        return (data || []) as AudioQuotaAdjustmentEvent[];
+        return (data || []).map((row: any) => {
+            const rawActor = row?.actor;
+            const actor = Array.isArray(rawActor) ? (rawActor[0] ?? null) : (rawActor ?? null);
+            return {
+                id: String(row?.id || ''),
+                target_user_id: String(row?.target_user_id || ''),
+                actor_user_id: row?.actor_user_id ? String(row.actor_user_id) : null,
+                mode: row?.mode === 'set' ? 'set' : 'delta',
+                delta_minutes: Number(row?.delta_minutes || 0),
+                previous_quota_minutes: Number(row?.previous_quota_minutes || 0),
+                new_quota_minutes: Number(row?.new_quota_minutes || 0),
+                created_at: String(row?.created_at || ''),
+                actor: actor
+                    ? { id: String(actor?.id || ''), full_name: actor?.full_name ?? null, email: actor?.email ?? null }
+                    : null
+            } satisfies AudioQuotaAdjustmentEvent;
+        });
     }
 
     async createUser(user: { email: string; password: string; role: string; fullName?: string }) {
