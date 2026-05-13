@@ -15,6 +15,7 @@ interface CustomVoice {
   provider?: string;
   voiceId?: string;
   audioPromptUrl?: string;
+  previewAudioUrl?: string;
   targetModel?: string;
   speed?: number;
   language?: string;
@@ -1043,6 +1044,16 @@ export class RecursosComponent implements OnInit {
   }
 
   async playVoice(voice: CustomVoice): Promise<void> {
+    const cachedPreviewUrl = String(voice.previewAudioUrl || '').trim();
+    if (cachedPreviewUrl) {
+      this.lastPlayErrorVoiceId = null;
+      this.playingVoiceLoadingId = null;
+      this.playingVoiceId = voice.id;
+      this.playingVoiceUrl = cachedPreviewUrl;
+      this.cdr.detectChanges();
+      return;
+    }
+
     const text =
       'Esta es una muestra corta de la voz que usarás en tus noticieros.';
     const isChatterbox = voice.provider === 'chatterbox-vira' || voice.name.startsWith('chatterbox:');
@@ -1084,7 +1095,27 @@ export class RecursosComponent implements OnInit {
         }),
         timeoutPromise
       ]);
-      this.playingVoiceUrl = url;
+      let finalUrl = url;
+      try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const path = `voice-previews/${voice.id}.mp3`;
+        const uploadedUrl = await this.supabaseService.uploadAudio(blob, path);
+        finalUrl = uploadedUrl;
+        if (String(url).startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+
+        const idx = this.voices.findIndex(v => v.id === voice.id);
+        if (idx !== -1) {
+          this.voices[idx] = { ...this.voices[idx], previewAudioUrl: uploadedUrl };
+          await this.persistVoices();
+        }
+      } catch (e) {
+        console.warn('No se pudo guardar el preview de audio, se usará uno temporal', e);
+      }
+
+      this.playingVoiceUrl = finalUrl;
     } catch (error) {
       console.error('Error reproduciendo voz', error);
       this.snackBar.open('Error al reproducir esta voz', 'Cerrar', {
@@ -1104,6 +1135,22 @@ export class RecursosComponent implements OnInit {
       this.playingVoiceLoadingId = null;
       this.cdr.detectChanges();
     }
+  }
+
+  getVoiceCardSubtitle(voice: CustomVoice): string {
+    const isChatterbox = voice.provider === 'chatterbox-vira' || voice.name.startsWith('chatterbox:');
+    if (isChatterbox) return 'Voz clonada';
+
+    const isQwen = String(voice.name || '').startsWith('qwen:') || (voice.provider || '').toLowerCase().includes('qwen');
+    if (!isQwen) return 'Voz personalizada';
+
+    const raw = String(voice.voiceId || voice.name || '').replace(/^qwen:/, '');
+    const cleaned = raw
+      .replace(/^qwen\d*-tts-vc-/i, '')
+      .replace(/^qwen-tts-vc-/i, '')
+      .trim();
+    if (!cleaned) return 'Voz clonada';
+    return `ID: ${cleaned}`;
   }
 
   private async persistVoices(): Promise<void> {

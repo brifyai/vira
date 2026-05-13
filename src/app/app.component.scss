@@ -84,7 +84,6 @@ body {
     gap: 16px;
     justify-self: start;
     min-width: 0;
-    overflow: hidden;
 }
 
 .menu-toggle {
@@ -296,7 +295,7 @@ body {
     justify-self: end;
     min-width: 0;
     max-width: 100%;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .quota-indicator {
@@ -394,7 +393,7 @@ body {
 
 .user-menu {
     position: relative;
-    z-index: 1102;
+    z-index: 1200;
 }
 
 .user-caret {
@@ -412,7 +411,7 @@ body {
     border: 1px solid $dark-border;
     background: rgba(15, 23, 42, 0.98);
     box-shadow: $shadow-xl;
-    z-index: 1103;
+    z-index: 1201;
 }
 
 .dropdown-item {

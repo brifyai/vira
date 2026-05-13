@@ -790,8 +790,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
         this.snackBar.open('Noticia agregada', 'Cerrar', {
             duration: 1600,
             panelClass: ['success-snackbar'],
-            horizontalPosition: 'end',
-            verticalPosition: 'top'
+            horizontalPosition: 'center',
+            verticalPosition: 'bottom'
         });
     }
 
@@ -1268,8 +1268,8 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
             this.snackBar.open('Elemento eliminado', 'Cerrar', {
                 duration: 2200,
                 panelClass: ['success-snackbar'],
-                horizontalPosition: 'end',
-                verticalPosition: 'top'
+                horizontalPosition: 'center',
+                verticalPosition: 'bottom'
             });
             this.cdr.detectChanges();
         });
