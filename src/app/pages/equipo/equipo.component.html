@@ -84,11 +84,13 @@
                         <ng-container *ngIf="getMemberQuota(m.member_id) as quota">
                             <span *ngIf="m.is_admin">{{ quota.quota_total_minutes }} min</span>
                             <div class="quota-edit-row" *ngIf="!m.is_admin">
-                                <input type="number" min="0" [(ngModel)]="quotaInputs[m.member_id]">
+                                <div class="quota-current">{{ quota.quota_total_minutes }} min</div>
+                                <input type="number" [(ngModel)]="quotaInputs[m.member_id]" placeholder="+25 / -10">
                                 <button class="quota-btn" (click)="saveMemberQuota(m)" [disabled]="isSavingQuota(m.member_id)">
-                                    {{ isSavingQuota(m.member_id) ? '...' : 'Guardar' }}
+                                    {{ isSavingQuota(m.member_id) ? '...' : 'Ajustar' }}
                                 </button>
                             </div>
+                            <button class="quota-btn quota-history-btn" (click)="openQuotaHistory(m)" *ngIf="!m.is_admin">Historial</button>
                         </ng-container>
                     </td>
                     <td>{{ getMemberQuota(m.member_id)?.used_minutes || 0 }} min</td>
@@ -249,6 +251,58 @@
                 <button class="save-btn" (click)="savePermissions()" [disabled]="savingPermissions">
                     {{ savingPermissions ? 'Guardando...' : 'Guardar' }}
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" *ngIf="showQuotaHistoryModal" (click)="closeQuotaHistoryModal()">
+        <div class="modal-content quota-history-modal" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Historial de cuota</h2>
+                <button class="close-btn" (click)="closeQuotaHistoryModal()">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Usuario</label>
+                    <div class="helper-text">
+                        {{ quotaHistoryMember?.full_name || quotaHistoryMember?.email || 'Usuario' }}
+                    </div>
+                </div>
+
+                <div class="loading-state" *ngIf="loadingQuotaHistory">
+                    <div class="spinner"></div>
+                    <p>Cargando historial...</p>
+                </div>
+
+                <table class="history-table" *ngIf="!loadingQuotaHistory && quotaHistoryEvents.length > 0; else emptyHistory">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Actor</th>
+                            <th>Cambio</th>
+                            <th>Antes → Después</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let e of quotaHistoryEvents">
+                            <td>{{ e.created_at ? (e.created_at | date:'dd-MM-yyyy, HH:mm') : '' }}</td>
+                            <td>{{ e.actor?.full_name || e.actor?.email || (e.actor_user_id ? 'Usuario' : 'Sistema') }}</td>
+                            <td>{{ e.delta_minutes >= 0 ? '+' : '' }}{{ e.delta_minutes }} min</td>
+                            <td>{{ e.previous_quota_minutes }} → {{ e.new_quota_minutes }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <ng-template #emptyHistory>
+                    <div class="empty-state">
+                        <p>No hay cambios de cuota registrados.</p>
+                    </div>
+                </ng-template>
+            </div>
+
+            <div class="modal-footer">
+                <button class="cancel-btn" (click)="closeQuotaHistoryModal()">Cerrar</button>
             </div>
         </div>
     </div>

@@ -25,6 +25,18 @@ export interface GeneratedBroadcastWithQuotaResult {
     already_charged: boolean;
 }
 
+export interface AudioQuotaAdjustmentEvent {
+    id: string;
+    target_user_id: string;
+    actor_user_id: string | null;
+    mode: 'set' | 'delta';
+    delta_minutes: number;
+    previous_quota_minutes: number;
+    new_quota_minutes: number;
+    created_at: string;
+    actor?: { id: string; full_name: string | null; email: string | null } | null;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -222,6 +234,29 @@ export class SupabaseService {
 
         if (error) throw error;
         return data;
+    }
+
+    async adjustUserAudioQuota(userId: string, deltaMinutes: number) {
+        const { data, error } = await this.supabase.rpc('adjust_user_audio_quota_rpc', {
+            p_user_id: userId,
+            p_delta_minutes: Math.round(Number(deltaMinutes || 0))
+        });
+
+        if (error) throw error;
+        return data;
+    }
+
+    async getAudioQuotaAdjustmentEvents(options: { userId: string; limit?: number }) {
+        const limit = Math.max(1, Math.min(200, Number(options?.limit || 50)));
+        const { data, error } = await this.supabase
+            .from('audio_quota_adjustment_events')
+            .select('id, target_user_id, actor_user_id, mode, delta_minutes, previous_quota_minutes, new_quota_minutes, created_at, actor:actor_user_id(id, full_name, email)')
+            .eq('target_user_id', options.userId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) throw error;
+        return (data || []) as AudioQuotaAdjustmentEvent[];
     }
 
     async createUser(user: { email: string; password: string; role: string; fullName?: string }) {

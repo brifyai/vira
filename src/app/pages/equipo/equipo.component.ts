@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import Swal from 'sweetalert2';
-import { SupabaseService, AudioQuotaSummary } from '../../services/supabase.service';
+import { SupabaseService, AudioQuotaSummary, AudioQuotaAdjustmentEvent } from '../../services/supabase.service';
 import { QuotaService } from '../../services/quota.service';
 
 @Component({
@@ -48,6 +48,11 @@ export class EquipoComponent implements OnInit {
     memberExportCounts: Record<string, number> = {};
     loadingReviews = false;
     pendingReviews: any[] = [];
+
+    showQuotaHistoryModal = false;
+    quotaHistoryMember: any | null = null;
+    quotaHistoryEvents: AudioQuotaAdjustmentEvent[] = [];
+    loadingQuotaHistory = false;
 
     constructor(
         private supabaseService: SupabaseService,
@@ -390,7 +395,13 @@ export class EquipoComponent implements OnInit {
 
         this.savingQuotaUserId = memberId;
         try {
-            await this.supabaseService.setUserAudioQuota(memberId, this.quotaInputs[memberId] ?? 0);
+            const delta = Math.round(Number(this.quotaInputs[memberId] ?? 0));
+            if (!isFinite(delta) || delta === 0) {
+                this.showSnackBar('Ingresa un ajuste de minutos (ej: +25)', 'error-snackbar');
+                return;
+            }
+
+            await this.supabaseService.adjustUserAudioQuota(memberId, delta);
             await this.loadTeamQuotaSummaries();
             await this.quotaService.refreshCurrentSummary();
             this.showSnackBar('Cuota actualizada correctamente', 'success-snackbar');
@@ -401,6 +412,34 @@ export class EquipoComponent implements OnInit {
             this.savingQuotaUserId = '';
             this.cdr.detectChanges();
         }
+    }
+
+    async openQuotaHistory(member: any) {
+        const memberId = this.getMemberId(member);
+        if (!memberId) return;
+
+        this.quotaHistoryMember = member;
+        this.quotaHistoryEvents = [];
+        this.loadingQuotaHistory = true;
+        this.showQuotaHistoryModal = true;
+
+        try {
+            this.quotaHistoryEvents = await this.supabaseService.getAudioQuotaAdjustmentEvents({ userId: memberId, limit: 60 });
+        } catch (error: any) {
+            console.error('Error loading quota history:', error);
+            this.showSnackBar(error?.message || 'Error al cargar historial', 'error-snackbar');
+            this.quotaHistoryEvents = [];
+        } finally {
+            this.loadingQuotaHistory = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    closeQuotaHistoryModal() {
+        this.showQuotaHistoryModal = false;
+        this.quotaHistoryMember = null;
+        this.quotaHistoryEvents = [];
+        this.loadingQuotaHistory = false;
     }
 
     getMemberQuota(memberId: string): AudioQuotaSummary | null {
@@ -435,7 +474,7 @@ export class EquipoComponent implements OnInit {
         for (const [memberId, summary] of summaries) {
             if (!memberId || !summary) continue;
             this.memberQuotaSummaries[memberId] = summary;
-            this.quotaInputs[memberId] = summary.quota_total_minutes;
+            this.quotaInputs[memberId] = 0;
         }
 
         const currentUser = await this.supabaseService.getCurrentUser().catch(() => null);
