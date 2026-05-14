@@ -1805,6 +1805,24 @@ export class TimelineNoticiarioComponent implements OnInit, OnDestroy {
                 pitch: Number(event.pitch) || 1.0
             });
 
+            const ttsChars = String(textToSpeak || '').trim().length;
+            if (ttsChars > 0) {
+                const estTokens = Math.max(1, Math.ceil(ttsChars / 4));
+                this.supabaseService.logCostEvent({
+                    action: 'tts_generate_qwen',
+                    module: 'timeline-noticiario',
+                    units: estTokens / 1_000_000,
+                    metadata: {
+                        tts_chars: ttsChars,
+                        est_tokens: estTokens,
+                        est_method: 'chars_div_4',
+                        provider: 'qwen',
+                        model: 'qwen3-tts-vc-2026-01-22',
+                        voice: event.voice || null
+                    }
+                });
+            }
+
             // 2. Mix with Music if configured
             if (event.musicUrl) {
                 try {

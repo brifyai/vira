@@ -2423,15 +2423,20 @@ export class CrearNoticiarioComponent implements OnInit, OnDestroy {
                     return acc + txt.length;
                 }, 0);
             if (ttsChars > 0) {
-                const units = ttsChars / 1000;
+                const estTokens = Math.max(1, Math.ceil(ttsChars / 4));
+                const units = estTokens / 1_000_000;
                 this.supabaseService.logCostEvent({
-                    action: 'tts_generate',
+                    action: 'tts_generate_qwen',
                     module: 'crear-noticiario',
                     units,
                     metadata: {
                         items: this.timelineEvents.filter(e => e.type !== 'ad').length,
                         total_news: this.selectedNews.length,
-                        tts_chars: ttsChars
+                        tts_chars: ttsChars,
+                        est_tokens: estTokens,
+                        est_method: 'chars_div_4',
+                        provider: 'qwen',
+                        model: 'qwen3-tts-vc-2026-01-22'
                     }
                 });
             }

@@ -320,6 +320,24 @@ export class RecursosComponent implements OnInit {
         pitch: this.qwenPitch
       });
 
+      const ttsChars = String(text || '').trim().length;
+      if (ttsChars > 0) {
+        const estTokens = Math.max(1, Math.ceil(ttsChars / 4));
+        this.supabaseService.logCostEvent({
+          action: 'tts_generate_qwen',
+          module: 'recursos',
+          units: estTokens / 1_000_000,
+          metadata: {
+            tts_chars: ttsChars,
+            est_tokens: estTokens,
+            est_method: 'chars_div_4',
+            provider: 'qwen',
+            model: 'qwen3-tts-vc-2026-01-22',
+            kind: 'voice_preview'
+          }
+        });
+      }
+
       if (this.qwenPreviewAudio) {
         this.qwenPreviewAudio.pause();
       }
@@ -365,6 +383,24 @@ export class RecursosComponent implements OnInit {
         speed: this.qwenRate,
         pitch: this.qwenPitch
       });
+
+      const ttsChars = String(text || '').trim().length;
+      if (ttsChars > 0) {
+        const estTokens = Math.max(1, Math.ceil(ttsChars / 4));
+        this.supabaseService.logCostEvent({
+          action: 'tts_generate_qwen',
+          module: 'recursos',
+          units: estTokens / 1_000_000,
+          metadata: {
+            tts_chars: ttsChars,
+            est_tokens: estTokens,
+            est_method: 'chars_div_4',
+            provider: 'qwen',
+            model: 'qwen3-tts-vc-2026-01-22',
+            kind: 'voice_sample_download'
+          }
+        });
+      }
 
       const response = await fetch(url);
       const blob = await response.blob();

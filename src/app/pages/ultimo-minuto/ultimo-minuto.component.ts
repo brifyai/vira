@@ -459,6 +459,24 @@ export class UltimoMinutoComponent implements OnInit {
                 speed: Number(item.voiceSettings.speed) || 1.0,
                 pitch: Number(item.voiceSettings.pitch) || 1.0
             });
+
+            const ttsChars = String(item.humanizedText || '').trim().length;
+            if (ttsChars > 0) {
+                const estTokens = Math.max(1, Math.ceil(ttsChars / 4));
+                this.supabaseService.logCostEvent({
+                    action: 'tts_generate_qwen',
+                    module: 'ultimo-minuto',
+                    units: estTokens / 1_000_000,
+                    metadata: {
+                        tts_chars: ttsChars,
+                        est_tokens: estTokens,
+                        est_method: 'chars_div_4',
+                        provider: 'qwen',
+                        model: 'qwen3-tts-vc-2026-01-22',
+                        voice: item.voiceSettings?.voice || null
+                    }
+                });
+            }
         } catch (error: any) {
             console.error('Error generating audio:', error);
             const errorMessage = error.message || 'Error al generar audio';
